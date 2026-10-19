@@ -10,7 +10,7 @@ import { RoomEnvironment } from '../vendor/addons/environments/RoomEnvironment.j
 import { mergeGeometries } from '../vendor/addons/utils/BufferGeometryUtils.js';
 import { tile, SIZE, T, stageOf, tileRisk, CREW_SPEED, saplingStage, knownDeposit } from './sim.js';
 import { DEPOSITS, BLOCKS, HOURS_PER_DAY, SAPLING, BUILDINGS } from './data.js';
-import { buildModel } from './models.js';
+import { YARD_KINDS, buildModel } from './models.js';
 import { ANIMALS } from './animals.js';
 import { TOWN_KINDS } from './towns.js';
 
@@ -30,16 +30,16 @@ export const QUALITY = {
   // v3 tiers: the old High look is the new Low; Medium/High add the painterly grade, terrain colour variation, shore water and fall forests.
   // grade = colour-grade strength (0 = off), art = painterly terrain/forest colouring, water2 = depth-tinted water with shore foam, tilt = tilt-shift blur
   potato: { name: 'Potato', hidden: true, pr: 0.75, shadows: 0, post: false, ao: false, grass: 0, rocks: 0, smoke: 0.25, msaa: false, bPx: 48, treePx: 56, grassPx: 999, terrPx: 40, near: 0.9, grassNear: 0, shadowDist: 0, haze: 0.3, warm: 0, grade: 0, art: false, water2: false, tilt: 0 },
-  low:    { name: 'Low', pr: 1.5, shadows: 2048, post: true, ao: false, grass: 4, rocks: 3, smoke: 1, msaa: true, bPx: 18, treePx: 22, grassPx: 26, terrPx: 14, near: 1.7, grassNear: 1.3, shadowDist: 40, haze: 0.55, warm: 1, grade: 0, art: false, water2: false, tilt: 0 },
-  medium: { name: 'Medium', pr: 1.75, shadows: 4096, post: true, ao: true, grass: 5, rocks: 3, smoke: 1.5, msaa: true, bPx: 16, treePx: 18, grassPx: 24, terrPx: 12, near: 2.0, grassNear: 1.6, shadowDist: 48, haze: 0.6, warm: 1, grade: 1, art: true, water2: true, tilt: 0 },
-  high:   { name: 'High', pr: 2, shadows: 4096, post: true, ao: true, grass: 7, rocks: 4, smoke: 1.5, msaa: true, bPx: 14, treePx: 16, grassPx: 20, terrPx: 10, near: 2.4, grassNear: 2.0, shadowDist: 60, haze: 0.65, warm: 1, grade: 1.25, art: true, water2: true, tilt: 1 },
+  low:    { name: 'Low', pr: 1.5, shadows: 2048, post: false, ao: false, grass: 4, rocks: 3, smoke: 1, msaa: true, bPx: 18, treePx: 22, grassPx: 26, terrPx: 14, near: 1.7, grassNear: 1.3, shadowDist: 40, haze: 0.55, warm: 1, grade: 0, art: false, water2: false, tilt: 0, clouds: 0 },
+  medium: { name: 'Medium', pr: 1.75, shadows: 4096, post: true, ao: true, grass: 5, rocks: 3, smoke: 1.5, msaa: true, bPx: 16, treePx: 18, grassPx: 24, terrPx: 12, near: 2.0, grassNear: 1.6, shadowDist: 48, haze: 0.6, warm: 1, grade: 1, art: true, water2: true, tilt: 0, clouds: 1 },
+  high:   { name: 'High', pr: 2, shadows: 4096, post: true, ao: true, grass: 7, rocks: 4, smoke: 1.5, msaa: true, bPx: 14, treePx: 16, grassPx: 20, terrPx: 10, near: 2.4, grassNear: 2.0, shadowDist: 60, haze: 0.65, warm: 1, grade: 1.25, art: true, water2: true, tilt: 1, clouds: 1.25 },
 };
 export const QUALITY_ORDER = ['potato', 'low', 'medium', 'high'];
 // painterly colour grade: saturation, warm highlights / cool shadows, soft vignette, optional tilt-shift; NaN-safe
 const GradeShader = {
-  uniforms: { tDiffuse: { value: null }, uSat: { value: 1.15 }, uWarm: { value: 1 }, uVig: { value: 0.35 }, uTilt: { value: 0 }, uRes: { value: new THREE.Vector2(1, 1) } },
+  uniforms: { tDiffuse: { value: null }, uSat: { value: 1.15 }, uWarm: { value: 1 }, uVig: { value: 0.35 }, uTilt: { value: 0 }, uHaze: { value: 0 }, uHazeCol: { value: new THREE.Color(0xc6d8e6) }, uRes: { value: new THREE.Vector2(1, 1) } },
   vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-  fragmentShader: `uniform sampler2D tDiffuse; uniform float uSat, uWarm, uVig, uTilt; uniform vec2 uRes; varying vec2 vUv;
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float uSat, uWarm, uVig, uTilt, uHaze; uniform vec3 uHazeCol; uniform vec2 uRes; varying vec2 vUv;
     void main() {
       vec4 c = texture2D(tDiffuse, vUv);
       if (uTilt > 0.0) { float b = smoothstep(0.45, 1.0, abs(vUv.y - 0.5) * 2.0) * uTilt;
@@ -51,6 +51,7 @@ const GradeShader = {
       float t = smoothstep(0.03, 0.8, l);
       c.rgb *= mix(vec3(1.0), mix(vec3(0.93, 0.98, 1.07), vec3(1.07, 1.01, 0.9), t), uWarm);
       vec2 q = vUv - 0.5; c.rgb *= 1.0 - uVig * dot(q, q) * 1.5;
+      c.rgb = mix(c.rgb, uHazeCol, uHaze * pow(smoothstep(0.3, 1.0, vUv.y), 1.6));
       if (any(isnan(c.rgb)) || any(isinf(c.rgb))) c.rgb = vec3(0.0);
       gl_FragColor = c;
     }`,
@@ -122,6 +123,7 @@ export class Renderer {
       this.composer.addPass(new OutputPass());
     }
     if (this.state) { this.state.dirty = this.state.dirty || {}; this.state.dirty.grass = true; if (prevArt !== null && prevArt !== this.q.art) this.state.dirty.terrain = true; }
+    if (prevArt !== null && prevArt !== this.q.art && this.state) for (const v of this.bvis.values()) { const b = this.state.buildings[v.root.userData.bid]; if (!b || !YARD_KINDS.has(b.kind) || !v.stages[3] || v.fade) continue; v.root.remove(v.stages[3]); delete v.stages[3]; if (v.vis === 3) { this.ensureStage(v, b, 3); this.setOpacity(v.stages[3], 1); } }
     if (this.impostors) for (const k in this.impostors) this.impostors[k].mat.color.setScalar(this.q.art ? 1.35 : 1);
     this.lodForce = true; for (const v of this.bvis.values()) v.lod = -1;
     this.resize();
@@ -308,7 +310,7 @@ export class Renderer {
     this.fogData = new Uint8Array(SIZE * SIZE * 4); this.fogCur = new Float32Array(SIZE * SIZE); this.fogTgt = new Uint8Array(SIZE * SIZE);
     this.fogTex = new THREE.DataTexture(this.fogData, SIZE, SIZE, THREE.RGBAFormat, THREE.UnsignedByteType);
     this.fogTex.magFilter = this.fogTex.minFilter = THREE.LinearFilter; this.fogTex.generateMipmaps = false; this.fogTex.needsUpdate = true;
-    this.worldSize = SIZE; this.uFogSize = { value: SIZE };
+    this.worldSize = SIZE; this.uFogSize = { value: SIZE }; this.uCloud = this.uCloud || { value: 0 };
     this.uFog = { value: this.fogTex }; this.uFogCol = { value: new THREE.Color(0x4a5866) }; this.uFogOn = { value: 1 };
   }
   // read tile visibility into the target buffer (cheap, no GPU work)
@@ -332,22 +334,25 @@ export class Renderer {
     mat.onBeforeCompile = function (sh, r) {
       if (prev) prev.call(this, sh, r);
       sh.uniforms.uFog = self.uFog; sh.uniforms.uFogCol = self.uFogCol; sh.uniforms.uFogOn = self.uFogOn;
-      sh.uniforms.uFogSize = self.uFogSize;
+      sh.uniforms.uFogSize = self.uFogSize; sh.uniforms.uCloud = self.uCloud; sh.uniforms.uCloudT = self.uTime;
       sh.vertexShader = 'uniform float uFogSize; varying vec2 vFogUV;\n' + sh.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>
         vec4 fwp = vec4(${mode === 'object' ? 'vec3(0.0)' : 'transformed'}, 1.0);
         #ifdef USE_INSTANCING
         fwp = instanceMatrix * fwp;
         #endif
         fwp = modelMatrix * fwp; vFogUV = fwp.xz / uFogSize;`);
-      sh.fragmentShader = 'uniform sampler2D uFog; uniform vec3 uFogCol; uniform float uFogOn; varying vec2 vFogUV;\n' + (mode === 'cut'
+      sh.fragmentShader = 'uniform sampler2D uFog; uniform vec3 uFogCol; uniform float uFogOn; uniform float uFogSize; uniform float uCloud; uniform float uCloudT; varying vec2 vFogUV;\n' + `float cN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); float a = fract(sin(dot(i, vec2(127.1, 311.7))) * 43758.5); float b = fract(sin(dot(i + vec2(1.0, 0.0), vec2(127.1, 311.7))) * 43758.5); float c = fract(sin(dot(i + vec2(0.0, 1.0), vec2(127.1, 311.7))) * 43758.5); float d = fract(sin(dot(i + vec2(1.0, 1.0), vec2(127.1, 311.7))) * 43758.5); return mix(mix(a, b, f.x), mix(c, d, f.x), f.y); }
+float cloudShade(vec2 w) { if (uCloud <= 0.0) return 1.0; vec2 p = w * 0.045 - vec2(uCloudT * 0.0225, uCloudT * 0.01125); float n = cN(p) * 0.65 + cN(p * 2.3 + 7.0) * 0.35; return 1.0 - uCloud * 0.2 * smoothstep(0.46, 0.62, n); }
+` + (mode === 'cut'
         ? sh.fragmentShader.replace('void main() {', `void main() {
           if (mix(1.0, texture2D(uFog, vFogUV).r, uFogOn) < 0.5) discard;`)
         : mode === 'object'
         ? sh.fragmentShader.replace('void main() {', `void main() {
           float fogV = mix(1.0, texture2D(uFog, vFogUV).r, uFogOn);
-          if (fogV < 0.999 && fract(sin(dot(floor(gl_FragCoord.xy), vec2(12.9898, 78.233))) * 43758.5453) >= fogV) discard;`)
+          if (fogV < 0.999 && fract(sin(dot(floor(gl_FragCoord.xy), vec2(12.9898, 78.233))) * 43758.5453) >= fogV) discard;`).replace('#include <tonemapping_fragment>', `gl_FragColor.rgb *= cloudShade(vFogUV * uFogSize);
+          #include <tonemapping_fragment>`)
         : sh.fragmentShader.replace('#include <tonemapping_fragment>', `float fogV = mix(1.0, texture2D(uFog, vFogUV).r, uFogOn);
-          gl_FragColor.rgb = mix(uFogCol, gl_FragColor.rgb, fogV); // linear space, before tone mapping (same look with or without post-processing)
+          gl_FragColor.rgb = mix(uFogCol, gl_FragColor.rgb * cloudShade(vFogUV * uFogSize), fogV); /* cloud shadows */ // linear space, before tone mapping (same look with or without post-processing)
           #include <tonemapping_fragment>`));
     };
     mat.customProgramCacheKey = () => 'fog-' + mode + '-' + (mat.userData.swayAmp ?? 'x');
@@ -752,7 +757,7 @@ export class Renderer {
   ensureStage(v, b, s) {
     if (v.stages[s]) return;
     const baseOf = (q) => this.topXY(q.x >> 1, q.y >> 1) - this.topXY(b.tiles[0][0], b.tiles[0][1]);
-    const { group, emitters } = buildModel(s === 4 ? { ...b, ruin: true } : { ...b, ruin: false }, Math.min(s, 3), baseOf);
+    const { group, emitters } = buildModel(s === 4 ? { ...b, ruin: true } : { ...b, ruin: false }, Math.min(s, 3), baseOf, { yard: !!this.q.art });
     // per-building material clones so each building can crossfade independently
     const clones = new Map();
     group.traverse(o => { if (o.isMesh) { if (!clones.has(o.material)) { const c = o.material.clone(); clones.set(o.material, c); if (c.userData.window) this.windowMats.add(c); } o.material = clones.get(o.material); } });
@@ -1206,6 +1211,27 @@ export class Renderer {
     const hz = this.q.haze * Math.min(1, Math.max(0.15, 1.4 - this.zoom)); this.scene.fog.near = (this.underground ? 400 : 0) + dist - half * 0.6; this.scene.fog.far = (this.underground ? 400 : 0) + dist + half * (1.6 / Math.max(0.05, hz));
   }
 
+  // drifting clouds (Medium/High): flattened low-poly puffs high over the map, only shown when zoomed out; shadows come from the same wind in the shaders
+  updateClouds(dt) {
+    const on = (this.q.clouds || 0) > 0 && !this.underground;
+    this.uCloud.value = on ? this.q.clouds : 0;
+    if (this.grade) this.grade.uniforms.uHaze.value = this.underground ? 0 : this.q.haze * 0.42 * Math.min(1, Math.max(0.15, 1.5 - this.zoom));
+    if (!on) { if (this.clouds) this.clouds.visible = false; return; }
+    if (!this.clouds || this.clouds.userData.size !== SIZE) {
+      if (this.clouds) this.scene.remove(this.clouds);
+      const g = new THREE.Group(), m = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0xc9d3dc, transparent: true, opacity: 0.4, depthWrite: false, flatShading: true }), geo = new THREE.IcosahedronGeometry(1, 1);
+      let sd = 1234; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+      const n = Math.round(3 + SIZE / 16);
+      for (let i = 0; i < n; i++) { const c = new THREE.Group(); const k = 3 + Math.floor(rnd() * 3), s0 = 1.3 + rnd() * 1.2;
+        for (let j = 0; j < k; j++) { const p = new THREE.Mesh(geo, m); const s = s0 * (0.6 + rnd() * 0.6); p.scale.set(s * 1.3, s * 0.45, s); p.position.set((j - k / 2) * s0 * 0.9 + rnd(), rnd() * 0.4, (rnd() - 0.5) * s0); c.add(p); }
+        c.position.set(rnd() * (SIZE + 30) - 15, 16 + rnd() * 4, rnd() * (SIZE + 30) - 15); g.add(c); }
+      g.userData = { size: SIZE, mat: m }; g.renderOrder = 5; this.clouds = g; this.scene.add(g);
+    }
+    const fade = Math.min(1, Math.max(0, (1.25 - this.zoom) / 0.5)); this.clouds.visible = fade > 0.01; this.clouds.userData.mat.opacity = 0.38 * fade;
+    if (!this.clouds.visible) return;
+    const W = SIZE + 30; for (const c of this.clouds.children) { c.position.x += dt * 0.5; c.position.z += dt * 0.25; if (c.position.x > W - 15) c.position.x -= W; if (c.position.z > W - 15) c.position.z -= W; }
+  }
+
   // auto quality: after a warm-up, 5 slow seconds in a row (under 24 fps, tab visible) step down one tier; never steps up on its own
   watchdog() {
     if (!this.autoQ || document.hidden) { this.slow = 0; return; }
@@ -1251,6 +1277,7 @@ export class Renderer {
     this.sun.color.setHSL(0.085, 0.45 + 0.3 * (1 - day) + 0.15 * this.q.warm, 0.86 + 0.08 * day);
     for (const m of this.windowMats) m.emissiveIntensity = 0.05 + this.night * 1.6;
     if (this.bloom) this.bloom.strength = this.underground ? 0.06 : 0.22 + 0.25 * this.night;
+    this.updateClouds(dt);
     this.updateCamera(dt); this.updateLOD();
     if (this.composer) this.composer.render(dt); else this.r.render(this.scene, this.cam);
   }

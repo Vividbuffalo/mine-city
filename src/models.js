@@ -974,7 +974,20 @@ Object.assign(MODELS, {
 });
 
 // Returns { group, emitters } in building-local coords (origin = footprint center at ground level).
-export function buildModel(b, stage, baseOf) {
+// per-house yard (Medium/High): low fence or wall round the back and sides, a vegetable bed, a bush and a woodpile or bench
+export const YARD_KINDS = new Set(['polehut', 'hut', 'bonehut', 'mudhouse', 'brickhouse', 'stonehouse', 'timberhouse']);
+function addYard(k, b) {
+  const r = (i) => h01(b.id || 0, i, 7), stoneWall = b.kind === 'stonehouse' || b.kind === 'brickhouse', sx = r(1) < 0.5 ? -1 : 1;
+  if (stoneWall) { k.box(0.92, 0.05, 0.04, 'stoneDark', 0, 0, -0.46); k.box(0.04, 0.05, 0.6, 'stoneDark', -0.46, 0, -0.16); k.box(0.04, 0.05, 0.6, 'stoneDark', 0.46, 0, -0.16); }
+  else k.fence([[-0.46, 0.14], [-0.46, -0.46], [0.46, -0.46], [0.46, 0.14]], 0.05);
+  k.box(0.13, 0.022, 0.38, 'soilDark', sx * 0.38, 0, -0.17); // vegetable bed beside the house
+  const crop = r(2) < 0.5 ? 'crop2' : 'green';
+  for (let i = 0; i < 3; i++) k.box(0.022, 0.035, 0.34, crop, sx * 0.38 - 0.04 + i * 0.04, 0.02, -0.17);
+  k.add(new THREE.IcosahedronGeometry(0.06, 0), mat(r(3) < 0.5 ? 0x4f7d34 : 0x3f6e3a, { flatShading: true }), -sx * 0.36, 0.045, -0.36);
+  if (r(4) < 0.55) { for (let i = 0; i < 3; i++) k.add(new THREE.CylinderGeometry(0.018, 0.018, 0.14, 6), 'wood', -sx * 0.39 + (i === 2 ? 0 : (i - 0.5) * 0.04), 0.018 + (i === 2 ? 0.03 : 0), 0.05, Math.PI / 2, 0, 0); }
+  else { k.box(0.035, 0.02, 0.12, 'woodLight', -sx * 0.39, 0.04, 0.05); k.box(0.03, 0.04, 0.015, 'woodDark', -sx * 0.39, 0, 0); k.box(0.03, 0.04, 0.015, 'woodDark', -sx * 0.39, 0, 0.1); }
+}
+export function buildModel(b, stage, baseOf, opts = {}) {
   let kit;
   if (b.ruin) kit = rubbleModel(b);
   else if (b.kind === 'custom') kit = customModel(b, stage, baseOf);
@@ -983,6 +996,7 @@ export function buildModel(b, stage, baseOf) {
     const def = MODELS[b.kind];
     if (def.gltf) { const c = loadGLTF(def.gltf); if (c.scene) { const s = c.scene.clone(true); s.scale.setScalar(def.scale || 1); s.position.y = def.offsetY || 0; s.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } }); return { group: s, emitters: [] }; } }
     kit = new Kit(); kit.seed = b.id || 0; def.finished(kit);
+    if (opts.yard && YARD_KINDS.has(b.kind)) addYard(kit, b);
   }
   return { group: mergeByMaterial(kit.g), emitters: kit.emitters };
 }
