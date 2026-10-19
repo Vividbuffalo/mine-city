@@ -4,10 +4,13 @@
 // sight and per-terrain movement cost, so new transport eras are data, not new code. A unit's path is planned
 // optimistically through unknown ground and re-planned when what it sees makes the path impossible. It reveals the
 // map only where it physically is. Manual top-down control later is just giving small step destinations.
-import { tile, reveal, T, SIZE, addLog } from './sim.js';
+import { tile, reveal, T, SIZE, addLog, rand } from './sim.js';
+const WCLASS = ['ford', 'shallow', 'deep'];
 
 export const UNIT_TYPES = {
-  scout: { name: 'Scout', era: 1, speed: 2.2, sight: 3, cost: { money: 25 }, max: 3, move: { 0: 1, 1: 1.7, 2: 2.0, 3: 5 } /* by tile type: grass, forest, hill, water (fording a river: slow; dangers later) */, steepCost: 3.2 },
+  scout: { name: 'Scout', era: 1, speed: 2.2, sight: 3, cost: { money: 25 }, max: 3, move: { 0: 1, 1: 1.7, 2: 2.0 } /* by tile type: grass, forest, hill */,
+    water: { ford: 3, shallow: 4.5, deep: Infinity } /* wading cost by river class; deep needs a raft/boat/bridge */,
+    drown: { ford: 0.002, shallow: 0.008 } /* chance per water tile crossed, no warning */, steepCost: 3.2 },
   // future rows: horse rider (speed ~6, sight 4), boat (water only), wagon party, plane (ignores terrain), satellite (orbit sweep)
 };
 const UNKNOWN_COST = 1.3; // planning cost through unexplored ground (the unit doesn't know what's there)
@@ -16,6 +19,7 @@ export function moveCost(state, ut, x, y, known = true) {
   const t = tile(state, x, y); if (!t) return Infinity;
   if (!t.vis && !known) return UNKNOWN_COST;
   if (!t.vis) return UNKNOWN_COST;
+  if (t.t === T.WATER) { if (t.bridge) return 1; return (ut.water || {})[WCLASS[t.wd ?? 2]] ?? Infinity; }
   let c = ut.move[t.t] ?? 1; if (t.t === T.HILL && t.h >= 2 && !t.lv) c = ut.steepCost ?? c;
   if (t.road) c *= 0.5; return c;
 }
@@ -51,6 +55,7 @@ export function orderMove(state, u, tx, ty) {
   u.path = path; u.dest = [tx, ty]; u.state = path.length ? 'moving' : 'idle'; state.dirty.units = true; return { ok: true };
 }
 export function tickUnits(state, hours = 1) {
+  if ((state.units || []).some(u => u.dead)) state.units = state.units.filter(u => !u.dead);
   for (const u of state.units || []) {
     u.px = u.x; u.py = u.y; if (!u.path.length) continue;
     const ut = UNIT_TYPES[u.kind]; let budget = ut.speed * hours;
@@ -58,9 +63,15 @@ export function tickUnits(state, hours = 1) {
       const [nx, ny] = u.path[0], c = moveCost(state, ut, nx, ny);
       if (c === Infinity) { const r = orderMove(state, u, u.dest[0], u.dest[1]); if (!r.ok) { u.path = []; u.state = 'blocked'; addLog(state, `Scout found no way to (${u.dest[0]}, ${u.dest[1]}).`); } break; }
       const dx = nx - u.x, dy = ny - u.y, d = Math.hypot(dx, dy), need = d * c;
-      if (need <= budget) { u.x = nx; u.y = ny; u.path.shift(); budget -= need; u.dist += d; unitReveal(state, u); }
+      if (need <= budget) {
+        u.x = nx; u.y = ny; u.path.shift(); budget -= need; u.dist += d; unitReveal(state, u);
+        const wt = tile(state, nx, ny);
+        if (wt && wt.t === T.WATER && !wt.bridge && rand(state) < ((ut.drown || {})[WCLASS[wt.wd ?? 2]] || 0)) { u.dead = true; addLog(state, `${ut.name} #${u.id} was swept away crossing the river at (${nx}, ${ny}).`); break; }
+      }
       else { const f = budget / need; u.x += dx * f; u.y += dy * f; u.dist += d * f; budget = 0; }
     }
+    if (u.dead) { state.dirty.units = true; continue; }
     if (!u.path.length && u.state === 'moving') { u.state = 'arrived'; addLog(state, `Scout reached (${u.dest[0]}, ${u.dest[1]}).`); }
   }
+  if ((state.units || []).some(u => u.dead)) state.units = state.units.filter(u => !u.dead);
 }

@@ -4,53 +4,63 @@
 <meta charset="utf-8">
 <title>EARTH</title>
 <script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#b9d6ea">
+<meta name="mobile-web-app-capable" content="yes">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <canvas id="view"></canvas>
 <div id="topbar">
-  <div class="brand">EARTH</div>
-  <div class="stat" title="Money">💰 <span id="s-money">0</span></div>
-  <div class="stat" title="Population">👥 <span id="s-pop">0</span></div>
-  <div class="stat" title="Happiness">🙂 <span id="s-happy">0</span></div>
-  <div class="stat" title="Era">🏺 <span id="s-era"></span></div>
-  <div class="stat" id="s-date"></div>
-  <div class="speeds" id="speeds"></div>
-  <div class="stat fps" id="s-fps"></div>
-  <div class="res" id="s-res"></div>
+  <div class="brand" id="brand">EARTH</div>
+  <div class="stat" title="Money">💰<span id="s-money">0</span></div>
+  <div class="stat" title="Population">👥<span id="s-pop">0</span></div>
+  <div class="stat" title="Happiness">🙂<span id="s-happy">0</span></div>
+  <div class="stat era" title="Era">🏺<span id="s-era"></span></div>
+  <div class="stat date" id="s-date" title="Date (1 game hour = 1 second at 1x)"></div>
+  <div class="speeds"><button id="sp-pause" title="Pause / play (0)">⏸</button><button id="sp-speed" title="Game speed (1–6)">1x</button></div>
+  <div class="stat fps hidden" id="s-fps"></div>
 </div>
-<div id="toolbar">
-  <button data-tool="select" title="Select / inspect (Esc)">🔍<span>Select</span></button>
-  <button data-tool="road" title="Dirt road (drag) – 2 money/tile">🛤️<span>Road</span></button>
-  <button data-tool="build" title="Build menu">🏠<span>Build</span></button>
-  <button data-tool="survey" title="Survey (15 money, 12 h, radius 4)">🧭<span>Survey</span></button>
-  <button data-tool="scout" title="Scouts: hire, select and send them to explore">🚶<span>Scout</span></button>
-  <button data-tool="level" title="Level / terrace steep ground (needs Earthworks + Carpenter's Yard; 40 money + 6 stone, 30 h)">⛰️<span>Level</span></button>
-  <button data-tool="block" title="Block build (B)">🧱<span>Blocks</span></button>
-  <button data-tool="bulldoze" title="Bulldoze">🚜<span>Bulldoze</span></button>
-  <button id="btn-under" title="Underground view (U)">⛏️<span>Under</span></button>
-</div>
-<div id="buildmenu" class="hidden"><div id="bm-cats"></div><div id="bm-items"></div></div>
-<div id="blockbar" class="hidden">
-  <div id="bb-mats"></div>
-  <select id="bb-func"></select>
-  <button id="bb-commit">Build it</button>
-  <button id="bb-clear">Clear</button>
-  <div id="bb-cost"></div>
-  <div class="bb-help">Click: add block · Shift-click: remove top block</div>
-</div>
-<div id="topright">
-  <button data-panel="tech">Tech</button><button data-panel="stats">Stats</button><button data-panel="log">Log</button>
-  <button id="btn-save">Save</button><button id="btn-load">Load</button><button id="btn-export">Export</button><button id="btn-import">Import</button>
-  <button data-panel="newgame">New</button><button data-panel="dev" class="dev">Dev</button>
-  <select id="q-sel" title="Graphics quality"></select>
+<button id="btn-menu" title="Menu">☰</button>
+<div id="menu" class="hidden">
+  <button data-panel="tech"><i>🔬</i>Research</button>
+  <button data-panel="stats"><i>📊</i>Town & resources</button>
+  <button data-panel="log"><i>📜</i>Event log</button>
+  <button id="m-help"><i>⌨️</i>Controls</button>
+  <hr>
+  <button id="btn-save"><i>💾</i>Save</button>
+  <button id="btn-load"><i>📂</i>Load</button>
+  <button id="btn-export"><i>⬇️</i>Export file</button>
+  <button id="btn-import"><i>⬆️</i>Import file</button>
+  <button data-panel="newgame"><i>✨</i>New game</button>
+  <hr>
+  <label class="mrow"><i>🎨</i>Graphics <select id="q-sel"></select></label>
+  <button data-panel="dev" id="m-dev" class="hidden"><i>🛠️</i>Dev tools</button>
   <input type="file" id="file-import" accept=".json" class="hidden">
 </div>
-<div id="info" class="hidden"></div>
-<div id="panel" class="hidden"><div class="ph"><span id="panel-title"></span><button id="panel-close">✕</button></div><div id="panel-body"></div></div>
-<div id="eventline"></div>
-<div id="toast"></div>
+<div id="toolbar">
+  <button data-tool="select" data-tip="Inspect / select: tap a building, unit or ground. Drag a box to select several units.">🔍<span>Select</span></button>
+  <button data-tool="build" data-tip="Build: pick a building, then tap the map">🏠<span>Build</span></button>
+  <button data-tool="road" data-tip="Road: tap or drag tiles; tap two points in a line to fill it (2 money/tile)">🛤️<span>Road</span></button>
+  <button data-tool="plant" data-tip="Plant trees: saplings (3 money) grow into trees over a few days">🌱<span>Plant</span></button>
+  <button data-tool="scout" data-tip="Scouts: hire one, select it, then tap the map to send it exploring">🚶<span>Scout</span></button>
+  <button data-tool="survey" data-tip="Survey: find buried deposits (needs Prospecting)">🧭<span>Survey</span></button>
+  <button data-tool="level" data-tip="Level: terrace steep ground so it can be built on (Earthworks)">⛰️<span>Level</span></button>
+  <button data-tool="dismantle" data-tip="Dismantle: workers take a building or road apart and recover some materials">🪓<span>Dismantle</span></button>
+  <button id="btn-under" data-tip="Underground view (U)">⛏️<span>Under</span></button>
+</div>
+<div id="viewctl"><button id="btn-help" title="Controls (?)">⌨️</button><button id="rot-l" title="Rotate view (Q)">⟲</button><button id="rot-r" title="Rotate view (E)">⟳</button></div>
+<div id="placing" class="hidden"><img id="pl-img" alt=""><span id="pl-name"></span><button id="pl-rot" title="Rotate building (R)">↻</button><button id="pl-menu" title="Choose another">☰</button><button class="x" id="pl-x" title="Cancel (Esc)">✕</button></div>
+<div id="legend" class="sheet hidden"><div class="sh-head"><b>Controls</b><button class="x" id="lg-close">✕</button></div><div id="legend-body"></div></div>
+<div id="selbox" class="hidden"></div>
+<div id="tip" class="hidden"></div>
+<div id="buildmenu" class="sheet hidden">
+  <div class="sh-head"><b>Build</b><span id="bm-res" class="res"></span><button class="x" id="bm-close">✕</button></div>
+  <div id="bm-cats"></div><div id="bm-items"></div>
+</div>
+<div id="info" class="sheet hidden"></div>
+<div id="panel" class="sheet hidden"><div class="sh-head"><b id="panel-title"></b><button class="x" id="panel-close">✕</button></div><div id="panel-body"></div></div>
+<div id="toasts"></div>
 <div id="title">
   <div class="t-card">
     <div class="t-logo">EARTH</div>
@@ -61,7 +71,7 @@
       <button id="t-sand">Sandbox</button>
     </div>
     <label class="t-q">Graphics <select id="t-q"></select></label>
-    <div class="t-foot">Early build · single-player · PC browser</div>
+    <div class="t-foot">Early build · single-player</div>
   </div>
 </div>
 <script type="module" src="src/main.js"></script>

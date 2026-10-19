@@ -24,7 +24,7 @@ export const BUILDINGS = {
   store:      { name: 'General Store', cat: 'Shops', era: 2, size: 1, cost: { money: 80, brick: 12, wood: 4 }, time: 24, jobs: 4, shop: 70, weight: 1, upkeep: 1 },
   field:      { name: 'Field', cat: 'Food', era: 1, size: 2, cost: { money: 15, wood: 2 }, time: 8, jobs: 2, food: 14, weight: 0.3, upkeep: 0, terrain: [0] },
   granary:    { name: 'Granary', cat: 'Food', era: 2, size: 1, cost: { money: 60, brick: 8, wood: 6 }, time: 20, jobs: 1, weight: 1.5, upkeep: 0.5 },
-  woodcutter: { name: 'Woodcutter', cat: 'Mining', era: 1, size: 1, cost: { money: 20 }, time: 6, jobs: 2, extract: 'wood', rate: 12, radius: 3, weight: 0.5, upkeep: 0 },
+  woodcutter: { name: 'Woodcutter', cat: 'Mining', era: 1, size: 1, cost: { money: 20 }, time: 6, jobs: 2, extract: 'wood', rate: 16, radius: 3, woodPerTree: 4, weight: 0.5, upkeep: 0 },
   claypit:    { name: 'Clay Pit', cat: 'Mining', era: 1, size: 1, cost: { money: 25, wood: 2 }, time: 8, jobs: 2, extract: ['clay'], rate: 10, radius: 2, maxDepth: 5, weight: 0.3, upkeep: 0.2 },
   quarry:     { name: 'Quarry', cat: 'Mining', era: 1, size: 1, cost: { money: 30, wood: 4 }, time: 10, jobs: 3, extract: ['stone'], rate: 8, radius: 2, maxDepth: 5, weight: 0.3, upkeep: 0.3 },
   orepit:     { name: 'Ore Pit', cat: 'Mining', era: 1, size: 1, cost: { money: 40, wood: 6 }, time: 12, jobs: 3, extract: ['copper', 'tin'], rate: 5, radius: 2, maxDepth: 5, weight: 0.3, upkeep: 0.3 },
@@ -45,10 +45,18 @@ export const TECHS = {
   timber:   { name: 'Timber Supports', era: 2, cost: 70, req: [] },
   writing:  { name: 'Writing', era: 2, cost: 90, req: [] },
   earthworks: { name: 'Earthworks & Terracing', era: 2, cost: 60, req: [] },
+  prospecting: { name: 'Prospecting (Survey)', era: 2, cost: 50, req: [] },
 };
 
 // Terrain levelling. Bronze: cut a terrace into a steep (mountain) tile so it can be built on. Later eras: full levelling / cutting into mountains (design).
 export const EARTHWORKS = { cost: { money: 40, stone: 6 }, hours: 30, needs: 'carpentry', tech: 'earthworks' };
+
+// Deposits visible on the surface without surveying (clay banks, stone outcrops, copper stains): max depth in m
+export const SURFACE_DEPTH = { clay: 2, stone: 2, copper: 3, tin: 2 };
+// Saplings: planting cost and growth (game hours per stage: sapling -> young -> grown tree)
+export const SAPLING = { cost: { money: 3 }, stages: [48, 96], grownAt: 144 };
+// Dismantling (early eras): reverse construction at this fraction of build time, refunds part of the materials
+export const DISMANTLE = { timeMult: 0.6, refund: 0.5, bulldozerEra: 'Industrial' };
 
 export const ERA_REQ = { 1: { pop: 50, bricksMade: 100, techs: ['pottery', 'smelting'] } };
 

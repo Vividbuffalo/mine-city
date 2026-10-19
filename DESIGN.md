@@ -1,6 +1,8 @@
-# EARTH — Game Design Document (draft v0.8)
+# EARTH — Game Design Document (draft v0.9)
 
 > Formerly "Mine City". Title screen line: "Welcome to Earth. Enjoy the journey."
+
+*v0.9 changes (game v2.1): block building dropped (ready-made buildings only); Dismantle replaces early Bulldoze (bulldozer is a late-era unlock); Plant Trees tool and visible tree felling/regrowth; surface-visible resources in the Stone era, Survey/Prospecting and the Underground view unlock in Bronze; river depth classes (fords, shallow reaches, deep channels) with wading risk; mobile/touch UI, controls legend, smooth camera, GPU fog of war (App. H).*
 
 *v0.8 changes: renamed EARTH, with a title screen; graphics, LOD and art direction (App. B); terrain levelling and terracing in the MVP, dynamic cultures, exploration by era, hidden exploration dangers (App. C); exploration, units and direct-control spec, with completion-only fog reveal and a Scout unit in the MVP; controlling Earth is one possible objective, not mandatory (App. D); personal role routes (App. E); tunnel boring (App. F); driving stays top-down.*
 
@@ -75,7 +77,8 @@ Current scope is **building and flow**: placing, mining, processing, growing. Ri
 Deposits have **size**, **grade** (richness) and **depth**. Shallow, rich deposits are rare.
 
 ### Surveying
-- **Era 1:** read surface signs (outcrops, stained rock, river clay). Cheap, vague.
+- **Stone & Clay era: no Survey tool.** Only what is visible on the surface is known: clay banks along rivers, exposed stone outcrops on hills, green copper/malachite stains on rock, and trees. These show up naturally as land is explored, as subtle terrain features (tinted ground, rock), not icons or hints. Clay pits, quarries and ore pits work on these visible surface deposits, so the era is fully playable.
+- **Bronze era: Survey / Prospecting** is researched (Prospecting tech) and shows buried deposits within a radius.
 - **Later:** test pits → core drilling → survey office. Each step gives more exact size, grade and depth.
 - Results show as a heat-map overlay.
 
@@ -185,7 +188,7 @@ Unlike SimCity, you **don't paint zones and wait for houses to appear**. You pic
 - Optional later: **district tags** you paint over areas just for stats and simple rules (tax rate, quiet zone).
 
 ### Construction stages (shown every time)
-Every building — menu building or block-build — visibly goes through **four stages**:
+Every building visibly goes through **four stages**:
 
 1. **Foundation** — cleared ground, footings, stakes and string
 2. **Frame** — timber/stone/iron skeleton, scaffolding
@@ -207,12 +210,12 @@ Pressures: bad water causes disease, mines and smelters pollute, overcrowding hu
 - **Happiness:** 0–100 per neighbourhood from needs met, pollution, jobs, taxes. Low → people leave; high → growth and faster research.
 - **Research:** from population, schools, and first-time "discoveries" (e.g. first bronze).
 
-## 9. Block-build mode
+## 9. Ready-made buildings only (block building dropped)
 
-- Toggle on any plot you own. Place cubes (slopes/half-blocks later) layer by layer: place, remove, fill, copy/paste, rotate, layer slicer.
-- **Blocks cost real materials** (brick from kilns, bronze from smelters). Sandbox: free blocks.
-- Give the finished build a **function** (house, shop, workshop, monument) so it joins the simulation.
-- Builds are constructed in stages like any building (§8), have a **weight** for subsidence (§7), can collapse and be rebuilt like any building, and can be saved as **blueprints**.
+- **Decision (v0.9):** there is no Minecraft-style block/creative building. Players only choose and place **ready-made buildings** from the build menu (picture thumbnails rendered from the in-game models; name and cost; locked items greyed out with the reason).
+- Variety comes from many building types per era, rotations, cultural styles and upgrades, not from free-form construction.
+- Old saves that contain block-built buildings still load; those buildings stay as "legacy custom buildings" and keep working until dismantled.
+- AI civs' unique landmarks come from **procedural architecture** (App. G), not from player blocks. Importing an outside image to generate a building stays a far-future idea (FUTURE-IDEAS.md).
 
 ## 10. Eras and tech tree
 
@@ -264,12 +267,13 @@ Normal play takes a while. For development and testing:
 ## 12. UI layout (in words)
 
 - **Top bar:** money, population, happiness, era, date, speed buttons.
-- **Left toolbar:** Roads, Build menu (by category), Mining, Services & Emergency, Survey, Block Build, Bulldoze, **Underground view** toggle.
+- **Toolbar** (left column on desktop and landscape phones, bottom bar on portrait phones): Select, Build, Road, Plant trees, Scout, Survey (Bronze+), Level (Bronze+), Dismantle, **Underground view** (Bronze+). Long-press a tool on touch to see its description.
+- **Menu button (☰):** Research, Town & resources, Event log, Controls, Save / Load / Export / Import, New game, Graphics quality. Dev tools are hidden in normal play (enable with `?dev=1`).
 - **Placement:** pick a building → a see-through preview follows the mouse, snaps to the grid, R rotates, green/red shows if it fits (fit only, never subsidence risk; switch to underground view to look at workings below). Click to place; construction starts.
 - **Bottom-right:** minimap; overlay buttons (deposits, pollution, happiness, land value, traffic, **service coverage**).
 - **Right panel (selected item):** info card — inputs → output, workers, construction stage, mine depth tier, Skip button.
 - **Top-right:** tech tree, town stats, a plain **event log** of things that already happened ("House collapsed: 3 dead", "Rescue crew arrived") — no advice or hints, save/load, dev panel (dev builds only).
-- **Block-build mode:** toolbar swaps to a block palette; layer slider on the right.
+- **Cards and panels are small sheets** with a close button (bottom sheets on phones); only one is open at a time. The event log appears as short fading toasts; the full log is in the menu. A small **controls legend** (⌨️ button or `?`) lists keyboard, mouse and touch controls; it is reference only, not a tutorial.
 
 ## 13. First playable version (MVP)
 
@@ -288,7 +292,7 @@ Normal play takes a while. For development and testing:
 - **One "Rescue & Cleanup Post"** building (1–2 crews) that handles rescue and then rubble clearing; full pipeline incident → travel → rescue → cleanup → rebuild
 - **Vehicles on roads** with pathfinding: one rescue cart and one cleanup cart model, smooth turning, lanterns
 - Basic needs (food, water, housing, jobs) → happiness; money and population loop
-- Block-build mode with 4–6 block types that cost materials
+- Ready-made buildings only; Dismantle; Plant Trees; mobile/touch play
 - Speed 1x–50x, skip buttons, sandbox start in either era
 - Save/load in the browser + export to file
 - No tutorial or hints; plain stats panel and event log only
@@ -339,7 +343,7 @@ Phase 2 Iron era and services → Phase 3 Industrial → Phase 4 Modern + Earth-
 **Still open**
 
 1. **How realistic is too realistic?** Detailed ore grades and mining waste, or just rich/poor? Worker injuries?
-2. **Block building:** decoration + function tag, or should block layout matter (bigger furnace = more output)?
+2. ~~Block building~~ → Dropped (v0.9). Ready-made buildings only.
 3. **Disasters and seasons:** in or out?
 4. **Multiplayer:** friends only or public? Everyone at once, or drop in and out?
 
@@ -399,7 +403,7 @@ Phase 2 Iron era and services → Phase 3 Industrial → Phase 4 Modern + Earth-
 - Aerospace and Orbital are how you take over the Earth. **Not in the MVP**, but the data model already has a planet level (§13).
 
 ### A.5 Post-win: spaceship, planets, galaxy (far future)
-- **Unlocked by winning.** In the spirit of No Man's Sky: the player **designs and builds a spaceship** (block-build carries over to ship design), leaves Earth, and explores the Moon and planets, then a **procedurally generated galaxy**. Each planet has its own geology, gravity and atmosphere and the same mine/process/build loop.
+- **Unlocked by winning.** In the spirit of No Man's Sky: the player **designs and builds a spaceship** by choosing and assembling ready-made modules (hulls, thrusters, tanks, life support), leaves Earth, and explores the Moon and planets, then a **procedurally generated galaxy**. Each planet has its own geology, gravity and atmosphere and the same mine/process/build loop.
 - **Realistic engineering, and the design matters:**
   - **Thrusters:** thrust vs. ship mass decides whether you can lift off and land.
   - **Fuel:** a fuel budget (delta-v) decides how far you can go and whether you can get back.
@@ -420,7 +424,7 @@ An **optional** layer for after multiplayer exists. **Never pay-to-win**: nothin
 Ideas:
 
 - **Land plots as tradeable Stellar assets** — ownership of a plot on a shared server, transferable between players.
-- **Blueprint marketplace** — sell/buy block-build and building designs for XLM or USDC (the buyer still has to build them with in-game materials).
+- **Blueprint marketplace** — sell/buy building and ship-module designs for XLM or USDC (the buyer still has to build them with in-game materials).
 - **Cosmetic skins** — building styles, roof colours, decorations. Looks only.
 - **Player tips** — send a small tip to a builder whose city or blueprint you like.
 - **Weekly build contests** — prizes for the best builds, funded by a fixed prize budget.
@@ -511,7 +515,32 @@ Hard rules (no gambling, pyramid or securities-like mechanics):
 - **Subsidence interaction:** tunnels add void depth and age-dependent risk to the hidden subsidence model, like mine workings. Depth, ground type, lining quality and nearby building weight all count. Shallow tunnels under heavy buildings are risky; deep, well-lined tunnels in good rock are safe. A collapse affects the surface above and any traffic inside.
 
 ## Appendix G — AI civs design their own buildings (v0.8)
-- AI civs procedurally design buildings from scratch with the **same block-build system** the player uses. Designs come from a cultural *style grammar*: preferred materials, roof forms, proportions and massing, window rhythm, and ornament, seeded by geography, resources and history (and drifting as cultures evolve, App. C).
+- AI civs procedurally design buildings from scratch with **procedural architecture** (not player-style blocks). Designs come from a cultural *style grammar*: preferred materials, roof forms, proportions and massing, window rhythm, and ornament, seeded by geography, resources and history (and drifting as cultures evolve, App. C).
 - Each AI puts a share of its resources into creating unique buildings over time: temples, palaces, towers, gates. By the time the player meets a civ, it has a few one-of-a-kind landmarks, different in every world. Their designs follow the same structural and subsidence rules as the player's buildings.
 - **Procedural architecture with AI-directed design.** The AI makes the design decisions: building shapes, materials, layouts, decorative features and purpose, chosen from a flexible *construction grammar* (massing → structure → roof → openings → ornament, constrained by culture, era, materials and site). The engine turns those choices into efficient geometry: merged meshes per material, instancing for repeated parts, and automatic LOD levels (App. B). Many unique buildings therefore stay cheap to render.
 - **Signature monuments.** Each civ has one signature monument at the heart of its identity. If another player or civ takes control of it, that civilization collapses and can be absorbed. This is a major path to absorbing civs that doesn't need war. The exact means of "taking" it is TBD and must fit the no-war-for-now scope: purchase, influence, or cultural/economic takeover (e.g. owning the land and institutions around it, winning over its custodians). The monument's state is a visible, high-stakes target for diplomacy and economy.
+
+
+## Appendix H — v2.1 systems: dismantling, forestry, eras, rivers, mobile (v0.9)
+
+### Dismantle instead of bulldoze
+- Early eras have no instant demolition. **Dismantle** sends workers to take a building apart over time with visible **reverse construction stages** (finished → half-built → frame → foundation → cleared, with crossfades). It refunds about half of the building materials and costs time and labour (idle townsfolk speed it up). Roads are taken up the same way, a few tiles per hour.
+- The **Bulldozer** (near-instant demolition) is a much later unlock (Industrial/Modern era); it is listed as locked in the build menu.
+
+### Forestry
+- Woodcutters fell nearby trees once finished and staffed: the tree tips over, raises a little dust, fades, and leaves a **stump** that slowly rots away. Wood goes into the stockpile. If no workers are free, the card says so plainly ("Workers 0/2 (no free workers)").
+- **Plant Trees** tool: saplings cost a little money and grow visibly through stages (sapling → young → grown) over a few in-game days; grown trees can be harvested. Natural regrowth in forests also starts as saplings.
+
+### What each era can see underground
+- Stone & Clay: no Survey tool and **no Underground view** (tool and U key hidden). Only surface-visible deposits are known.
+- Bronze: **Prospecting** research unlocks Survey; the Underground view unlocks with the era, alongside shaft mining, when subsidence risk begins.
+
+### Rivers: width and depth classes
+- River tiles have a class: **shallow ford** (gravel bar, marked by lighter water and stepping stones), **shallow reach** (wadeable but slow), and **deep channel**. Lakes and ocean (later maps) are always deep.
+- On foot: fords and shallow reaches are walkable at a heavy movement cost, with a small chance a scout is swept away (no warning, in line with hidden exploration dangers). Deep water is impassable on foot. Pathfinding routes to fords automatically.
+- Crossing deep water needs a **raft / dugout canoe** (early Stone Age unlock, next build), later boats, or a built **bridge** (wooden, then stone). Bridges make a water tile walkable at road cost. Costs per water class live in each unit type's data, so horses, wagons and boats are data, not code.
+
+### Fog of war and the camera
+- Fog of war is a GPU visibility texture sampled by the terrain, water and vegetation shaders. Revealing land never rebuilds geometry or recompiles shaders; newly revealed tiles fade in smoothly, at any game speed.
+- Camera: arrow keys and WASD pan with acceleration and a short glide on release, speed scales with zoom, diagonals are normalised; zoom and rotation ease smoothly; mouse and touch drags glide gently on release. Touch: drag pans, pinch zooms, two-finger twist rotates (snapping to 90°), tap acts; hold-then-drag box-selects units.
+- Selecting units: a unit under the pointer always wins over the active tool (generous screen-space radius at every zoom), selects it and disarms the tool; Esc or right-click disarms; drag a box to select several.

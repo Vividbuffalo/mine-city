@@ -1,5 +1,8 @@
 // EARTH simulation. Pure data + rules, no rendering. All mutations go through applyCommand().
-import { BUILDINGS, TECHS, ERAS, ERA_REQ, BLOCKS, SAVE_VERSION, HOURS_PER_DAY, techCost, EARTHWORKS } from './data.js';
+import { BUILDINGS, TECHS, ERAS, ERA_REQ, BLOCKS, SAVE_VERSION, HOURS_PER_DAY, techCost, EARTHWORKS, SURFACE_DEPTH, SAPLING, DISMANTLE } from './data.js';
+// a deposit the player knows about: surveyed, or shallow enough to be seen on the surface once explored
+export const knownDeposit = (t) => !!(t && t.vis && t.dep && t.dep.amt > 0 && (t.sv || t.dep.depth <= (SURFACE_DEPTH[t.dep.r] ?? 0)));
+export const undergroundUnlocked = (state) => state.era >= 2;
 // Steep = mountain ground (high hill) not yet terraced. Only quarries can go on it until it is levelled.
 import { tickUnits, spawnUnit, orderMove, UNIT_TYPES } from './units.js';
 export const ROAD_RATE = 4; // road tiles completed per game hour (crude dirt tracks)
@@ -74,7 +77,19 @@ function genWorld(seed) {
       tl.dep = g > 0.8 ? { r: 'tin', amt: 50 + Math.floor(r * 80), depth: 12 + Math.floor(r * 15), grade: g } : { r: 'copper', amt: 80 + Math.floor(r * 150), depth: 9 + Math.floor(r * 18), grade: g };
     }
   }
+  classifyWater(world, seed);
   return world;
+}
+// River depth classes (t.wd): 0 = shallow ford (gravel bar, marked by stones), 1 = shallow reach (wadeable, slow, risky),
+// 2 = deep channel (impassable on foot: needs a raft/canoe, boat or bridge). Lakes and ocean (later maps) are always 2.
+export const WATER_CLASS = ['ford', 'shallow', 'deep'];
+export function classifyWater(world, seed) {
+  const tl = (x, y) => world.chunks[Math.floor(x / CHUNK) + ',' + Math.floor(y / CHUNK)].tiles[(y % CHUNK) * CHUNK + (x % CHUNK)];
+  const fords = new Set(); for (let k = 0; k < 4; k++) { const y = 4 + k * 16 + Math.floor(hash2(seed + 71, k, 3) * 9); fords.add(y); fords.add(y + 1); }
+  for (let y = 0; y < SIZE; y++) {
+    const shallow = noise(seed + 61, 0, y, 7) < 0.17;
+    for (let x = 0; x < SIZE; x++) { const t = tl(x, y); if (t.t === T.WATER) t.wd = fords.has(y) ? 0 : shallow ? 1 : 2; }
+  }
 }
 
 // ---------- State ----------
@@ -90,7 +105,7 @@ export function newGame(opts = {}) {
     era, res: { money: 600, wood: 60, clay: 0, stone: 10, copper: 0, tin: 0, brick: 0, bronze: 0, food: 40 },
     stats: { bricksMade: 0, bronzeMade: 0, deaths: 0, arrivals: 0, left: 0, collapses: 0 },
     research: { points: 0, done: [], current: null, progress: 0 },
-    buildings: {}, nextId: 1, incidents: [], crews: [], surveys: [], earthworks: [], roadJobs: [], units: [], draft: [],
+    buildings: {}, nextId: 1, incidents: [], crews: [], surveys: [], earthworks: [], roadRemove: [], saplingTiles: [], felled: [], roadJobs: [], units: [], draft: [],
     flags: { collapses: true, unlimitedMoney: sandbox, freeBlocks: sandbox, riskOverlay: false },
     happiness: 60, grief: 0, hungry: false,
     hidden: { reputation: 0 }, // hidden morality track; never shown in normal play
@@ -125,7 +140,7 @@ export function reveal(state, cx, cy, r) {
     const t = tile(state, x, y);
     if (t && !t.vis && (x - cx) ** 2 + (y - cy) ** 2 <= r * r + 1) { t.vis = 1; changed = true; }
   }
-  if (changed) state.dirty.terrain = state.dirty.trees = state.dirty.under = true;
+  if (changed) state.dirty.fog = state.dirty.under = true; // GPU fog texture; no geometry rebuild
 }
 
 // ---------- Helpers ----------
@@ -272,6 +287,37 @@ const COMMANDS = {
     state.dirty.terrain = true; addLog(state, `Earthworks started at (${x}, ${y}).`);
     return { ok: true, id };
   },
+  // ---- dismantle (early-era replacement for bulldozing) ----
+  dismantle(state, { x, y }) {
+    const t = tile(state, x, y); if (!t) return { ok: false };
+    if (t.occ) {
+      const b = state.buildings[t.occ];
+      if (b.ruin) return { ok: false, err: 'Rubble is cleared by a cleanup crew' };
+      if (b.dis) return { ok: false, err: 'Already being dismantled' };
+      b.dis = { from: b.done ? 1 : b.progress, at: state.tick }; if (b.done) { b.done = false; b.progress = 1; }
+      b.residents = 0; b.workers = 0;
+      addLog(state, `Dismantling ${b.kind === 'custom' ? 'custom building' : BUILDINGS[b.kind].name} at (${b.x}, ${b.y}).`);
+      state.dirty.buildings = true; return { ok: true, id: b.id };
+    }
+    if (t.rp) { t.rp = 0; state.roadJobs = state.roadJobs.filter(([a, c]) => a !== x || c !== y); state.res.money += 2; state.dirty.roads = true; return { ok: true }; }
+    if (t.road && !t.rx) {
+      if (state.crews.some(c => c.path && c.path.some(p => p[0] === x && p[1] === y) && c.state !== 'idle')) return { ok: false, err: 'A crew is using this road' };
+      t.rx = 1; (state.roadRemove = state.roadRemove || []).push([x, y]); state.dirty.roads = true; return { ok: true };
+    }
+    if (t.sp && t.sp.length) { t.sp = []; state.dirty.trees = true; return { ok: true }; }
+    return { ok: false };
+  },
+  plant(state, { x, y }) {
+    const t = tile(state, x, y);
+    if (!t || !t.vis) return { ok: false, err: 'Unexplored' };
+    if (t.t === T.WATER || t.occ || t.road || t.rp || t.lvJob) return { ok: false, err: 'Cannot plant here' };
+    if (isSteep(t)) return { ok: false, err: 'Too steep to plant' };
+    if (t.trees + (t.sp ? t.sp.length : 0) >= 4) return { ok: false, err: 'No room for more trees here' };
+    if (!canAfford(state, SAPLING.cost)) return { ok: false, err: 'Not enough money' };
+    pay(state, SAPLING.cost); (t.sp = t.sp || []).push(0);
+    const L = state.saplingTiles || (state.saplingTiles = []); if (!L.some(([a, b]) => a === x && b === y)) L.push([x, y]);
+    state.dirty.trees = true; return { ok: true };
+  },
   // ---- units (scouts) ----
   hireUnit(state, { kind = 'scout' }) {
     const ut = UNIT_TYPES[kind]; if (!ut) return { ok: false, err: 'Unknown unit' };
@@ -288,6 +334,7 @@ const COMMANDS = {
   survey(state, { x, y }) {
     const t = tile(state, x, y);
     if (!t || !t.vis) return { ok: false, err: 'Unexplored' };
+    if (!state.research.done.includes('prospecting')) return { ok: false, err: 'Research Prospecting (Bronze era) to survey underground' };
     const cost = { money: 15 };
     if (!canAfford(state, cost)) return { ok: false, err: 'Not enough money' };
     pay(state, cost);
@@ -345,6 +392,8 @@ const COMMANDS = {
     if (what === 'build') { const b = state.buildings[id]; if (b && !b.done) { b.progress = 1; finishBuilding(state, b); } }
     else if (what === 'research') { if (state.research.current) completeResearch(state); }
     else if (what === 'roads') { tickRoads(state, 1e9); }
+    else if (what === 'dismantle') { tickDismantle(state, true); }
+    else if (what === 'saplings') { tickSaplings(state, SAPLING.grownAt); }
     else if (what === 'units') { for (let i = 0; i < 200 && (state.units || []).some(u => u.path.length); i++) tickUnits(state); }
     else if (what === 'survey') { for (const s of state.surveys) s.left = 0; tickSurveys(state); }
     else if (what === 'level') { for (const e of state.earthworks || []) if (!id || e.id === id) e.left = 0; tickEarthworks(state, true); }
@@ -401,7 +450,9 @@ export function tick(state) {
   state.tick++;
   const hour = state.tick % HOURS_PER_DAY;
   // construction
-  for (const b of Object.values(state.buildings)) if (!b.done && !b.ruin) {
+  tickDismantle(state);
+  tickSaplings(state);
+  for (const b of Object.values(state.buildings)) if (!b.done && !b.ruin && !b.dis) {
     b.progress = Math.min(1, b.progress + 1 / buildTime(b));
     if (b.progress >= 1) finishBuilding(state, b);
   }
@@ -470,7 +521,7 @@ function extractOne(state, b, d) {
   const cx = b.x, cy = b.y, R = d.radius;
   if (d.extract === 'wood') {
     for (let r = 0; r <= R; r++) for (let y = cy - r; y <= cy + r; y++) for (let x = cx - r; x <= cx + r; x++) {
-      const t = tile(state, x, y); if (t && t.trees > 0 && t.vis) { if (b.info === 'Depleted') b.info = ''; t.chop = (t.chop || 0) + 1; if (t.chop >= 10) { t.chop = 0; t.trees--; state.dirty.trees = true; } state.res.wood += 1; return true; }
+      const t = tile(state, x, y); if (t && t.trees > 0 && t.vis) { if (b.info === 'Depleted') b.info = ''; t.chop = (t.chop || 0) + 1; if (t.chop >= (d.woodPerTree || 4)) { t.chop = 0; t.trees--; t.stumps = Math.min(4, (t.stumps || 0) + 1); state.fellN = (state.fellN || 0) + 1; (state.felled = state.felled || []).push([x, y, t.trees, state.fellN]); if (state.felled.length > 40) state.felled.shift(); state.dirty.trees = true; } state.res.wood += 1; return true; }
     }
     return false;
   }
@@ -504,6 +555,37 @@ function extractOne(state, b, d) {
   return true;
 }
 
+function tickDismantle(state, all) {
+  const helpers = Math.max(0, state.unemployed || 0);
+  for (const b of Object.values(state.buildings)) {
+    if (!b.dis) continue;
+    // labour: idle townsfolk speed it up; with nobody free it still creeps along (the owner does it)
+    const rate = all ? 1e9 : (1 / (buildTime(b) * DISMANTLE.timeMult)) * (helpers > 0 ? 1 : 0.5);
+    b.progress = Math.max(0, b.progress - rate);
+    if (b.progress <= 0) {
+      const cost = b.kind === 'custom' ? {} : BUILDINGS[b.kind].cost, back = {};
+      for (const k in cost) if (k !== 'money') { back[k] = Math.floor(cost[k] * DISMANTLE.refund * b.dis.from); state.res[k] += back[k]; }
+      addLog(state, `${b.kind === 'custom' ? 'Custom building' : BUILDINGS[b.kind].name} dismantled at (${b.x}, ${b.y})${Object.keys(back).length ? '; recovered ' + costStr(back) : ''}.`);
+      removeBuilding(state, b);
+    }
+    state.dirty.buildings = true;
+  }
+  // roads marked for removal are taken up a few tiles per hour
+  const rq = state.roadRemove || (state.roadRemove = []);
+  if (rq.length) { for (const [x, y] of rq.splice(0, all ? 1e9 : ROAD_RATE)) { const t = tile(state, x, y); if (t && t.rx) { t.rx = 0; t.road = 0; state.res.money += 1; } } state.dirty.roads = true; }
+}
+function tickSaplings(state, hours = 1) {
+  const list = state.saplingTiles || []; let any = false;
+  for (const [x, y] of list) {
+    const t = tile(state, x, y); if (!t || !t.sp || !t.sp.length) continue;
+    const before = t.sp.map(a => saplingStage(a)).join();
+    t.sp = t.sp.map(a => a + hours);
+    while (t.sp.length && t.sp[0] >= SAPLING.grownAt) { t.sp.shift(); t.trees = Math.min(4, t.trees + 1); any = true; }
+    if (t.sp.map(a => saplingStage(a)).join() !== before) any = true;
+  }
+  if (any) state.dirty.trees = true;
+}
+export function saplingStage(age) { return age < SAPLING.stages[0] ? 0 : age < SAPLING.stages[1] ? 1 : 2; }
 function tickRoads(state, n) {
   const q = state.roadJobs || (state.roadJobs = []); if (!q.length) return;
   for (const [x, y] of q.splice(0, n)) { const t = tile(state, x, y); if (!t || !t.rp) continue; t.rp = 0; t.road = 1; reveal(state, x, y, 2); }
@@ -553,7 +635,11 @@ function dailyTick(state) {
   for (const c of Object.values(state.world.chunks)) for (const t of c.tiles) if (t.work) t.work.age++;
   if (state.flags.riskOverlay) state.dirty.overlay = true;
   // tree regrowth
-  for (const c of Object.values(state.world.chunks)) for (const t of c.tiles) if (t.t === T.FOREST && t.trees < 4 && !t.occ && !t.road && rand(state) < 0.03) { t.trees++; state.dirty.trees = true; }
+  for (const c of Object.values(state.world.chunks)) for (let ti = 0; ti < c.tiles.length; ti++) {
+    const t = c.tiles[ti]; t.x ??= c.cx * CHUNK + ti % CHUNK; t.y ??= c.cy * CHUNK + Math.floor(ti / CHUNK);
+    if (t.t === T.FOREST && t.trees + (t.sp ? t.sp.length : 0) < 4 && !t.occ && !t.road && rand(state) < 0.03) { (t.sp = t.sp || []).push(0); const L = state.saplingTiles || (state.saplingTiles = []); if (!L.some(([a, b]) => a === t.x && b === t.y)) L.push([t.x, t.y]); state.dirty.trees = true; } // natural regrowth starts as a sapling
+    if (t.stumps && rand(state) < 0.08) { t.stumps--; state.dirty.trees = true; }
+  }
   // subsidence checks (no warnings)
   if (state.flags.collapses) for (const b of Object.values(state.buildings)) {
     if (b.ruin || b.kind === 'shaft') continue;
@@ -729,6 +815,6 @@ export function serialize(state) { const { dirty, ...rest } = state; return JSON
 export function deserialize(json) {
   const s = JSON.parse(json);
   if (s.version !== SAVE_VERSION) throw new Error('Save version mismatch');
-  s.dirty = { all: true }; s.earthworks = s.earthworks || []; s.roadJobs = s.roadJobs || []; s.units = s.units || [];
+  s.dirty = { all: true }; s.draft = []; { let need = false; for (const c of Object.values(s.world.chunks)) for (const t of c.tiles) if (t.t === T.WATER && t.wd === undefined) need = true; if (need) classifyWater(s.world, s.seed | 0); } s.roadRemove = s.roadRemove || []; s.saplingTiles = s.saplingTiles || []; s.earthworks = s.earthworks || []; s.roadJobs = s.roadJobs || []; s.units = s.units || [];
   return s;
 }
