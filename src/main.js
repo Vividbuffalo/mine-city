@@ -460,12 +460,12 @@ function renderPanel() {
     on('d-sb1', () => startGame({ sandbox: true, era: 1 }));
     on('d-sb2', () => startGame({ sandbox: true, era: 2 }));
   } else if (p === 'newgame') {
-    body.innerHTML = `<div class="devrow">Seed <input id="ng-seed" type="number" value="${Math.floor(Math.random() * 1e6)}" style="width:110px"></div>
+    body.innerHTML = `<div class="devrow">Seed <input id="ng-seed" type="number" value="${Math.floor(Math.random() * 1e6)}" style="width:110px"> Map <select id="ng-size"><option value="128">Large</option><option value="64">Small</option></select></div>
       <div class="devrow"><button id="ng-n">Normal game</button><button id="ng-s1">Sandbox: Stone & Clay</button><button id="ng-s2">Sandbox: Bronze</button></div>`;
-    const seed = () => +$('ng-seed').value || undefined;
-    $('ng-n').onclick = () => startGame({ seed: seed() });
-    $('ng-s1').onclick = () => startGame({ seed: seed(), sandbox: true, era: 1 });
-    $('ng-s2').onclick = () => startGame({ seed: seed(), sandbox: true, era: 2 });
+    const seed = () => +$('ng-seed').value || undefined, size = () => +$('ng-size').value;
+    $('ng-n').onclick = () => startGame({ seed: seed(), size: size() });
+    $('ng-s1').onclick = () => startGame({ seed: seed(), size: size(), sandbox: true, era: 1 });
+    $('ng-s2').onclick = () => startGame({ seed: seed(), size: size(), sandbox: true, era: 2 });
   }
 }
 function openPanel(p) { if (p === 'dev' && !DEV) return; closeSheets('panel'); ui.panel = p; $('panel').classList.remove('hidden'); $('panel-body')._h = null; renderPanel(); }
@@ -655,8 +655,9 @@ $('t-q').onchange = (e) => { $('q-sel').value = e.target.value; $('q-sel').oncha
 function hideTitle() { $('title').classList.add('hidden'); document.body.classList.remove('intitle'); renderer.autoOrbit = false; renderer.snapRotation(); if (localStorage.getItem('earth.legend') === '1') setLegend(true, false); }
 if (params.get('notitle')) hideTitle(); else { document.body.classList.add('intitle'); renderer.autoOrbit = true; }
 if (!(localStorage.getItem(SAVE_KEY) || localStorage.getItem(OLD_SAVE_KEY))) $('t-cont').classList.add('hidden');
-$('t-play').onclick = () => startGame({ seed: Number(params.get('seed')) || undefined });
-$('t-sand').onclick = () => startGame({ sandbox: true, era: 1 });
+const mapSize = Number(params.get('size')) || 128; // large map by default; ?size=64 for the small one
+$('t-play').onclick = () => startGame({ seed: Number(params.get('seed')) || undefined, size: mapSize });
+$('t-sand').onclick = () => startGame({ sandbox: true, era: 1, size: mapSize });
 $('t-cont').onclick = () => { hideTitle(); loadSave(); };
 exposeForTests(); refreshUnlocks();
 setTool('select');

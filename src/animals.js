@@ -20,7 +20,8 @@ export function spawnAnimals(state) {
   const s = state.start || { x: 32, y: 32 };
   for (const [kind, A] of Object.entries(ANIMALS)) {
     let placed = 0, guard = 0;
-    while (placed < A.herds && guard++ < 600) {
+    const want = Math.round(A.herds * (SIZE / 64) ** 2);
+    while (placed < want && guard++ < 600 * (SIZE / 64) ** 2) {
       const x = 2 + Math.floor(rand(state) * (SIZE - 4)), y = 2 + Math.floor(rand(state) * (SIZE - 4)), t = tile(state, x, y);
       if (!t || !A.biome.includes(t.t) || !passable(state, x, y) || Math.hypot(x - s.x, y - s.y) < A.minStart) continue;
       if (A.nearHill) { let h = false; for (let dy = -3; dy <= 3 && !h; dy++) for (let dx = -3; dx <= 3; dx++) { const n = tile(state, x + dx, y + dy); if (n && n.t === T.HILL) { h = true; break; } } if (!h) continue; }

@@ -28,19 +28,24 @@ export function moveCost(state, ut, x, y, known = true) {
 // A* over tiles, 8-neighbour, no corner cutting through impassable tiles
 export function findPath(state, ut, sx, sy, tx, ty) {
   if (!tile(state, tx, ty) || moveCost(state, ut, tx, ty) === Infinity) return null;
-  const key = (x, y) => y * SIZE + x, open = [[0, sx, sy]], g = new Map([[key(sx, sy), 0]]), prev = new Map();
-  const h = (x, y) => Math.hypot(x - tx, y - ty);
+  // binary-heap A* with per-call cost cache (fast enough for 128+ maps)
+  const N = SIZE * SIZE, g = new Float64Array(N).fill(Infinity), prev = new Int32Array(N).fill(-1), done = new Uint8Array(N), cc = new Float32Array(N).fill(-1);
+  const cost = (x, y) => { if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) return Infinity; const k = y * SIZE + x; let c = cc[k]; if (c < 0) c = cc[k] = moveCost(state, ut, x, y); return c; };
+  const hf = (x, y) => Math.hypot(x - tx, y - ty), hk = [], hv = [];
+  const push = (k, f) => { let i = hk.length; hk.push(k); hv.push(f); while (i > 0) { const p = (i - 1) >> 1; if (hv[p] <= f) break; hk[i] = hk[p]; hv[i] = hv[p]; i = p; } hk[i] = k; hv[i] = f; };
+  const pop = () => { const k = hk[0], lk = hk.pop(), lv = hv.pop(); if (hk.length) { let i = 0; const n = hk.length; for (;;) { let c = 2 * i + 1; if (c >= n) break; if (c + 1 < n && hv[c + 1] < hv[c]) c++; if (hv[c] >= lv) break; hk[i] = hk[c]; hv[i] = hv[c]; i = c; } hk[i] = lk; hv[i] = lv; } return k; };
+  const s0 = sy * SIZE + sx, t0 = ty * SIZE + tx; g[s0] = 0; push(s0, hf(sx, sy));
   let guard = 0;
-  while (open.length && guard++ < 20000) {
-    let bi = 0; for (let i = 1; i < open.length; i++) if (open[i][0] < open[bi][0]) bi = i;
-    const [, x, y] = open.splice(bi, 1)[0];
-    if (x === tx && y === ty) { const path = []; let k = key(x, y); while (k !== key(sx, sy)) { path.unshift([k % SIZE, Math.floor(k / SIZE)]); k = prev.get(k); } return path; }
-    const gc = g.get(key(x, y));
+  while (hk.length && guard++ < 30000) {
+    const k = pop(); if (done[k]) continue; done[k] = 1;
+    const x = k % SIZE, y = (k - x) / SIZE;
+    if (k === t0) { const path = []; let q = k; while (q !== s0) { path.unshift([q % SIZE, Math.floor(q / SIZE)]); q = prev[q]; } return path; }
+    const gc = g[k];
     for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-      if (!dx && !dy) continue; const nx = x + dx, ny = y + dy; const c = moveCost(state, ut, nx, ny); if (c === Infinity) continue;
-      if (dx && dy && (moveCost(state, ut, x + dx, y) === Infinity || moveCost(state, ut, x, y + dy) === Infinity)) continue;
-      const ng = gc + c * (dx && dy ? Math.SQRT2 : 1), nk = key(nx, ny);
-      if (ng < (g.get(nk) ?? Infinity)) { g.set(nk, ng); prev.set(nk, key(x, y)); open.push([ng + h(nx, ny), nx, ny]); }
+      if (!dx && !dy) continue; const nx = x + dx, ny = y + dy; const c = cost(nx, ny); if (c === Infinity) continue;
+      if (dx && dy && (cost(x + dx, y) === Infinity || cost(x, y + dy) === Infinity)) continue;
+      const nk = ny * SIZE + nx; if (done[nk]) continue; const ng = gc + c * (dx && dy ? Math.SQRT2 : 1);
+      if (ng < g[nk]) { g[nk] = ng; prev[nk] = k; push(nk, ng + hf(nx, ny)); }
     }
   }
   return null;

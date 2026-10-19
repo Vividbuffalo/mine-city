@@ -34,7 +34,9 @@ export function rand(state) { // deterministic, stored in state
 }
 
 // ---------- World (chunked, planet-aware) ----------
-export const SIZE = 64, CHUNK = 16;
+// world size in tiles (square). Small maps are 64; new games default to a large 128 map (set per game, saved with the world)
+export let SIZE = 64; export const CHUNK = 16;
+export function setWorldSize(n) { SIZE = Math.max(64, Math.min(256, Math.round(n / CHUNK) * CHUNK)); }
 export const T = { GRASS: 0, FOREST: 1, HILL: 2, WATER: 3 };
 function chunkKey(x, y) { return ((x / CHUNK) | 0) + ',' + ((y / CHUNK) | 0); }
 export function tile(state, x, y) {
@@ -54,7 +56,7 @@ function genWorld(seed) {
   const world = { size: SIZE, chunkSize: CHUNK, chunks };
   const st = { world };
   // river: meanders top to bottom
-  let rx = 18 + Math.floor(hash2(seed, 1, 1) * 28);
+  let rx = SIZE === 64 ? 18 + Math.floor(hash2(seed, 1, 1) * 28) : Math.floor(SIZE * 0.25 + hash2(seed, 1, 1) * SIZE * 0.35);
   const river = new Set();
   for (let y = 0; y < SIZE; y++) {
     rx += Math.round((noise(seed + 7, 0, y, 6) - 0.5) * 2.2);
@@ -85,7 +87,12 @@ function genWorld(seed) {
       tl.dep = g > 0.8 ? { r: 'tin', amt: 50 + Math.floor(r * 80), depth: 12 + Math.floor(r * 15), grade: g } : { r: 'copper', amt: 80 + Math.floor(r * 150), depth: 9 + Math.floor(r * 18), grade: g };
     }
   }
-  classifyWater(world, seed); addBerries(world, seed);
+  classifyWater(world, seed);
+  if (SIZE >= 96) { // large maps have a sea coast along the east edge (ships explore it); the river runs out into it
+    for (let y = 0; y < SIZE; y++) { const cx = SIZE - 12 + Math.round((noise(seed + 91, 0, y, 9) - 0.5) * 10);
+      for (let x = cx; x < SIZE; x++) { const t = tile(st, x, y); t.t = T.WATER; t.trees = 0; t.dep = null; t.h = 0; t.sea = 1; t.wd = x < cx + 2 ? 1 : 2; } }
+  }
+  addBerries(world, seed);
   return world;
 }
 // River depth classes (t.wd): 0 = shallow ford (gravel bar, marked by stones), 1 = shallow reach (wadeable, slow, risky),
@@ -108,6 +115,7 @@ export function classifyWater(world, seed) {
 // ---------- State ----------
 export function newGame(opts = {}) {
   const seed = opts.seed ?? Math.floor(Math.random() * 1e9);
+  setWorldSize(opts.size || 64);
   const sandbox = !!opts.sandbox, era = opts.era || 1;
   const state = {
     version: SAVE_VERSION, seed, rs: seed | 0, tick: 7, mode: sandbox ? 'sandbox' : 'normal',
@@ -125,9 +133,9 @@ export function newGame(opts = {}) {
     log: [], dirty: { all: true },
   };
   // start area visible
-  const sx = 32, sy = 32;
+  const sx = SIZE / 2, sy = SIZE / 2;
   let best = null;
-  for (let y = 20; y < 44; y++) for (let x = 20; x < 44; x++) { const t = tile(state, x, y); if (t.t === T.GRASS && (!best || Math.hypot(x - sx, y - sy) < best.d)) best = { x, y, d: Math.hypot(x - sx, y - sy) }; }
+  for (let y = sy - 12; y < sy + 12; y++) for (let x = sx - 12; x < sx + 12; x++) { const t = tile(state, x, y); if (t.t === T.GRASS && (!best || Math.hypot(x - sx, y - sy) < best.d)) best = { x, y, d: Math.hypot(x - sx, y - sy) }; }
   state.start = best ? { x: best.x, y: best.y } : { x: sx, y: sy };
   reveal(state, state.start.x, state.start.y, 9);
   // founders: a gathering camp and a few villagers
@@ -1020,6 +1028,7 @@ export function serialize(state) { const { dirty, ...rest } = state; return JSON
 export function deserialize(json) {
   const s = JSON.parse(json);
   if (s.version !== SAVE_VERSION) throw new Error('Save version mismatch');
+  setWorldSize((s.world && s.world.size) || 64);
   s.dirty = { all: true }; s.draft = []; { let nb = true; for (const c of Object.values(s.world.chunks)) for (const t of c.tiles) if (t.berryMax !== undefined) nb = false; if (nb) addBerries(s.world, s.seed | 0); } { let need = false; for (const c of Object.values(s.world.chunks)) for (const t of c.tiles) if (t.t === T.WATER && t.wd === undefined) need = true; if (need) classifyWater(s.world, s.seed | 0); } s.roadRemove = s.roadRemove || []; s.saplingTiles = s.saplingTiles || []; s.earthworks = s.earthworks || []; s.roadJobs = s.roadJobs || []; s.units = s.units || [];
   { // saves from before the Iron era have no iron ore: add it with the same geology rules
     let fe = false; for (const c of Object.values(s.world.chunks)) for (const t of c.tiles) if (t.dep && t.dep.r === 'ironore') fe = true;

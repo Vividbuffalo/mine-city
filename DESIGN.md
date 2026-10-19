@@ -1,6 +1,8 @@
-# EARTH — Game Design Document (draft v1.4)
+# EARTH — Game Design Document (draft v1.5)
 
 > Formerly "Mine City". Title screen line: "Welcome to Earth. Enjoy the journey."
+
+*v1.5 (game v2.7, bigger world): new games use a 128×128 map (Small 64×64 still offered) with a sea coast on the east edge; terrain, trees, grass and berry bushes stream in per 16×16 chunk as land is explored; 7 neighbouring towns on large maps with five cultures (River folk, Hill clans, Forest people, Horse herders, Sea people), each with house styles and landmarks through all six eras, borders drawn in the culture colour, one harbour town on the coast. Unit pathfinding is a heap-based A* (about 40x faster). Appendix L.*
 
 *v1.4 (game v2.6, Medieval → Renaissance): Castle (hills only; cuts terraces into the hill first), Stone Bridge, Watermill, Windmill, Guild Hall (workshops +20%, max +40%), Timber-Frame House, Parish Church, Monastery, Inn, Town Wall, Gatehouse, Market Hall, Shipyard (ships sail rivers and coasts, sight 5); Renaissance Townhouse, Palazzo, University, Printing Press, Bank, Observatory, Harbour (counts as two trading posts), Clock Tower and the Cathedral (second monument). Era goals can require a built landmark (Great Monument for Medieval, Castle for Renaissance). Neighbouring towns now also sell tin and copper (and iron once in the Iron era) so a map without a tin vein cannot stall the Bronze era. Appendix K.*
 
@@ -699,3 +701,12 @@ Era goals: Classical → Medieval: population 200, 80 buildings, culture 5000, E
 
 Recipes can keep a reserve of an input (the Mint leaves 40 bronze for monuments). Balance run (`tests/renaissance_run.mjs`): Bronze ≈ day 20, Iron ≈ 195, Classical ≈ 215, Medieval ≈ 290, Renaissance ≈ 300. Iron is the slow step; it is the next thing to tune.
 
+
+
+## Appendix L — Bigger world and neighbour civs as built (game v2.7)
+- **Map size** is per game (`world.size`, saved). New games: Large 128×128 by default; `?size=64` or the New game panel's *Map* picker gives Small. Tests default to 64; `MAP=128` runs them on the large map.
+- **Sea coast** (maps ≥ 96): the east 10–17 tiles are sea with a 2-tile shallow shelf; the river runs into it. Sea tiles carry `t.sea`; ships can sail it.
+- **Streaming**: a chunk streams in when an explored tile is inside it or within 3 tiles of its edge. Streamed chunks get full/half-res terrain, trees, grass, rocks, berry bushes; others get one quarter-res terrain mesh. Exploring rebuilds the streamed set (throttled). Fog also cuts ambient occlusion from unexplored ground.
+- **Neighbour towns**: 3 on small maps, 3 + (size − 64)/16 on large (7 at 128). The first is a coastal harbour (Sea people); others spread outward. Cultures: River folk, Hill clans, Forest people, Horse herders (sell horses, wool, food), Sea people (sell food, cloth, wine). Met by sight; trade only with met towns via trading posts/harbours; no war.
+- **Borders**: each town's land is outlined in its culture colour where explored; the tile panel shows "Land of …".
+- **Animals** scale with map area.
