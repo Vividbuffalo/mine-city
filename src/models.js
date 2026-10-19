@@ -474,6 +474,140 @@ export function loadGLTF(url) {
   return gltfCache.get(url);
 }
 
+// ---------- Bronze era ----------
+Object.assign(MODELS, {
+  mudhouse: { dims: { w: 0.6, d: 0.5, h: 0.32, roof: 'flat', wall: 'clay' }, finished(k) {
+    const W = 0.6, D = 0.5, H = 0.32;
+    k.box(W + 0.04, 0.04, D + 0.04, 'stoneDark'); k.box(W, H, D, 'clay'); k.box(W + 0.04, 0.04, D + 0.04, 'mud', 0, H);
+    k.box(W * 0.5, 0.06, D * 0.04, 'mud', 0, H + 0.04, D / 2 - 0.01); // parapet
+    for (const x of [-0.24, -0.08, 0.08, 0.24]) k.log(0.08, 0.012, 'woodDark', x, H - 0.03, D / 2 + 0.03, Math.PI / 2); // roof beam ends
+    k.windows('front', W, D, 0.14, 2, 0.07, 0.08, 0.1); k.door('front', W, D, 0.09, 0.17, -0.15, 'woodDark'); k.windows('right', W, D, 0.15, 1, 0.07, 0.08);
+    k.box(0.16, 0.12, 0.12, 'clay', 0.18, H + 0.04, -0.1); k.box(0.12, 0.02, 0.1, 'thatch', 0.18, H + 0.16, -0.1); // rooftop shelter
+    k.pile(3, 0.04, 'clay', -0.33, 0.3); k.cyl(0.04, 0.03, 0.08, 7, 'clay', 0.33, 0, 0.3);
+  } },
+  irrfield: { dims: { w: 1.84, d: 1.84, h: 0.05, roof: 'none', wall: 'soil' }, finished(k) {
+    k.box(1.86, 0.035, 1.86, 'soil');
+    for (let r = 0; r < 4; r++) { const z = -0.66 + r * 0.44; k.box(1.72, 0.012, 0.05, 'water', 0, 0.035, z + 0.2); for (let i = 0; i < 10; i++) for (let j = 0; j < 2; j++) k.cone(0.04, 0.15 + ((r + i + j) % 3) * 0.02, 5, (i + j) % 3 ? 'gold' : 'crop', -0.8 + i * 0.178, 0.04, z - 0.06 + j * 0.12); }
+    k.box(0.06, 0.02, 1.8, 'water', -0.9, 0.035, 0); k.box(0.03, 0.06, 0.12, 'woodDark', -0.9, 0.03, -0.5);
+    k.fence([[-0.92, -0.92], [0.92, -0.92], [0.92, 0.92]], 0.08);
+    for (let i = 0; i < 3; i++) k.cyl(0.05, 0.06, 0.1, 7, 'gold', 0.55 + i * 0.12, 0.035, 0.78);
+  } },
+  ditch: { dims: { w: 0.9, d: 0.9, h: 0.03, roof: 'none', wall: 'soil' }, finished(k) {
+    k.box(0.96, 0.02, 0.96, 'soil'); k.box(0.3, 0.025, 0.98, 'soilDark', 0, 0.01); k.box(0.98, 0.025, 0.3, 'soilDark', 0, 0.01);
+    k.box(0.2, 0.03, 0.98, 'water', 0, 0.012); k.box(0.98, 0.03, 0.2, 'water', 0, 0.012);
+    for (const [x, z] of [[-0.3, -0.3], [0.3, 0.3], [0.32, -0.28], [-0.28, 0.32]]) k.cone(0.03, 0.09, 5, 'crop2', x, 0.02, z);
+  } },
+  sheep: { dims: { w: 1.84, d: 1.84, h: 0.08, roof: 'none', wall: 'wood' }, finished(k) {
+    k.fence([[-0.9, -0.9], [0.9, -0.9], [0.9, 0.9], [-0.9, 0.9], [-0.9, -0.9]], 0.11);
+    k.box(0.36, 0.2, 0.26, 'wood', 0.58, 0, -0.6); k.roof(0.36, 0.26, 0.1, 'thatch', 0.2, 'wood', 0.58, -0.6);
+    const spots = [[-0.5, -0.3], [-0.2, 0.1], [0.1, -0.2], [0.3, 0.4], [-0.45, 0.5], [0.55, 0.15], [-0.05, 0.55], [0.2, -0.55]];
+    spots.forEach(([x, z], i) => { const ry = i * 1.3; k.box(0.12, 0.07, 0.08, 'white', x, 0.05, z, ry); k.box(0.04, 0.045, 0.04, 'black', x + Math.cos(ry) * 0.075, 0.08, z - Math.sin(ry) * 0.075, ry); for (const s of [-1, 1]) k.box(0.015, 0.05, 0.015, 'black', x + s * 0.03, 0, z); });
+    k.cyl(0.08, 0.06, 0.05, 8, 'woodDark', -0.6, 0, -0.62); k.cyl(0.065, 0.065, 0.01, 8, 'water', -0.6, 0.045, -0.62);
+    k.pile(4, 0.05, 'white', 0.62, -0.3);
+  } },
+  flax: { dims: { w: 0.9, d: 0.9, h: 0.05, roof: 'none', wall: 'soil' }, finished(k) {
+    k.box(0.92, 0.03, 0.92, 'soil');
+    for (let r = 0; r < 5; r++) for (let i = 0; i < 6; i++) { const x = -0.36 + i * 0.145, z = -0.36 + r * 0.18; k.box(0.012, 0.16, 0.012, 'crop2', x, 0.03, z); k.cone(0.025, 0.03, 5, 0x6f8fd8, x, 0.19, z); }
+    k.box(0.24, 0.12, 0.05, 'woodDark', 0.3, 0.03, 0.44); for (let i = 0; i < 4; i++) k.box(0.02, 0.1, 0.02, 'thatch', 0.22 + i * 0.05, 0.08, 0.44);
+  } },
+  oven: { dims: { w: 0.5, d: 0.5, h: 0.26, roof: 'cone', wall: 'clay', round: true }, finished(k) {
+    k.box(0.6, 0.04, 0.6, 'stoneDark');
+    k.cyl(0.18, 0.24, 0.18, 12, 'clay', -0.05, 0.04, -0.04); k.cone(0.19, 0.13, 12, 'clay', -0.05, 0.22, -0.04);
+    k.box(0.12, 0.09, 0.04, GLOW(0xff8a2a, 1.8), -0.05, 0.06, 0.17); k.emitters.push({ x: -0.05, y: 0.38, z: -0.04, type: 'hut' });
+    k.box(0.22, 0.03, 0.14, 'woodLight', 0.2, 0.14, 0.18); for (let i = 0; i < 3; i++) k.cyl(0.035, 0.035, 0.03, 8, 'thatch2', 0.14 + i * 0.06, 0.17, 0.18);
+    for (const x of [0.12, 0.28]) k.box(0.02, 0.14, 0.02, 'woodDark', x, 0, 0.18);
+    k.logPile(0.22, -0.18, 2, 0.2, Math.PI / 2);
+  } },
+  bronzesmith: { dims: { w: 0.62, d: 0.52, h: 0.32, roof: 'gable', wall: 'brick' }, finished(k) {
+    k.box(0.66, 0.04, 0.56, 'stoneDark');
+    k.box(0.36, 0.3, 0.4, 'brick', -0.13, 0.04, -0.04); k.roof(0.36, 0.4, 0.16, 'roof', 0.34, 'brick', -0.13, -0.04);
+    k.chimney(-0.22, -0.12, 0.42, 0.16);
+    k.box(0.26, 0.02, 0.3, 'shingle', 0.17, 0.26, 0.05); for (const [x, z] of [[0.06, -0.08], [0.28, -0.08], [0.06, 0.18], [0.28, 0.18]]) k.box(0.025, 0.24, 0.025, 'woodDark', x, 0.04, z);
+    k.box(0.08, 0.08, 0.08, 'brickDark', 0.1, 0.04, 0.02); k.box(0.05, 0.02, 0.05, GLOW(0xff9a30, 2.4), 0.1, 0.12, 0.02); k.emitters.push({ x: 0.1, y: 0.16, z: 0.02, type: 'chips' });
+    k.box(0.07, 0.07, 0.05, 'iron', 0.24, 0.04, 0.08); k.box(0.11, 0.02, 0.05, 'iron', 0.24, 0.11, 0.08);
+    for (let i = 0; i < 4; i++) { k.box(0.015, 0.11, 0.015, 'woodDark', 0.04 + i * 0.07, 0.04, 0.25); k.box(0.05, 0.03, 0.02, 'bronze', 0.04 + i * 0.07, 0.15, 0.25); } // tools in a rack
+  } },
+  potter: { dims: { w: 0.56, d: 0.5, h: 0.28, roof: 'gable', wall: 'mud' }, finished(k) {
+    k.box(0.32, 0.24, 0.3, 'mud', -0.12, 0, -0.08); k.roof(0.32, 0.3, 0.14, 'thatch', 0.24, 'mud', -0.12, -0.08);
+    k.cyl(0.07, 0.1, 0.12, 10, 'clay', 0.18, 0, -0.12); k.cone(0.07, 0.06, 10, 'clay', 0.18, 0.12, -0.12); k.box(0.04, 0.05, 0.03, GLOW(0xff8a2a, 1.5), 0.18, 0.02, -0.03); k.emitters.push({ x: 0.18, y: 0.2, z: -0.12, type: 'hut' });
+    k.cyl(0.05, 0.05, 0.04, 10, 'woodDark', 0.1, 0, 0.16); k.cyl(0.03, 0.02, 0.04, 8, 'clay', 0.1, 0.04, 0.16);
+    const pots = [[-0.25, 0.2], [-0.16, 0.24], [-0.07, 0.2], [0.24, 0.22], [-0.3, 0.1]];
+    pots.forEach(([x, z], i) => { k.cyl(0.025, 0.035, 0.05, 8, i % 2 ? 'clay' : 'brick', x, 0, z); k.cyl(0.035, 0.025, 0.04, 8, i % 2 ? 'clay' : 'brick', x, 0.05, z); k.cyl(0.018, 0.022, 0.02, 8, i % 2 ? 'clay' : 'brick', x, 0.09, z); });
+  } },
+  weaver: { dims: { w: 0.56, d: 0.5, h: 0.28, roof: 'gable', wall: 'mud' }, finished(k) {
+    k.box(0.34, 0.24, 0.3, 'mud', 0.1, 0, -0.08); k.roof(0.34, 0.3, 0.14, 'thatch', 0.24, 'mud', 0.1, -0.08);
+    // upright loom with a red cloth in progress
+    for (const x of [-0.3, -0.06]) k.box(0.025, 0.28, 0.025, 'woodDark', x, 0, 0.14);
+    k.box(0.28, 0.025, 0.025, 'woodDark', -0.18, 0.27, 0.14); k.box(0.22, 0.15, 0.008, 'cloth', -0.18, 0.11, 0.14);
+    for (let i = 0; i < 6; i++) k.box(0.006, 0.1, 0.006, 'white', -0.27 + i * 0.036, 0.01, 0.14);
+    for (let i = 0; i < 6; i++) k.cyl(0.012, 0.012, 0.03, 5, 'stone', -0.27 + i * 0.036, 0.0, 0.14);
+    k.box(0.26, 0.012, 0.012, 'woodDark', 0.1, 0.22, 0.12); k.box(0.07, 0.12, 0.004, 'cloth', 0.03, 0.1, 0.12); k.box(0.07, 0.12, 0.004, 0x3d6fb2, 0.14, 0.1, 0.12); // drying cloth
+    k.pile(3, 0.04, 'white', 0.22, 0.24);
+  } },
+  cartmaker: { dims: { w: 0.62, d: 0.52, h: 0.28, roof: 'gable', wall: 'wood' }, finished(k) {
+    k.box(0.38, 0.24, 0.3, 'wood', -0.1, 0, -0.1); k.roof(0.38, 0.3, 0.14, 'shingle', 0.24, 'wood', -0.1, -0.1);
+    // a finished cart and a spare wheel
+    k.box(0.22, 0.03, 0.14, 'woodLight', 0.14, 0.07, 0.16); for (const s of [-1, 1]) k.box(0.22, 0.04, 0.012, 'woodLight', 0.14, 0.1, 0.16 + s * 0.07);
+    for (const s of [-1, 1]) { k.cyl(0.055, 0.055, 0.02, 10, 'woodDark', 0.14, 0.015, 0.16 + s * 0.085, Math.PI / 2); k.cyl(0.015, 0.015, 0.024, 6, 'bronze', 0.14, 0.015, 0.16 + s * 0.085, Math.PI / 2); }
+    k.box(0.2, 0.012, 0.012, 'woodDark', 0.34, 0.07, 0.16);
+    k.cyl(0.06, 0.06, 0.02, 10, 'woodDark', -0.28, 0.07, 0.15, 0, 0.3); k.logPile(-0.08, 0.22, 2, 0.24);
+  } },
+  raftmaker: { dims: { w: 0.6, d: 0.5, h: 0.2, roof: 'none', wall: 'wood' }, finished(k) {
+    for (let i = 0; i < 6; i++) k.log(0.4, 0.024, i % 2 ? 'wood' : 'woodLight', -0.06 + (i - 2.5) * 0.05, 0.03, 0.06, 0);
+    for (const z of [-0.08, 0.2]) k.box(0.32, 0.012, 0.02, 'woodDark', -0.06, 0.055, z);
+    k.box(0.02, 0.2, 0.02, 'woodDark', 0.22, 0, -0.18); k.box(0.02, 0.2, 0.02, 'woodDark', 0.22, 0, 0.18); k.box(0.02, 0.02, 0.38, 'woodDark', 0.22, 0.2, 0);
+    k.box(0.01, 0.12, 0.06, 'thatch', 0.22, 0.08, -0.08); k.logPile(-0.18, -0.2, 3, 0.3); k.box(0.28, 0.01, 0.03, 'woodLight', 0.1, 0.02, 0.24, 0.6);
+  } },
+  bridge: { dims: { w: 0.98, d: 0.4, h: 0.12, roof: 'none', wall: 'wood' }, finished(k) {
+    for (const x of [-0.42, 0, 0.42]) for (const s of [-1, 1]) k.cyl(0.025, 0.025, 0.24, 6, 'woodDark', x, -0.12, s * 0.17);
+    for (const s of [-1, 1]) k.box(1.0, 0.03, 0.04, 'woodDark', 0, 0.08, s * 0.17);
+    for (let i = 0; i < 12; i++) k.box(0.075, 0.018, 0.4, i % 3 ? 'wood' : 'woodLight', -0.46 + i * 0.084, 0.11, 0);
+    for (const x of [-0.42, 0, 0.42]) for (const s of [-1, 1]) k.box(0.025, 0.12, 0.025, 'woodDark', x, 0.12, s * 0.19);
+    for (const s of [-1, 1]) k.box(0.98, 0.02, 0.02, 'wood', 0, 0.22, s * 0.19);
+  } },
+  market: { dims: { w: 1.6, d: 1.6, h: 0.25, roof: 'none', wall: 'wood' }, finished(k) {
+    k.box(1.7, 0.02, 1.7, 'soil');
+    const cols = ['cloth', 0x3d6fb2, 'thatch', 0x5b8f3a];
+    [[-0.45, -0.45], [0.45, -0.45], [-0.45, 0.45], [0.45, 0.45]].forEach(([x, z], i) => {
+      for (const [a, c] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) k.box(0.02, 0.26, 0.02, 'woodDark', x + a * 0.22, 0, z + c * 0.16);
+      k.gable(0.5, 0.38, 0.1, cols[i], x, 0.26, z);
+      k.box(0.44, 0.08, 0.14, 'woodLight', x, 0, z + 0.1);
+      const goods = [['clay', 'brick'], ['cloth', 0x3d6fb2], ['crop', 'gold'], ['bronze', 'iron']][i];
+      for (let j = 0; j < 4; j++) k.cyl(0.03, 0.035, 0.04, 7, goods[j % 2], x - 0.15 + j * 0.1, 0.08, z + 0.1);
+    });
+    for (const [x, z] of [[0, 0], [0.1, 0.12], [-0.12, 0.05], [0.05, -0.15]]) { k.cyl(0.025, 0.03, 0.1, 6, 'cloth', x, 0, z); k.cyl(0.02, 0.02, 0.03, 6, 'mud', x, 0.1, z); }
+  } },
+  tower: { dims: { w: 0.4, d: 0.4, h: 0.8, roof: 'cone', wall: 'wood' }, finished(k) {
+    k.box(0.44, 0.05, 0.44, 'stone');
+    for (const [a, c] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) k.box(0.035, 0.82, 0.035, 'woodDark', a * 0.15, 0.05, c * 0.15);
+    for (const y of [0.25, 0.55]) { k.box(0.32, 0.02, 0.02, 'wood', 0, y, 0.15, 0, 0, 0.6); k.box(0.32, 0.02, 0.02, 'wood', 0, y, -0.15, 0, 0, -0.6); }
+    k.box(0.4, 0.03, 0.4, 'wood', 0, 0.84); for (const s of [-1, 1]) { k.box(0.4, 0.08, 0.02, 'wood', 0, 0.87, s * 0.19); k.box(0.02, 0.08, 0.4, 'wood', s * 0.19, 0.87, 0); }
+    k.cone(0.3, 0.2, 4, 'thatch', 0, 1.07, 0, Math.PI / 4); for (const s of [-1, 1]) k.box(0.02, 0.14, 0.02, 'woodDark', s * 0.17, 0.92, 0.17);
+    k.box(0.025, 0.12, 0.004, 'cloth', 0.02, 1.27, 0); k.box(0.012, 0.16, 0.012, 'woodDark', 0, 1.2, 0);
+  } },
+  temple: { dims: { w: 1.4, d: 1.2, h: 0.6, roof: 'flat', wall: 'brick' }, finished(k) {
+    k.box(1.6, 0.08, 1.4, 'stone'); k.box(1.3, 0.08, 1.1, 'stone', 0, 0.08); k.box(1.0, 0.08, 0.8, 'stoneDark', 0, 0.16);
+    k.box(0.7, 0.36, 0.5, 'brick', 0, 0.24, -0.04); k.box(0.76, 0.04, 0.56, 'quoin', 0, 0.6, -0.04); k.roof(0.7, 0.5, 0.18, 'roof', 0.64, 'brick', 0, -0.04);
+    for (const x of [-0.27, -0.09, 0.09, 0.27]) k.cyl(0.035, 0.04, 0.36, 8, 'quoin', x, 0.24, 0.25);
+    k.box(0.12, 0.2, 0.02, 'black', 0, 0.24, 0.215);
+    for (let i = 0; i < 4; i++) k.box(0.4, 0.04, 0.06, 'stone', 0, i * 0.04, 0.72 - i * 0.07);
+    for (const s of [-1, 1]) { k.cyl(0.04, 0.05, 0.12, 8, 'bronze', s * 0.62, 0.08, 0.5); k.cone(0.035, 0.06, 6, GLOW(0xff8a2a, 1.6), s * 0.62, 0.2, 0.5); k.emitters.push({ x: s * 0.62, y: 0.28, z: 0.5, type: 'fire' }); }
+  } },
+  mound: { dims: { w: 1.5, d: 1.5, h: 0.3, roof: 'none', wall: 'stone' }, finished(k) {
+    k.cyl(0.62, 0.78, 0.26, 16, 'crop2', 0, 0, 0); k.cyl(0.3, 0.62, 0.12, 16, 'green', 0, 0.26, 0);
+    for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2; k.box(0.08, 0.1, 0.06, 'stone', Math.cos(a) * 0.82, 0, Math.sin(a) * 0.82, -a); }
+    k.box(0.16, 0.12, 0.04, 'stoneDark', 0, 0.02, 0.76); k.box(0.24, 0.04, 0.06, 'stone', 0, 0.14, 0.76); k.box(0.1, 0.1, 0.02, 'black', 0, 0.02, 0.79);
+    k.box(0.06, 0.3, 0.06, 'stone', 0.0, 0.38, 0);
+  } },
+  statue: { dims: { w: 0.4, d: 0.4, h: 0.6, roof: 'none', wall: 'stone' }, finished(k) {
+    k.box(0.42, 0.06, 0.42, 'stone'); k.box(0.26, 0.2, 0.26, 'stoneDark', 0, 0.06);
+    const B = mat('bronze', { metalness: 0.6, roughness: 0.4 });
+    k.cyl(0.05, 0.06, 0.18, 8, B, 0, 0.26); k.box(0.12, 0.05, 0.08, B, 0, 0.38); k.cyl(0.035, 0.035, 0.06, 8, B, 0, 0.43);
+    k.box(0.02, 0.2, 0.02, B, 0.08, 0.36, 0, 0, 0, -0.3); k.box(0.04, 0.12, 0.012, B, -0.08, 0.3, 0.03);
+    for (const [x, z] of [[-0.18, 0.18], [0.18, 0.18]]) k.cone(0.03, 0.08, 5, 'crop2', x, 0.06, z);
+  } },
+});
+
 // Returns { group, emitters } in building-local coords (origin = footprint center at ground level).
 export function buildModel(b, stage, baseOf) {
   let kit;

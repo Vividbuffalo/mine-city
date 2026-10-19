@@ -5,9 +5,10 @@ export const HOURS_PER_DAY = 24;
 export const ERAS = {
   1: { name: 'Stone & Clay', maxDepth: 5, tier: 'Surface' },
   2: { name: 'Bronze', maxDepth: 30, tier: 'Shallow shaft' },
+  3: { name: 'Iron', maxDepth: 60, tier: 'Deep shaft' },
 };
 
-export const RESOURCES = ['wood', 'clay', 'stone', 'copper', 'tin', 'brick', 'bronze', 'food'];
+export const RESOURCES = ['wood', 'clay', 'stone', 'copper', 'tin', 'brick', 'bronze', 'food', 'tools', 'pots', 'wool', 'flax', 'cloth'];
 export const ERA3_NOTE = 'Iron (and iron mines) arrive with the Iron era, after Bronze.';
 
 export const DEPOSITS = {
@@ -44,8 +45,8 @@ export const BUILDINGS = {
   camp:       { name: 'Main Camp', cat: 'Gathering', era: 1, size: 1, cost: { wood: 10 }, time: 8, store: true, trains: true, weight: 0.3, upkeep: 0, mat: 'hide' },
   woodcutter: { name: 'Woodcutter', cat: 'Gathering', era: 1, size: 1, cost: { wood: 4 }, time: 6, jobs: 2, extract: 'wood', rate: 40, radius: 4, woodPerTree: 6, weight: 0.5, upkeep: 0, mat: 'wood' },
   knapper:    { name: 'Stone Tool Maker', cat: 'Gathering', era: 1, size: 1, cost: { stone: 6, wood: 2 }, time: 5, jobs: 2, gatherMult: 0.15, weight: 0.3, upkeep: 0, mat: 'stone' },
-  claypit:    { name: 'Clay Pit', cat: 'Gathering', era: 1, size: 1, cost: { wood: 4 }, time: 6, jobs: 2, extract: ['clay'], rate: 20, radius: 3, maxDepth: 5, weight: 0.3, upkeep: 0, mat: 'stone' },
-  quarry:     { name: 'Stone Quarry', cat: 'Gathering', era: 1, size: 1, cost: { wood: 6 }, time: 8, jobs: 3, extract: ['stone'], rate: 12, radius: 3, maxDepth: 5, weight: 0.3, upkeep: 0, mat: 'stone' },
+  claypit:    { name: 'Clay Pit', cat: 'Gathering', era: 1, size: 1, cost: { wood: 4 }, time: 6, jobs: 2, extract: ['clay'], rate: 16, radius: 3, maxDepth: 5, weight: 0.3, upkeep: 0, mat: 'stone' },
+  quarry:     { name: 'Stone Quarry', cat: 'Gathering', era: 1, size: 1, cost: { wood: 6 }, time: 8, jobs: 3, extract: ['stone'], rate: 8, radius: 3, maxDepth: 5, weight: 0.3, upkeep: 0, mat: 'stone' },
   orepit:     { name: 'Copper Pit', cat: 'Gathering', era: 2, size: 1, cost: { money: 40, wood: 6 }, time: 12, jobs: 3, extract: ['copper', 'tin'], rate: 6, radius: 2, maxDepth: 5, weight: 0.3, upkeep: 0.3, mat: 'wood' },
   shaft:      { name: 'Deep Mine', cat: 'Gathering', era: 2, size: 1, cost: { money: 120, wood: 20, stone: 10 }, time: 30, jobs: 5, extract: ['copper', 'tin', 'stone', 'clay'], rate: 8, radius: 3, maxDepth: 30, shaft: true, needs: 'carpentry', weight: 1, upkeep: 1, mat: 'wood' },
   // --- crafts & industry ---
@@ -65,6 +66,24 @@ export const BUILDINGS = {
   flowers:    { name: 'Flower Patch', cat: 'Culture', era: 1, size: 1, cost: { food: 2 }, time: 2, happy: 0.5, weight: 0.05, upkeep: 0, mat: 'wood', decor: true, flat: true, plant: true },
   shrubs:     { name: 'Shrubs', cat: 'Culture', era: 1, size: 1, cost: { wood: 1 }, time: 2, happy: 0.4, weight: 0.05, upkeep: 0, mat: 'wood', decor: true, plant: true },
   garden:     { name: 'Herb Garden', cat: 'Culture', era: 1, size: 1, cost: { wood: 3, food: 3 }, time: 4, happy: 1, weight: 0.1, upkeep: 0, mat: 'wood', decor: true, flat: true, plant: true },
+  // --- Bronze era ---
+  mudhouse:   { name: 'Mud-Brick House', cat: 'Housing', era: 2, size: 1, cost: { brick: 6, wood: 3 }, time: 14, cap: 7, weight: 0.8, upkeep: 0.1, mat: 'brick' },
+  irrfield:   { name: 'Irrigated Field', cat: 'Food', era: 2, size: 2, cost: { wood: 6, tools: 1 }, time: 12, jobs: 3, food: 30, weight: 0.3, upkeep: 0, terrain: [0], mat: 'wood', water: 3, tech: 'irrigation' },
+  ditch:      { name: 'Irrigation Ditch', cat: 'Food', era: 2, size: 1, cost: { tools: 1 }, time: 6, weight: 0.05, upkeep: 0, terrain: [0], mat: 'soil', flat: true, ditch: true, tech: 'irrigation' },
+  sheep:      { name: 'Sheep Pasture', cat: 'Food', era: 2, size: 2, cost: { wood: 10 }, time: 10, jobs: 1, food: 5, weight: 0.2, upkeep: 0, terrain: [0], mat: 'wood', recipe: { in: {}, out: { wool: 3 }, perDay: 1 } },
+  flax:       { name: 'Flax Field', cat: 'Food', era: 2, size: 1, cost: { wood: 3 }, time: 6, jobs: 1, weight: 0.1, upkeep: 0, terrain: [0], mat: 'wood', recipe: { in: {}, out: { flax: 3 }, perDay: 1 } },
+  oven:       { name: 'Bread Oven', cat: 'Food', era: 2, size: 1, cost: { brick: 6, stone: 4 }, time: 10, jobs: 1, foodMult: 0.12, weight: 0.8, upkeep: 0, mat: 'brick' },
+  bronzesmith:{ name: 'Bronze Smith', cat: 'Industry', era: 2, size: 1, cost: { brick: 8, stone: 6, wood: 6 }, time: 16, jobs: 2, recipe: { in: { bronze: 1, wood: 1 }, out: { tools: 2 }, perDay: 4 }, weight: 1.2, upkeep: 0.3, mat: 'brick' },
+  potter:     { name: 'Potter', cat: 'Industry', era: 2, size: 1, cost: { brick: 4, wood: 6 }, time: 10, jobs: 2, recipe: { in: { clay: 2, wood: 1 }, out: { pots: 2 }, perDay: 4 }, weight: 0.6, upkeep: 0.1, mat: 'daub' },
+  weaver:     { name: 'Weaver', cat: 'Industry', era: 2, size: 1, cost: { wood: 10, brick: 4 }, time: 12, jobs: 2, recipe: { in: { wool: 1, flax: 1 }, out: { cloth: 2 }, perDay: 4 }, weight: 0.6, upkeep: 0.2, mat: 'daub' },
+  cartmaker:  { name: 'Cart Maker', cat: 'Industry', era: 2, size: 1, cost: { wood: 20, bronze: 4, tools: 2 }, time: 18, jobs: 2, weight: 0.8, upkeep: 0.3, mat: 'wood', enables: 'carts' },
+  raftmaker:  { name: 'Raft Builder', cat: 'Industry', era: 2, size: 1, cost: { wood: 18 }, time: 10, jobs: 1, weight: 0.4, upkeep: 0, mat: 'wood', nearWater: true, enables: 'canoe' },
+  bridge:     { name: 'Wooden Bridge', cat: 'Services', era: 2, size: 1, cost: { wood: 20, tools: 1 }, time: 16, weight: 0.5, upkeep: 0.2, mat: 'wood', onWater: true },
+  market:     { name: 'Market', cat: 'Services', era: 2, size: 2, cost: { brick: 10, wood: 12 }, time: 20, jobs: 4, shop: 90, sells: { pots: 0.5, cloth: 1.2, tools: 2 }, weight: 0.8, upkeep: 0.5, mat: 'wood', happy: 2 },
+  tower:      { name: 'Lookout Tower', cat: 'Services', era: 2, size: 1, cost: { wood: 16, stone: 6 }, time: 12, weight: 0.6, upkeep: 0.1, mat: 'wood', sight: 7 },
+  temple:     { name: 'Temple', cat: 'Culture', era: 2, size: 2, cost: { brick: 30, stone: 20, wood: 10 }, time: 48, culture: 10, happy: 6, weight: 2.5, upkeep: 1, mat: 'brick', ambition: 0.4 },
+  mound:      { name: 'Burial Mound', cat: 'Culture', era: 2, size: 2, cost: { stone: 30 }, time: 30, culture: 5, happy: 2, weight: 1.5, upkeep: 0, mat: 'stone' },
+  statue:     { name: 'Bronze Statue', cat: 'Culture', era: 2, size: 1, cost: { bronze: 10, stone: 6 }, time: 16, culture: 3, happy: 3, weight: 0.8, upkeep: 0, mat: 'stone', decor: true },
   // --- services & trade ---
   stall:      { name: 'Trading Spot', cat: 'Services', era: 1, size: 1, cost: { wood: 6 }, time: 6, jobs: 2, shop: 25, weight: 0.3, upkeep: 0, mat: 'wood' },
   store:      { name: 'General Store', cat: 'Services', era: 2, size: 1, cost: { money: 80, brick: 12, wood: 4 }, time: 24, jobs: 4, shop: 70, weight: 1, upkeep: 1, mat: 'brick' },
@@ -92,6 +111,8 @@ export const TECHS = {
   smelting: { name: 'Smelting', era: 1, cost: 80, req: ['pottery'] },
   timber:   { name: 'Mine Supports', era: 2, cost: 70, req: [] },
   writing:  { name: 'Writing', era: 2, cost: 90, req: [] },
+  irrigation: { name: 'Irrigation', era: 2, cost: 60, req: [] },
+  ironworking: { name: 'Ironworking', era: 2, cost: 140, req: ['writing'] },
   earthworks: { name: 'Ground Levelling', era: 2, cost: 60, req: [] },
   prospecting: { name: 'Prospecting', era: 2, cost: 50, req: [] },
 };
@@ -107,7 +128,9 @@ export const SAPLING = { cost: { money: 3 }, stages: [48, 96], grownAt: 144 };
 export const DISMANTLE = { timeMult: 0.6, refund: 0.5, bulldozerEra: 'Industrial' };
 
 // Next-era milestones (shown as a plain status line): population, finished buildings, culture points, techs
-export const ERA_REQ = { 1: { pop: 30, buildings: 15, culture: 100, techs: ['pottery', 'smelting'] } };
+export const ERA_REQ = { 1: { pop: 30, buildings: 15, culture: 100, techs: ['pottery', 'smelting'] }, 2: { pop: 70, buildings: 35, culture: 260, techs: ['writing', 'ironworking'], made: { bronze: 20, tools: 10 } } };
+// Bronze tools: while the town has tools, gathering, extraction and building go faster; tools wear out with use
+export const TOOLS = { boost: 0.25, wearPerWorkerDay: 0.01 };
 
 // Block-build materials (0.5-tile blocks)
 export const BLOCKS = {

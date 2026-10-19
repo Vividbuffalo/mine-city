@@ -110,7 +110,7 @@ function renderBuildMenu() {
   $('bm-items').innerHTML = html;
   $('bm-items').querySelectorAll('[data-k]').forEach(b => b.onclick = () => { const k = b.dataset.k, lk = lockReason(k); if (lk) return toast(`${BUILDINGS[k].name}: locked (${lk})`, true); ui.kind = k; showPlacing(); });
   $('bm-items').querySelectorAll('[data-tool-item]').forEach(b => b.onclick = () => { const it = TOOL_ITEMS[b.dataset.toolItem], lk = it.lock ? it.lock() : ''; if (lk || !it.tool) return toast(`${it.name}: locked (${lk})`, true); $('buildmenu').classList.add('hidden'); setTool(it.tool); });
-  $('bm-res').innerHTML = resHTML(['wood', 'clay', 'stone', 'brick', 'copper', 'bronze']);
+  $('bm-res').innerHTML = resHTML(state.era >= 2 ? ['wood', 'clay', 'stone', 'brick', 'copper', 'bronze', 'tools'] : ['wood', 'clay', 'stone', 'brick', 'copper', 'bronze']);
 }
 function bdetail(k) {
   const d = BUILDINGS[k], parts = [`${d.time} h`];
@@ -508,7 +508,7 @@ $('btn-import').onclick = () => { $('menu').classList.add('hidden'); $('file-imp
 $('file-import').onchange = async (e) => { const f = e.target.files[0]; if (!f) return; try { adopt(S.deserialize(await f.text()), 'Imported'); } catch (err) { toast('Import failed: ' + err.message, true); } e.target.value = ''; };
 
 // ---------- HUD ----------
-const RES_ICONS = { wood: '🪵', clay: '🟫', stone: '🪨', copper: '🟢', tin: '⚪', brick: '🧱', bronze: '🥉', food: '🌾' };
+const RES_ICONS = { wood: '🪵', clay: '🟫', stone: '🪨', copper: '🟢', tin: '⚪', brick: '🧱', bronze: '🥉', food: '🌾', tools: '🔨', pots: '🏺', wool: '🐑', flax: '🌿', cloth: '🧵' };
 const resHTML = (ks) => ks.map(k => `<span title="${k}">${RES_ICONS[k]} ${Math.floor(state.res[k])}</span>`).join('');
 let hudT = 0, lastLogLen = state.log.length, lastEra = state.era, lastDone = 0;
 function hud() {
@@ -526,7 +526,7 @@ function hud() {
   if (ui.sel || ui.selTile || ui.unitCard || ui.popCard) renderInfo();
   statusHud();
   if (ui.panel && ui.panel !== 'newgame' && ui.panel !== 'dev') renderPanel();
-  if (!$('buildmenu').classList.contains('hidden')) $('bm-res').innerHTML = resHTML(['wood', 'clay', 'stone', 'brick', 'copper', 'bronze']);
+  if (!$('buildmenu').classList.contains('hidden')) $('bm-res').innerHTML = resHTML(state.era >= 2 ? ['wood', 'clay', 'stone', 'brick', 'copper', 'bronze', 'tools'] : ['wood', 'clay', 'stone', 'brick', 'copper', 'bronze']);
 }
 
 
@@ -590,7 +590,7 @@ function statusHud(force) {
   const er = S.eraReady(state), r = state.research;
   let gh = '';
   if (er.items.length) {
-    gh += `<div class="gh">Next era: <b>${ERAS[state.era + 1] ? ERAS[state.era + 1].name : ''}</b></div><div class="chk">` + er.items.map(i => `<span class="${i.ok ? 'ok' : 'no'}${i.key ? '' : ' tech'}">${i.ok ? '✓' : '☐'} ${i.key ? `${{ pop: 'Population', buildings: 'Buildings', culture: 'Culture' }[i.key]} ${i.v} / ${i.need}` : i.label.replace(' researched', '') + (r.current && TECHS[r.current] && i.label.startsWith(TECHS[r.current].name) ? ` ${Math.floor(r.progress / techCost(r.current, state.culture) * 100)}%` : '')}</span>`).join('') + '</div>';
+    gh += `<div class="gh">Next era: <b>${ERAS[state.era + 1] ? ERAS[state.era + 1].name : ''}</b></div><div class="chk">` + er.items.map(i => `<span class="${i.ok ? 'ok' : 'no'}${i.key ? '' : ' tech'}">${i.ok ? '✓' : '☐'} ${i.key === 'made' ? i.label : i.key ? `${{ pop: 'Population', buildings: 'Buildings', culture: 'Culture' }[i.key]} ${i.v} / ${i.need}` : i.label.replace(' researched', '') + (r.current && TECHS[r.current] && i.label.startsWith(TECHS[r.current].name) ? ` ${Math.floor(r.progress / techCost(r.current, state.culture) * 100)}%` : '')}</span>`).join('') + '</div>';
   } else gh += '<div class="gh">Last era in this build</div>';
   gh += `<button id="st-res" class="st-res">🔬 ${r.current ? `${TECHS[r.current].name} <i class="rb"><i style="width:${Math.min(100, Math.floor(r.progress / techCost(r.current, state.culture) * 100))}%"></i></i> ${Math.min(100, Math.floor(r.progress / techCost(r.current, state.culture) * 100))}%` : `Research · ${Math.floor(r.bank || 0)} pts`}</button>`;
   setHTML($('st-goal'), gh);
@@ -603,7 +603,7 @@ function cycleTick() {
   $('st-ring').style.strokeDashoffset = (C * f).toFixed(2); $('st-cd').textContent = Math.ceil(CYCLE * (1 - f));
 }
 // floating progress bars above buildings: construction, dismantling, production (pops the goods icon)
-const POP_ICONS = { food: '🌾', wood: '🪵', stone: '🪨', clay: '🟫', brick: '🧱', copper: '🟢', tin: '⚪', bronze: '🥉' };
+const POP_ICONS = { food: '🌾', wood: '🪵', stone: '🪨', clay: '🟫', brick: '🧱', copper: '🟢', tin: '⚪', bronze: '🥉', tools: '🔨', pots: '🏺', wool: '🐑', flax: '🌿', cloth: '🧵' };
 const pbEls = new Map();
 function progressBars() {
   const box = $('pbars'), seen = new Set(), hidden = renderer.underground || document.body.classList.contains('intitle');

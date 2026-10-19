@@ -1,6 +1,8 @@
-# EARTH — Game Design Document (draft v1.1)
+# EARTH — Game Design Document (draft v1.2)
 
 > Formerly "Mine City". Title screen line: "Welcome to Earth. Enjoy the journey."
+
+*v1.2 (game v2.4, Bronze era playable): 24 Bronze buildables (Appendix I): irrigation (ditches dug from the river feed Irrigated Fields), Bronze Smith makes bronze tools that speed up all work while stocked and wear out with use, Potter/Weaver/Sheep/Flax goods sold at the Market for money, Wooden Bridges (placed on river tiles, people walk across), Raft Builder, Cart Maker, Lookout Tower, Temple, Burial Mound, Bronze Statue, Mud-Brick House, Bread Oven. Copper Pits must be placed on a found copper/tin deposit. Era goal to Iron: population 70, 35 buildings, culture 260, Writing + Ironworking, 20 bronze and 10 tools made. Pits widen slowly and nearby ground subsides only rarely.*
 
 *v1.1 (game v2.3, Isaac's playtest): the next era begins automatically once every requirement is met; the status panel shows a plain checklist of requirements (population, buildings, culture, each research item) and the current research with its progress, one tap from the research list; unspent research points are kept. Quarries and clay pits: workers walk to the nearest exposed source (hill rock, outcrop, clay bank) within 6 tiles and carry loads back, so far sources mean fewer loads; sources deplete and visibly shrink; dug ground becomes pits. Ground next to pits slowly gives way under buildings (hidden, no warning); a collapse lays open what is underground nearby. Buildings need flat ground (all footprint tiles within 0.12 height and none steep); once Ground Levelling is researched, placing on uneven ground adds a levelling job first. Roads: drag one freehand line (preview: green ok, amber trees to fell, red blocked), dropped on release; not in unexplored ground, not up steep steps; road crews fell trees on the line first and build tile by tile; roads drape over slopes. Wildlife: deer, wild boar, wolves and brown bears in home ranges; prey flee, boar fight when approached, wolves and bears defend territory; a person takes two hits, runs when hit, recovers after a day; hunters thin herds for food, herds recover. Visible work instead of bars: workers walk to sources and back, builders circle sites, field hands work rows, road crews dig; dust, wood chips, stone chips, smoke from fire pits, fish leaping at the fish trap. Progress bars only on hover/selection. Status numbers update in place without flashing; deltas change only at the 15 s cycle. Plain English names (Mud Hut, Fish Trap, Stone Tool Maker, Stone Pile Marker, Teepee, Longhouse...). New decorative Flower Patch, Shrubs, Herb Garden.*
 
@@ -641,3 +643,19 @@ Every building has its own procedural model and build-menu thumbnail. Culture bu
   - zoomed out: painterly terrain, layered water and autumn-coloured forests
   - zoomed in: a detailed terracotta-roof isometric town
 - The old Low/Medium become a hidden **"Potato"** fallback, auto-selected on low-end devices (weak GPU / low memory / low measured fps) and will be reachable via `?q=potato`.
+
+## Appendix I — Bronze era as built (game v2.4)
+All values live in `src/data.js` (data-driven); placement rules in `checkPlacement`.
+
+| Chain | Buildings | Notes |
+|---|---|---|
+| Food | Irrigated Field (needs river or ditch within 3 tiles, Irrigation tech), Irrigation Ditch (must touch the river or another ditch), Sheep Pasture (food + wool), Flax Field, Bread Oven (+12% food) | A field without water yields about a third |
+| Metal | Copper Pit (on a found deposit), Deep Mine, Smelter (copper + tin → bronze), Bronze Smith (bronze + wood → tools) | While the town has ≥1 tool, gathering, extraction and workshops run 25% faster; each worker wears 0.01 tool/day |
+| Goods | Potter (clay + wood → pots), Weaver (wool + flax → cloth), Market (sells pots, cloth and spare tools for money; also a shop) | |
+| Movement | Wooden Bridge (one river tile each, walkable), Raft Builder (deep-water crossing), Cart Maker (carts flag for later hauling) | Bridges orient across the river automatically |
+| Town | Mud-Brick House (7 people), Lookout Tower (reveals 7 tiles), Temple, Burial Mound, Bronze Statue | |
+
+Era goal (Bronze → Iron): population 70, 35 buildings, culture 260, Writing + Ironworking researched, 20 bronze and 10 tools made. The checklist shows each line. Balance run (`tests/iron.mjs`, scripted player): Bronze around day 18, Iron around day 90.
+
+Subsidence near pits: every load dug widens the pit a little (cap 24); buildings within 2 tiles of large pits carry a small hidden daily risk (max 0.2%/day × building weight).
+
