@@ -1,16 +1,18 @@
 // UI + game loop. Player actions become commands applied to the sim.
-import { Renderer } from './render.js';
+import { Renderer, QUALITY } from './render.js';
 import * as S from './sim.js';
 import { BUILDINGS, CATEGORIES, TECHS, ERAS, BLOCKS, CUSTOM_FUNCS, DEPOSITS, techCost } from './data.js';
 
 const $ = (id) => document.getElementById(id);
 const SPEEDS = [0, 1, 2, 5, 10, 25, 50];
-const SAVE_KEY = 'minecity.save.v1';
+const SAVE_KEY = 'earth.save.v1', OLD_SAVE_KEY = 'minecity.save.v1';
+const params = new URLSearchParams(location.search);
+let quality = params.get('q') || localStorage.getItem('earth.quality') || 'medium';
 const STAGE_NAMES = ['Foundation', 'Frame', 'Half-built', 'Finished'];
 const TERRAIN_NAMES = ['Grassland', 'Forest', 'Hills', 'River'];
 
-const renderer = new Renderer($('view'));
-let state = S.newGame({ seed: Number(new URLSearchParams(location.search).get('seed')) || undefined });
+const renderer = new Renderer($('view'), quality);
+let state = S.newGame({ seed: Number(params.get('seed')) || undefined });
 renderer.setState(state);
 const ui = { tool: 'select', kind: null, cat: 'Housing', rot: 0, sel: null, selTile: null, speed: 1, acc: 0, dragging: false, panning: null, hover: null, mat: 'mud', func: 'house', panel: null, under: false };
 
@@ -29,6 +31,7 @@ function setTool(t) {
   $('buildmenu').classList.toggle('hidden', t !== 'build');
   $('blockbar').classList.toggle('hidden', t !== 'block');
   if (t === 'build') renderBuildMenu();
+  if (t === 'scout') { ui.unitCard = true; ui.sel = null; ui.selTile = null; if (ui.unit == null && (state.units || []).length) ui.unit = state.units[0].id; renderer.selUnit = ui.unit; renderInfo(); }
   if (t === 'block') renderBlockBar();
   renderer.setGhost(null);
 }
@@ -77,6 +80,8 @@ cv.addEventListener('mousedown', e => {
   else if (ui.tool === 'bulldoze') { ui.dragging = true; const r = cmd({ type: 'bulldoze', x: p.x, y: p.y }); if (r.ok) closeInfo(); }
   else if (ui.tool === 'build' && ui.kind) { const r = cmd({ type: 'place', kind: ui.kind, x: p.x, y: p.y, rot: ui.rot }); if (r.ok) { select(r.id); } }
   else if (ui.tool === 'survey') cmd({ type: 'survey', x: p.x, y: p.y });
+  else if (ui.tool === 'level') cmd({ type: 'level', x: p.x, y: p.y });
+  else if (ui.tool === 'scout') { const u = renderer.pickUnit(state, p.x, p.y); if (u) selectUnit(u.id); else if (ui.unit != null) { cmd({ type: 'orderUnit', id: ui.unit, x: p.x, y: p.y }); renderInfo(); } else toast('Hire a scout first (panel on the right)'); }
   else if (ui.tool === 'block') { if (e.shiftKey) cmd({ type: 'blockRemove', x: p.sx, y: p.sy }); else cmd({ type: 'blockPlace', x: p.sx, y: p.sy, m: ui.mat }); renderBlockBar(); }
   else if (ui.tool === 'devcollapse') { const t = S.tile(state, p.x, p.y); if (t.occ) { cmd({ type: 'dev', action: 'collapse', id: t.occ }); select(t.occ); } setTool('select'); }
   else { const t = S.tile(state, p.x, p.y); if (t.occ) select(t.occ); else selectTile(p.x, p.y); }
@@ -90,13 +95,14 @@ cv.addEventListener('mousemove', e => {
   if (ui.dragging && ui.tool === 'bulldoze') S.applyCommand(state, { type: 'bulldoze', x: p.x, y: p.y });
   updateGhost();
 });
-cv.addEventListener('wheel', e => { renderer.zoom = Math.max(0.45, Math.min(4, renderer.zoom * (e.deltaY < 0 ? 1.12 : 1 / 1.12))); e.preventDefault(); }, { passive: false });
+cv.addEventListener('wheel', e => { renderer.zoom = Math.max(0.3, Math.min(4, renderer.zoom * (e.deltaY < 0 ? 1.12 : 1 / 1.12))); e.preventDefault(); }, { passive: false });
 function updateGhost() {
   const p = ui.hover; if (!p) return renderer.setGhost(null);
   if (ui.tool === 'build' && ui.kind) renderer.setGhost({ x: p.x, y: p.y, size: BUILDINGS[ui.kind].size, ok: !S.checkPlacement(state, ui.kind, p.x, p.y) });
   else if (ui.tool === 'road') { const t = S.tile(state, p.x, p.y); renderer.setGhost({ x: p.x, y: p.y, h: 0.05, ok: t.vis && !t.occ && t.t !== S.T.WATER }); }
   else if (ui.tool === 'block') { const z = state.draft.filter(b => b.x === p.sx && b.y === p.sy).length; const t = S.tile(state, p.x, p.y); renderer.setGhost({ block: true, x: p.x, y: p.y, sx: p.sx, sy: p.sy, z, ok: t.vis && !t.occ && !t.road && t.t !== S.T.WATER }); }
   else if (ui.tool === 'survey') renderer.setGhost({ x: p.x, y: p.y, h: 0.05, ok: true });
+  else if (ui.tool === 'level') { const t = S.tile(state, p.x, p.y); renderer.setGhost({ x: p.x, y: p.y, h: 0.12, ok: S.isSteep(t) && !t.occ && !t.road && !t.lvJob }); }
   else renderer.setGhost(null);
 }
 
@@ -116,13 +122,27 @@ window.addEventListener('keydown', e => {
 window.addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
 
 // ---------- info card ----------
-function select(id) { ui.sel = id; ui.selTile = null; renderInfo(); }
-function selectTile(x, y) { ui.sel = null; ui.selTile = { x, y }; renderInfo(); }
-function closeInfo() { ui.sel = null; ui.selTile = null; $('info').classList.add('hidden'); }
+function select(id) { ui.sel = id; ui.selTile = null; ui.unitCard = false; renderInfo(); }
+function selectTile(x, y) { ui.sel = null; ui.selTile = { x, y }; ui.unitCard = false; renderInfo(); }
+function selectUnit(id) { ui.unit = id; renderer.selUnit = id; ui.sel = null; ui.selTile = null; ui.unitCard = true; renderInfo(); }
+function closeInfo() { ui.sel = null; ui.selTile = null; ui.unitCard = false; $('info').classList.add('hidden'); }
 function setHTML(el, h) { if (el._h === h) return false; el._h = h; el.innerHTML = h; return true; }
 const row = (k, v) => `<div class="row"><span>${k}</span><b>${v}</b></div>`;
 function renderInfo() {
   const el = $('info');
+  if (ui.unitCard) {
+    const units = state.units || [], u = units.find(u => u.id === ui.unit);
+    let h = `<h3>Scouts</h3>` + row('Hired', `${units.length} / 3`);
+    if (u) h += row('Selected', `Scout #${u.id}`) + row('Status', u.state === 'moving' ? `Travelling to (${u.dest[0]}, ${u.dest[1]})` : u.state === 'arrived' ? 'Arrived' : u.state === 'blocked' ? 'No way through' : 'Waiting') + row('Position', `${Math.round(u.x)}, ${Math.round(u.y)}`) + row('Walked', `${u.dist.toFixed(1)} tiles`);
+    h += `<div class="bb-help" style="margin-top:6px">Click a scout to select it, then click the map to send it. Scouts reveal the land around them as they walk.</div>`;
+    const list = units.map(x => `<button data-unit="${x.id}" class="${x.id === ui.unit ? 'on' : ''}">#${x.id}</button>`).join('');
+    const btns = `<button data-act="hire">Hire scout (25)</button>${u ? `<button data-act="stop">Stop</button>` : ''}${list}`;
+    if (!setHTML(el, h + `<div class="btns">${btns}</div>`)) { el.classList.remove('hidden'); return; }
+    el.classList.remove('hidden');
+    el.querySelectorAll('[data-unit]').forEach(b => b.onclick = () => selectUnit(+b.dataset.unit));
+    el.querySelectorAll('[data-act]').forEach(b => b.onclick = () => { if (b.dataset.act === 'hire') { const r = cmd({ type: 'hireUnit', kind: 'scout' }); if (r.ok) selectUnit(r.id); } else cmd({ type: 'stopUnit', id: ui.unit }); renderInfo(); });
+    return;
+  }
   if (ui.sel) {
     const b = state.buildings[ui.sel]; if (!b) return closeInfo();
     const d = BUILDINGS[b.kind]; const name = b.kind === 'custom' ? `Custom ${CUSTOM_FUNCS[b.func]}` : d.name;
@@ -164,7 +184,7 @@ function renderInfo() {
     let h = `<h3>Tile (${x}, ${y})</h3>`;
     if (!t.vis) h += row('Terrain', 'Unexplored');
     else {
-      h += row('Terrain', TERRAIN_NAMES[t.t] + (t.t === S.T.HILL ? ` (level ${t.h})` : '')) + (t.trees ? row('Trees', t.trees) : '') + (t.road ? row('Road', 'Dirt') : '');
+      h += row('Terrain', TERRAIN_NAMES[t.t] + (t.t === S.T.HILL ? ` (level ${t.h})` : '')) + (t.lv ? row('Ground', 'Terraced') : S.isSteep(t) ? row('Ground', 'Steep: needs terracing') : '') + (t.lvJob ? row('Earthworks', (() => { const e = state.earthworks.find(e => e.id === t.lvJob); return e ? `${Math.round(100 * (1 - e.left / e.total))}%` : ''; })()) : '') + (t.trees ? row('Trees', t.trees) : '') + (t.road ? row('Road', 'Dirt') : '');
       if (t.sv) h += t.dep && t.dep.amt > 0 ? row('Deposit', DEPOSITS[t.dep.r].name) + row('Amount', t.dep.amt) + row('Depth', `${t.dep.depth} m`) : row('Deposit', 'None found');
       else h += row('Deposit', 'Not surveyed');
       if (t.work && ui.under) h += row('Mine workings', `${t.work.depth} m${t.work.abandoned ? ' (abandoned)' : ''}`);
@@ -222,7 +242,7 @@ function renderPanel() {
     body.innerHTML = `<p><small>Test controls. Not part of normal play.</small></p>
       <div class="devrow"><button id="d-risk" class="${f.riskOverlay ? 'on' : ''}">Subsidence risk overlay</button><button id="d-col" class="${f.collapses ? 'on' : ''}">Collapses: ${f.collapses ? 'ON' : 'OFF'}</button><button id="d-trig">Trigger incident (click a building)</button></div>
       <div class="devrow"><button id="d-money">+1000 money</button><button id="d-mat">+100 materials</button><button id="d-reveal">Reveal all</button><button id="d-unl" class="${f.unlimitedMoney ? 'on' : ''}">Unlimited money</button><button id="d-free" class="${f.freeBlocks ? 'on' : ''}">Free blocks</button></div>
-      <div class="devrow"><button id="d-grow">Skip growth (fill homes)</button><button id="d-surv">Skip surveys</button><button id="d-era">Skip to next era</button></div>
+      <div class="devrow"><button id="d-grow">Skip growth (fill homes)</button><button id="d-surv">Skip surveys</button><button id="d-level">Skip earthworks</button><button id="d-era">Skip to next era</button></div>
       <div class="devrow"><button id="d-sb1">Sandbox: Stone & Clay</button><button id="d-sb2">Sandbox: Bronze</button></div>
       <div><small>Hidden reputation (dev only): ${state.hidden.reputation.toFixed(1)}</small></div>`;
     const on = (id, fn) => $(id).onclick = () => { fn(); renderPanel(); renderInfo(); };
@@ -236,6 +256,7 @@ function renderPanel() {
     on('d-free', () => { state.flags.freeBlocks = !state.flags.freeBlocks; });
     on('d-grow', () => cmd({ type: 'skip', what: 'growth' }));
     on('d-surv', () => cmd({ type: 'skip', what: 'survey' }));
+    on('d-level', () => cmd({ type: 'skip', what: 'level' }));
     on('d-era', () => cmd({ type: 'skip', what: 'era' }));
     on('d-sb1', () => startGame({ sandbox: true, era: 1 }));
     on('d-sb2', () => startGame({ sandbox: true, era: 2 }));
@@ -248,12 +269,13 @@ function renderPanel() {
     $('ng-s2').onclick = () => startGame({ seed: seed(), sandbox: true, era: 2 });
   }
 }
-function startGame(opts) { state = S.newGame(opts); renderer.setState(state); closeInfo(); closePanel(); setTool('select'); exposeForTests(); }
+function startGame(opts) { hideTitle(); ui.unit = null; renderer.selUnit = null; state = S.newGame(opts); renderer.setState(state); closeInfo(); closePanel(); setTool('select'); exposeForTests(); }
 
 // ---------- save / load ----------
 $('btn-save').onclick = () => { try { localStorage.setItem(SAVE_KEY, S.serialize(state)); toast('Saved'); } catch (e) { toast('Save failed: ' + e.message); } };
-$('btn-load').onclick = () => { const j = localStorage.getItem(SAVE_KEY); if (!j) return toast('No save found'); try { state = S.deserialize(j); renderer.setState(state); closeInfo(); toast('Loaded'); exposeForTests(); } catch (e) { toast('Load failed: ' + e.message); } };
-$('btn-export').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([S.serialize(state)], { type: 'application/json' })); a.download = `minecity-day${Math.floor(state.tick / 24) + 1}.json`; a.click(); };
+$('btn-load').onclick = () => loadSave();
+function loadSave() { const j = localStorage.getItem(SAVE_KEY) || localStorage.getItem(OLD_SAVE_KEY); if (!j) return toast('No save found'); try { state = S.deserialize(j); renderer.setState(state); closeInfo(); toast('Loaded'); exposeForTests(); } catch (e) { toast('Load failed: ' + e.message); } }
+$('btn-export').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([S.serialize(state)], { type: 'application/json' })); a.download = `earth-day${Math.floor(state.tick / 24) + 1}.json`; a.click(); };
 $('btn-import').onclick = () => $('file-import').click();
 $('file-import').onchange = async (e) => { const f = e.target.files[0]; if (!f) return; try { state = S.deserialize(await f.text()); renderer.setState(state); toast('Imported'); exposeForTests(); } catch (err) { toast('Import failed: ' + err.message); } };
 
@@ -266,10 +288,11 @@ function hud() {
   $('s-happy').textContent = state.happiness;
   $('s-era').textContent = ERAS[state.era].name + (state.mode === 'sandbox' ? ' (sandbox)' : '');
   $('s-date').textContent = S.dateStr(state.tick);
+  $('s-fps').textContent = Math.round(renderer.fps) + ' fps';
   $('s-res').innerHTML = Object.entries(RES_ICONS).map(([k, i]) => `<span title="${k}">${i} ${Math.floor(state.res[k])}</span>`).join('');
   const last = state.log[state.log.length - 1];
   if (state.log.length !== lastLogLen && last) { lastLogLen = state.log.length; $('eventline').textContent = `${S.dateStr(last.t)} · ${last.msg}`; }
-  if (ui.sel || ui.selTile) renderInfo();
+  if (ui.sel || ui.selTile || ui.unitCard) renderInfo();
   if (ui.panel && ui.panel !== 'newgame' && ui.panel !== 'dev') renderPanel();
   if (ui.tool === 'block') { const cost = {}; for (const b of state.draft) { const r = BLOCKS[b.m].res; cost[r] = (cost[r] || 0) + 1; } $('bb-cost').textContent = `${state.draft.length} blocks · cost: ${state.flags.freeBlocks ? 'free (sandbox)' : S.costStr(cost)}`; }
 }
@@ -292,7 +315,19 @@ function loop(now) {
   hudT += dt; if (hudT > 0.25) { hudT = 0; hud(); }
   requestAnimationFrame(loop);
 }
-function exposeForTests() { window.game = { get state() { return state; }, cmd, S, renderer, ui, setSpeed, setTool, startGame }; }
+function exposeForTests() { window.game = { get state() { return state; }, cmd, S, renderer, ui, setSpeed, setTool, startGame, hideTitle }; }
+// ---------- quality ----------
+$('q-sel').innerHTML = Object.entries(QUALITY).map(([k, q]) => `<option value="${k}" ${k === renderer.qKey ? 'selected' : ''}>${q.name}</option>`).join('');
+$('q-sel').onchange = (e) => { renderer.setQuality(e.target.value); localStorage.setItem('earth.quality', renderer.qKey); $('t-q').value = renderer.qKey; };
+// ---------- title screen ----------
+$('t-q').innerHTML = $('q-sel').innerHTML; $('t-q').value = renderer.qKey;
+$('t-q').onchange = (e) => { $('q-sel').value = e.target.value; $('q-sel').onchange(e); };
+function hideTitle() { $('title').classList.add('hidden'); document.body.classList.remove('intitle'); renderer.autoOrbit = false; }
+if (params.get('notitle')) hideTitle(); else { document.body.classList.add('intitle'); renderer.autoOrbit = true; }
+if (!(localStorage.getItem(SAVE_KEY) || localStorage.getItem(OLD_SAVE_KEY))) $('t-cont').classList.add('hidden');
+$('t-play').onclick = () => startGame({ seed: Number(params.get('seed')) || undefined });
+$('t-sand').onclick = () => startGame({ sandbox: true, era: 1 });
+$('t-cont').onclick = () => { hideTitle(); loadSave(); };
 exposeForTests();
 setTool('select');
 requestAnimationFrame(loop);

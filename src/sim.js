@@ -1,5 +1,9 @@
-// Mine City simulation. Pure data + rules, no rendering. All mutations go through applyCommand().
-import { BUILDINGS, TECHS, ERAS, ERA_REQ, BLOCKS, SAVE_VERSION, HOURS_PER_DAY, techCost } from './data.js';
+// EARTH simulation. Pure data + rules, no rendering. All mutations go through applyCommand().
+import { BUILDINGS, TECHS, ERAS, ERA_REQ, BLOCKS, SAVE_VERSION, HOURS_PER_DAY, techCost, EARTHWORKS } from './data.js';
+// Steep = mountain ground (high hill) not yet terraced. Only quarries can go on it until it is levelled.
+import { tickUnits, spawnUnit, orderMove, UNIT_TYPES } from './units.js';
+export const ROAD_RATE = 4; // road tiles completed per game hour (crude dirt tracks)
+export const isSteep = (t) => !!t && t.t === T.HILL && t.h >= 2 && !t.lv;
 
 // ---------- RNG ----------
 function hash2(seed, x, y) {
@@ -78,7 +82,7 @@ export function newGame(opts = {}) {
   const seed = opts.seed ?? Math.floor(Math.random() * 1e9);
   const sandbox = !!opts.sandbox, era = opts.era || 1;
   const state = {
-    version: SAVE_VERSION, seed, rs: seed | 0, tick: 0, mode: sandbox ? 'sandbox' : 'normal',
+    version: SAVE_VERSION, seed, rs: seed | 0, tick: 7, mode: sandbox ? 'sandbox' : 'normal',
     // Data-model hooks: galaxy > system > planet > region > plot (only one of each in MVP)
     location: { galaxy: 0, system: 0, planet: 'earth', region: { id: 'r0', lat: 33.45, lon: -112.07 }, plot: { id: 'p0', x0: 0, y0: 0, owner: 'player1' } },
     culture: 'default',
@@ -86,7 +90,7 @@ export function newGame(opts = {}) {
     era, res: { money: 600, wood: 60, clay: 0, stone: 10, copper: 0, tin: 0, brick: 0, bronze: 0, food: 40 },
     stats: { bricksMade: 0, bronzeMade: 0, deaths: 0, arrivals: 0, left: 0, collapses: 0 },
     research: { points: 0, done: [], current: null, progress: 0 },
-    buildings: {}, nextId: 1, incidents: [], crews: [], surveys: [], draft: [],
+    buildings: {}, nextId: 1, incidents: [], crews: [], surveys: [], earthworks: [], roadJobs: [], units: [], draft: [],
     flags: { collapses: true, unlimitedMoney: sandbox, freeBlocks: sandbox, riskOverlay: false },
     happiness: 60, grief: 0, hungry: false,
     hidden: { reputation: 0 }, // hidden morality track; never shown in normal play
@@ -159,7 +163,9 @@ export function checkPlacement(state, kind, x, y) {
     if (!t) return 'Out of bounds';
     if (!t.vis) return 'Unexplored';
     if (t.t === T.WATER) return 'Water';
-    if (t.occ || t.road) return 'Occupied';
+    if (t.occ || t.road || t.rp) return 'Occupied';
+    if (t.lvJob) return 'Earthworks in progress';
+    if (isSteep(t) && kind !== 'quarry') return 'Too steep: terrace it first (Level tool, Earthworks)';
     if (d.terrain && !d.terrain.includes(t.t)) return 'Needs open grassland';
   }
   if (d.needs && !hasBuilt(state, d.needs)) return `Needs a finished ${BUILDINGS[d.needs].name}`;
@@ -203,7 +209,7 @@ function createBuilding(state, kind, tiles, extra = {}) {
   state.buildings[id] = b;
   for (const [tx, ty] of tiles) tile(state, tx, ty).occ = id;
   let cx = 0, cy = 0; for (const [tx, ty] of tiles) { cx += tx; cy += ty; }
-  reveal(state, Math.round(cx / tiles.length), Math.round(cy / tiles.length), 5);
+  b.cx = Math.round(cx / tiles.length); b.cy = Math.round(cy / tiles.length); // reveals nearby ground when finished (finishBuilding)
   state.dirty.buildings = true;
   return b;
 }
@@ -229,11 +235,11 @@ const COMMANDS = {
   },
   road(state, { x, y }) {
     const t = tile(state, x, y);
-    if (!t || !t.vis || t.t === T.WATER || t.occ || t.road) return { ok: false, err: 'Cannot build road here' };
+    if (!t || !t.vis || t.t === T.WATER || t.occ || t.road || t.rp) return { ok: false, err: 'Cannot build road here' };
     const cost = { money: 2 };
     if (!canAfford(state, cost)) return { ok: false, err: 'Not enough money' };
-    pay(state, cost); t.road = 1; if (t.trees) { t.trees = 0; state.dirty.trees = true; }
-    reveal(state, x, y, 3);
+    pay(state, cost); t.rp = 1; if (t.trees) { t.trees = 0; state.dirty.trees = true; }
+    (state.roadJobs = state.roadJobs || []).push([x, y]); // planned; built by tickRoads, never reveals before it's built
     state.dirty.roads = true; return { ok: true };
   },
   bulldoze(state, { x, y }) {
@@ -244,12 +250,41 @@ const COMMANDS = {
       // occupants move out (population lost from this home)
       removeBuilding(state, b); return { ok: true };
     }
+    if (t.rp) { t.rp = 0; state.roadJobs = state.roadJobs.filter(([a, b]) => a !== x || b !== y); state.res.money += 2; state.dirty.roads = true; return { ok: true }; }
     if (t.road) {
       if (state.crews.some(c => c.path && c.path.some(p => p[0] === x && p[1] === y) && c.state !== 'idle')) return { ok: false, err: 'A crew is using this road' };
       t.road = 0; state.dirty.roads = true; return { ok: true };
     }
     return { ok: false };
   },
+  // terrace a steep tile (Bronze earthworks): takes time, costs money + stone, clears trees
+  level(state, { x, y }) {
+    const t = tile(state, x, y);
+    if (!t || !t.vis) return { ok: false, err: 'Unexplored' };
+    if (!state.research.done.includes(EARTHWORKS.tech)) return { ok: false, err: `Requires ${TECHS[EARTHWORKS.tech].name} (Bronze era)` };
+    if (!hasBuilt(state, EARTHWORKS.needs)) return { ok: false, err: `Needs a finished ${BUILDINGS[EARTHWORKS.needs].name}` };
+    if (!isSteep(t)) return { ok: false, err: t.lv ? 'Already terraced' : 'Not steep: no levelling needed' };
+    if (t.occ || t.road || t.rp || t.lvJob) return { ok: false, err: 'Occupied' };
+    if (!canAfford(state, EARTHWORKS.cost)) return { ok: false, err: 'Not enough resources' };
+    pay(state, EARTHWORKS.cost);
+    const id = state.nextId++; (state.earthworks = state.earthworks || []).push({ id, x, y, left: EARTHWORKS.hours, total: EARTHWORKS.hours });
+    t.lvJob = id; if (t.trees) { t.trees = 0; state.dirty.trees = true; }
+    state.dirty.terrain = true; addLog(state, `Earthworks started at (${x}, ${y}).`);
+    return { ok: true, id };
+  },
+  // ---- units (scouts) ----
+  hireUnit(state, { kind = 'scout' }) {
+    const ut = UNIT_TYPES[kind]; if (!ut) return { ok: false, err: 'Unknown unit' };
+    if ((state.units || []).filter(u => u.kind === kind).length >= ut.max) return { ok: false, err: `At most ${ut.max} ${ut.name.toLowerCase()}s for now` };
+    if (!canAfford(state, ut.cost)) return { ok: false, err: 'Not enough money' };
+    pay(state, ut.cost); const u = spawnUnit(state, kind, state.start.x, state.start.y); addLog(state, `${ut.name} hired.`); return { ok: true, id: u.id };
+  },
+  orderUnit(state, { id, x, y }) {
+    const u = (state.units || []).find(u => u.id === id); if (!u) return { ok: false, err: 'No such unit' };
+    const t = tile(state, x, y); if (!t) return { ok: false, err: 'Out of bounds' };
+    return orderMove(state, u, x, y);
+  },
+  stopUnit(state, { id }) { const u = (state.units || []).find(u => u.id === id); if (u) { u.path = []; u.state = 'idle'; } return { ok: true }; },
   survey(state, { x, y }) {
     const t = tile(state, x, y);
     if (!t || !t.vis) return { ok: false, err: 'Unexplored' };
@@ -273,7 +308,7 @@ const COMMANDS = {
   // ---- block build ----
   blockPlace(state, { x, y, m }) { // x,y in half-tile sub-cells
     const tx = x >> 1, ty = y >> 1, t = tile(state, tx, ty);
-    if (!t || !t.vis || t.t === T.WATER || t.road || t.occ) return { ok: false, err: 'Cannot build blocks here' };
+    if (!t || !t.vis || t.t === T.WATER || t.road || t.rp || t.occ) return { ok: false, err: 'Cannot build blocks here' };
     if (!BLOCKS[m] || BLOCKS[m].era > state.era) return { ok: false, err: 'Material not available' };
     const col = state.draft.filter(b => b.x === x && b.y === y);
     if (col.length >= 10) return { ok: false, err: 'Too tall' };
@@ -309,7 +344,10 @@ const COMMANDS = {
   skip(state, { what, id }) {
     if (what === 'build') { const b = state.buildings[id]; if (b && !b.done) { b.progress = 1; finishBuilding(state, b); } }
     else if (what === 'research') { if (state.research.current) completeResearch(state); }
+    else if (what === 'roads') { tickRoads(state, 1e9); }
+    else if (what === 'units') { for (let i = 0; i < 200 && (state.units || []).some(u => u.path.length); i++) tickUnits(state); }
     else if (what === 'survey') { for (const s of state.surveys) s.left = 0; tickSurveys(state); }
+    else if (what === 'level') { for (const e of state.earthworks || []) if (!id || e.id === id) e.left = 0; tickEarthworks(state, true); }
     else if (what === 'mine') { const b = state.buildings[id]; assignWorkers(state); if (b) for (let i = 0; i < 24; i++) runBuilding(state, b, 1); }
     else if (what === 'growth') { for (const b of Object.values(state.buildings)) { const c = capOf(b); if (c && b.done && !b.ruin && roadAccess(state, b)) { const add = c - b.residents; b.residents = c; state.stats.arrivals += add; } } }
     else if (what === 'incident') { const inc = state.incidents.find(i => i.id === id); if (inc) skipIncident(state, inc); }
@@ -355,6 +393,7 @@ export function stageOf(b) { if (b.done) return 3; return b.progress < 0.25 ? 0 
 
 function finishBuilding(state, b) {
   b.done = true; b.progress = 1; state.dirty.buildings = true;
+  reveal(state, b.cx ?? b.x, b.cy ?? b.y, 4);
   if (b.kind === 'rescue') addLog(state, 'Rescue & Cleanup Post is ready.');
 }
 
@@ -368,7 +407,10 @@ export function tick(state) {
   }
   assignWorkers(state);
   for (const b of Object.values(state.buildings)) if (b.done && !b.ruin) runBuilding(state, b, 1);
+  tickRoads(state, ROAD_RATE);
+  tickUnits(state);
   tickSurveys(state);
+  tickEarthworks(state);
   tickIncidents(state);
   tickCrews(state);
   // research: points per hour
@@ -462,6 +504,22 @@ function extractOne(state, b, d) {
   return true;
 }
 
+function tickRoads(state, n) {
+  const q = state.roadJobs || (state.roadJobs = []); if (!q.length) return;
+  for (const [x, y] of q.splice(0, n)) { const t = tile(state, x, y); if (!t || !t.rp) continue; t.rp = 0; t.road = 1; reveal(state, x, y, 2); }
+  state.dirty.roads = true;
+}
+function tickEarthworks(state, noDec) {
+  const list = state.earthworks || (state.earthworks = []);
+  for (const e of list) {
+    if (!noDec) e.left--;
+    const t = tile(state, e.x, e.y);
+    if (e.left <= 0) { t.lv = 1; t.h = 1; t.lvJob = 0; addLog(state, `Terrace finished at (${e.x}, ${e.y}); it can now be built on.`); }
+    state.dirty.earth = true;
+  }
+  const before = list.length; state.earthworks = list.filter(e => e.left > 0);
+  if (state.earthworks.length !== before) state.dirty.terrain = state.dirty.grass = true;
+}
 function tickSurveys(state) {
   for (const s of state.surveys) {
     s.left--;
@@ -671,6 +729,6 @@ export function serialize(state) { const { dirty, ...rest } = state; return JSON
 export function deserialize(json) {
   const s = JSON.parse(json);
   if (s.version !== SAVE_VERSION) throw new Error('Save version mismatch');
-  s.dirty = { all: true };
+  s.dirty = { all: true }; s.earthworks = s.earthworks || []; s.roadJobs = s.roadJobs || []; s.units = s.units || [];
   return s;
 }

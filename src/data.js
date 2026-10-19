@@ -44,7 +44,11 @@ export const TECHS = {
   smelting: { name: 'Smelting', era: 1, cost: 80, req: ['pottery'] },
   timber:   { name: 'Timber Supports', era: 2, cost: 70, req: [] },
   writing:  { name: 'Writing', era: 2, cost: 90, req: [] },
+  earthworks: { name: 'Earthworks & Terracing', era: 2, cost: 60, req: [] },
 };
+
+// Terrain levelling. Bronze: cut a terrace into a steep (mountain) tile so it can be built on. Later eras: full levelling / cutting into mountains (design).
+export const EARTHWORKS = { cost: { money: 40, stone: 6 }, hours: 30, needs: 'carpentry', tech: 'earthworks' };
 
 export const ERA_REQ = { 1: { pop: 50, bricksMade: 100, techs: ['pottery', 'smelting'] } };
 

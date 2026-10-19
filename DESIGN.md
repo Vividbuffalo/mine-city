@@ -1,7 +1,11 @@
-# Mine City — Game Design Document (draft v0.7)
+# EARTH — Game Design Document (draft v0.8)
+
+> Formerly "Mine City". Title screen line: "Welcome to Earth. Enjoy the journey."
+
+*v0.8 changes: renamed EARTH, with a title screen; graphics, LOD and art direction (App. B); terrain levelling and terracing in the MVP, dynamic cultures, exploration by era, hidden exploration dangers (App. C); exploration, units and direct-control spec, with completion-only fog reveal and a Scout unit in the MVP; controlling Earth is one possible objective, not mandatory (App. D); personal role routes (App. E); tunnel boring (App. F); driving stays top-down.*
 
 *Working title. Design only — nothing is built yet. Everything here is meant to be reacted to and changed.*
-*v0.7 changes: rank ladder (Village Elder → President → World Leader) and classified secrets (Area 51-style ships, advanced tech) unlocked by rank/top tech goals, and a leadership style spectrum (Good President ↔ Dictator) driven by policies (A.8); player driving (cars → aircraft/ships/spacecraft) with the 3D view (A.1). Not MVP.*
+*v0.7 changes: rank ladder (Village Elder → President → World Leader) and classified secrets (Area 51-style ships, advanced tech) unlocked by rank/top tech goals, and a leadership style spectrum (Good President ↔ Dictator) driven by policies (A.8); player driving (cars → aircraft/ships/spacecraft) in the same top-down view (A.1; v0.8: no separate 3D mode). Not MVP.*
 *v0.6 changes: win = take over the Earth, which unlocks a ship-building, space-exploration post-win stage; realistic ship engineering with reset-to-Earth on death; Solo Earth setup option (wilderness or neutral settlements); emergent borders from Stone Age; war out of scope (future).*
 *v0.5 changes: pick-or-random start location sets your country, three game modes (Solo Earth, Country, USA vs World), sky/space tier hidden until reached, sky control = military + economic dominance.*
 *v0.4 changes: automatic crew dispatch (no manual dispatch, no rescue scene), long-term goal (rule the sky → space), AI rival civs, Earth-scale world plan, space and galactic tiers, world/planet hooks in the data model; long-term roadmap moved to Appendix A.*
@@ -44,7 +48,7 @@ Current scope is **building and flow**: placing, mining, processing, growing. Ri
 - **Platform:** PC web browser only (mouse + keyboard) for now.
 - **Look:** smooth, modern, clean — soft lighting, gentle shadows, stylized low-poly models with smooth shading. **Not pixel art.** Readable at a glance like SimCity 3000, but contemporary.
 - **View:** isometric camera over the grid. Rotate in 90° steps, smooth zoom. No character to walk around.
-- **How it's drawn (suggested):** real 3D models viewed through a fixed isometric (orthographic) camera. This gives the smooth modern look, makes construction stages and crossfades easy, and means the later free-3D camera reuses the same models.
+- **How it's drawn (suggested):** real 3D models viewed through a fixed isometric (orthographic) camera. This gives the smooth modern look, makes construction stages and crossfades easy, and keeps every later feature (units, driving) in the same top-down/isometric view. There is no third-person or over-the-shoulder mode.
 
 ## 5. Map and terrain
 
@@ -304,7 +308,7 @@ Normal play takes a while. For development and testing:
 
 ## 14. Roadmap (summary)
 
-Phase 2 Iron era and services → Phase 3 Industrial → Phase 4 Modern + Earth-scale world → Phase 5 AI rival civs → Phase 6 multiplayer → Phase 7 Aerospace & Orbital (rule the sky, take over Earth = win) → Phase 8 post-win: spaceship + Interplanetary → Phase 9 Galactic. War: possible future, not designed. Free 3D camera and the optional Stellar/XLM layer can slot in later. Details in **Appendix A**.
+Phase 2 Iron era and services → Phase 3 Industrial → Phase 4 Modern + Earth-scale world → Phase 5 AI rival civs → Phase 6 multiplayer → Phase 7 Aerospace & Orbital (rule the sky, take over Earth = win) → Phase 8 post-win: spaceship + Interplanetary → Phase 9 Galactic. War: possible future, not designed. Camera presets (still top-down) and the optional Stellar/XLM layer can slot in later. Details in **Appendix A**.
 
 ## 15. Open questions for Isaac
 
@@ -325,7 +329,7 @@ Phase 2 Iron era and services → Phase 3 Industrial → Phase 4 Modern + Earth-
 - ~~Map scale?~~ → One civilization expanding from a starting plot, eventually across a ~1:50 Earth, then space.
 - ~~Start location?~~ → Player picks a spot or Random; it sets the country (A.2).
 - ~~Game modes?~~ → Solo Earth, Country, USA vs World (A.2).
-- ~~What does dominating the world mean?~~ → Win = take over the Earth via sky control; winning unlocks the spaceship (A.2).
+- ~~What does dominating the world mean?~~ → Controlling the Earth (via sky control) is *one possible objective*, not mandatory and not available on every path; reaching it legitimately unlocks the spaceship (A.2, Appendix D).
 - ~~Borders?~~ → Emergent: countries start small in the Stone Age and grow their own territory.
 - ~~Solo Earth: wilderness or settlements?~~ → Setup option for either.
 - ~~Space failure?~~ → Realistic ship engineering; dying in space resets you to Earth with your civ intact (A.5).
@@ -354,9 +358,9 @@ Phase 2 Iron era and services → Phase 3 Industrial → Phase 4 Modern + Earth-
 - **Phase 8: Post-win spaceship + Interplanetary**, **Phase 9: Galactic** (A.5).
 - **Future, not designed:** war.
 - **Later (any Earth phase):** rank ladder and classified secrets (A.8).
-- **Later, with the 3D view: player driving** becomes a big part of the game. You drive your own city's roads, and later fly aircraft, sail ships and pilot spacecraft. The MVP's road graph, pathfinding and vehicle system are the foundation for it. Personal transport is gated by **era and wealth**: horse-drawn carriage early, then cars, and with a higher rank plus enough money you can buy a helicopter, then planes. Early ages are short, so the first vehicles come quickly.
+- **Later: player driving, in the same top-down/isometric view.** Classic top-down driving in the style of the original GTA or Micro Machines: you drive your own city's roads, and later fly aircraft, sail ships and pilot spacecraft from the same camera. It reuses the road graph, pathfinding, vehicle system and the shared unit/movement layer. There is no separate 3D driving mode. Personal transport stays gated by era and wealth.
 - **Later: custom map mode / map editor.** Sculpt terrain, water and mountains, place deposits and geology, and set start points and civs. Save and play custom maps; sharing could come later. It uses the same seed/chunk world format.
-- **Any time later:** free 3D camera over the same models; disasters; mod/blueprint sharing; optional Stellar/XLM layer (A.7).
+- **Any time later:** camera rotation/tilt presets (still top-down/isometric, no third-person); disasters; mod/blueprint sharing; optional Stellar/XLM layer (A.7).
 
 ### A.2 Start location, game modes and win condition
 **Start location:** the player picks a spot on the Earth map or hits Random. The spot sets your **civilization/country** (e.g. Arizona = USA) and your local geology.
@@ -375,7 +379,7 @@ Phase 2 Iron era and services → Phase 3 Industrial → Phase 4 Modern + Earth-
 
 **Era progression varies by civilization:** pacing, order and some techs and paths within eras differ by country/culture, shaped by local geology and resources and grounded in history (e.g. a tin-poor region reaches bronze later and may lean on early iron; a river-valley civ farms and builds with clay brick early). Era and tech data is a shared base that each culture can **override** (timings, order, extra or replacement techs).
 
-**Win condition: take over the Earth.** The "become Elon Musk" arc: whoever controls the sky (air, then orbit) controls the world. Sky control brings both economic dominance (flight routes, launch capacity, satellites for survey and communications, control of trade and resources) and strategic reach. In Solo Earth, taking over means your civ covers the planet; in the other modes it means out-growing and absorbing the AI civs. Exact thresholds get tuned with the AI phase. **War is out of scope** for now and may come in the future; it is not designed here.
+**One possible objective: take over the Earth** (not mandatory, and not open on every path; see Appendix D). The "become Elon Musk" arc: whoever controls the sky (air, then orbit) controls the world. Sky control brings both economic dominance (flight routes, launch capacity, satellites for survey and communications, control of trade and resources) and strategic reach. In Solo Earth, taking over means your civ covers the planet; in the other modes it means out-growing and absorbing the AI civs. Exact thresholds get tuned with the AI phase. **War is out of scope** for now and may come in the future; it is not designed here.
 
 **Winning unlocks the spaceship** and the post-win stage (A.5). **Only a legitimate win unlocks space.** The bad-guy/dictator route can never reach space: it caps out as an isolated, internationally disrespected regime (Kim Jong-un style) and is ultimately unsuccessful.
 
@@ -445,3 +449,69 @@ Hard rules (no gambling, pyramid or securities-like mechanics):
   - **No style meter.** The player only sees the effects (happiness, output, unrest numbers). No advice on which way to lean.
 - **Hidden reputation / morality track:** from the very start, choices like fair vs. low wages, safe vs. unsupported mines, building rescue services vs. skipping safety, and honest vs. corner-cutting quietly build a hidden reputation. Later it opens or closes paths: Good President / "Iron Man" (public genius-builder) vs. Dictator / shady "Batman". **Never shown**: no meter, no hints, no "your reputation changed" messages. (The MVP only records a hidden value from mine safety and incident response; it has no effect yet.)
 - Dev/sandbox can set rank and unlock secrets for testing.
+
+## Appendix B — Graphics, LOD & model system (v0.8)
+- Target: the best visuals that still run smoothly on a typical home PC in the browser (not AAA). Quality toggle Low / Medium / High (`?q=low|medium|high`, saved locally).
+- Pipeline: ACES tone mapping, sRGB output, soft PCF shadows from a side-lit sun, image-based ambient (room environment), fog with a sky gradient, MSAA; Medium adds bloom; High adds ground-truth ambient occlusion (GTAO), 4096 shadows and denser grass.
+- World: smooth plateau terrain with vertex-colour blending and noise, sandy shores and riverbeds, animated water normals with environment reflections, instanced trees (conifer/broadleaf, size/colour variation, wind sway), grass tufts and rocks, layered dirt roads with wheel ruts.
+- Buildings must read as what they are: each kind has a hand-built procedural model (walls, roofs with overhangs, windows that glow at night, doors, chimneys with smoke, props such as log piles and brick stacks) plus foundation, frame and half-built construction stages that crossfade.
+- Landmarks: the model system (`src/models.js`) accepts a high-detail glTF per building (`def.gltf`, `scale`, `offsetY`) so famous landmarks (e.g. the Empire State Building) can get dedicated, instantly recognizable models later. External assets only if CC0/licence-safe.
+- Collapse: dust burst plus a rubble model; vehicles are animated horse wagons kicking up dust.
+- Level of detail (built for the future full-size Earth map): everything is decided by on-screen size (pixels per world unit, so it also handles perspective or tilted top-down cameras) and distance from the camera focus.
+  - Buildings: full model near the camera → LOD1 (same model minus windows/doors/props, merged per 16×16 chunk into one draw call) → LOD2 (box + roof proxy) very far. Hysteresis prevents flicker; buildings mid-construction always stay full detail.
+  - Terrain: per-chunk full-resolution mesh near, half-resolution far, with hidden skirts to avoid seams.
+  - Trees: full instanced 3D trees near; baked impostor billboards (crossed quads rendered from the real model) far, without shadows.
+  - Grass and pebbles only near the camera; smoke only from full-detail buildings; shadows only within a quality-dependent distance.
+  - Quality presets scale all thresholds (Low / Medium / High).
+- Art direction (High preset): zoomed out reads like a painterly aerial landscape: atmospheric haze, a winding blue river, mixed forest with autumn patches, rocky snow-capped peaks, varied meadows, thin pale dirt roads. Zoomed in reads like a dense isometric town: terracotta roofs, cream walls, warm sunlight, terraces and retaining walls.
+
+## Appendix C — Terraforming, cultures, exploration (v0.8)
+- **Terrain levelling (in the MVP).** Steep mountain ground can't be built on (only quarries) until it is levelled. Early settlers build only on suitable slopes. Bronze era: researching *Earthworks & Terracing* and having a finished Carpenter's Yard unlocks the **Level** tool. It terraces a steep tile for money + stone over 30 game-hours, in visible stages: stakes and ropes → soil cut and spoil heaps → retaining walls going up → a finished terrace with dry-stone walls. A dev skip exists. Later eras unlock bigger reshaping: levelling whole hilltops, cutting into mountains, embankments and cuttings for roads and rail, so castles and fortresses can sit on mountains.
+- **Cultures evolve dynamically.** A culture isn't a fixed preset: its traits drift with geography (coast, mountains, river plains), available resources, its leadership, trade partners, and how the player interacts with it (trade, influence, conflict). Over time this changes its architecture, era pacing, technology preferences and attitudes. The `CULTURES` override hook is where this starts in code.
+- **Exploration grows by era.** Scouts on foot, then horses, ships, planes and finally satellites. Each one reveals farther and faster, which shapes how fog of war lifts across the full Earth map. The MVP keeps its current reveal sources: buildings, roads and surveys.
+- **Hidden exploration dangers.** Wildlife true to the region (wolves, bears, big cats, snakes, etc.) and natural hazards (cliffs, rivers, swamps, storms) can injure or kill scouts without warning, in keeping with "figure it out yourself" (no hint markers). Risk depends on region, season and weather. Later eras reduce it with better gear, escorts and vehicles. Lost scouts cost money and morale, and the hidden reputation tracks reckless expeditions.
+
+## Appendix D — Exploration, units and direct control (Isaac's spec, v0.8)
+**Core vision.** A civ/city-building sandbox through historical and future eras, played solo or alongside independent civs. Different paths lead to different outcomes. Conquering or controlling Earth is *one possible objective*: it isn't mandatory, and it isn't available on every path. Long-term layers (transport, driving, vehicle maintenance, interplanetary) must not distract from the core.
+
+1. **View.** Top-down/isometric only. No third-person or over-the-shoulder mode.
+2. **Selectable individuals and groups.** Citizens, scouts, workers, soldiers and exploration parties can be selected. Give them orders and they travel automatically and carry out activities. Optional manual top-down movement. Switch between units, or back to civ management, at any time.
+3. **Fog of war.**
+   - The world starts dark except a small area around the start.
+   - Only *completed* buildings and roads, and surveys, reveal *nearby* territory. Surveying also reveals the underground.
+   - Camera movement never reveals anything.
+   - Road placement can't reveal distant areas before the road physically reaches them.
+   - Units reveal the map as they physically travel.
+   - Explored geography stays mapped. Activity outside current visibility can stay hidden.
+4. **Exploration groups come in progressively.** Orders are destinations with auto-travel, follow, or direct control. Methods by era: walking → horses → ships → vehicles → aircraft → satellites. Each reveals farther and faster (Appendix C).
+5. **Earth-scale performance.** Never simulate every person. Show lightweight animated units near the view and abstract groups or populations farther away. One shared movement and exploration layer. Smooth gameplay and adaptive graphics come first (LOD, Appendix B).
+6. **Priorities.** Keep improving graphics, preserve working mechanics, and architect movement and exploration so selectable units and top-down control can be added incrementally, without rewrites.
+
+**What's in the build now (MVP).**
+- Reveal rules match point 3:
+  - Buildings reveal radius 4 only once finished.
+  - Roads are *planned*, built at 4 tiles per game-hour, and reveal radius 2 only once built. Planned tiles can only go on already-explored ground.
+  - Surveys reveal as before. The camera never reveals.
+- A shared unit system (`src/units.js`):
+  - Unit types are data (speed, sight, terrain costs).
+  - A* pathfinding plans optimistically through unexplored ground and re-plans when the unit sees an obstacle.
+  - Units move every tick, reveal by sight radius (+1 on hills), and are interpolated smoothly in the renderer.
+  - Save/load supported.
+- The first unit is a **Scout on foot**. Hire up to 3 for 25 money each with the Scout tool, click one to select it, then click the map to send it. Scouts can ford rivers slowly.
+- Next steps: groups and follow orders; manual step-control (arrow keys driving the selected unit with short destinations); horse riders; boats; abstract distant groups; hazards (Appendix C).
+
+## Appendix E — Personal role progression (v0.8)
+- You play a person as well as a civ. Your role grows with the eras: Stone Age gatherer → farmer → village elder → … up the rank ladder (A.8).
+- **Routes** open depending on earlier choices, for example political (elder → governor → president), technology/inventor, business/tycoon, military, religious/cultural, explorer. They aren't exclusive: you can follow several at once (e.g. inventor + governor), each with its own perks, duties and risks.
+- **No guidance** on which route to pick ("figure it out yourself"). Routes are discovered through play, and hidden reputation (A.8) shapes which doors open.
+
+## Appendix F — Tunnel boring and underground transit (later era, v0.8)
+- High-level mining tech unlocks **tunnel boring machines** (in the spirit of The Boring Company). The player builds underground road/Loop tunnels with electric-car transit between stations.
+- Tunnels appear in the underground view next to mine workings and deposits. They run on the same road graph and vehicle system: a tunnel is just an underground road layer with its own capacity and speed.
+- **Subsidence interaction:** tunnels add void depth and age-dependent risk to the hidden subsidence model, like mine workings. Depth, ground type, lining quality and nearby building weight all count. Shallow tunnels under heavy buildings are risky; deep, well-lined tunnels in good rock are safe. A collapse affects the surface above and any traffic inside.
+
+## Appendix G — AI civs design their own buildings (v0.8)
+- AI civs procedurally design buildings from scratch with the **same block-build system** the player uses. Designs come from a cultural *style grammar*: preferred materials, roof forms, proportions and massing, window rhythm, and ornament, seeded by geography, resources and history (and drifting as cultures evolve, App. C).
+- Each AI puts a share of its resources into creating unique buildings over time: temples, palaces, towers, gates. By the time the player meets a civ, it has a few one-of-a-kind landmarks, different in every world. Their designs follow the same structural and subsidence rules as the player's buildings.
+- **Procedural architecture with AI-directed design.** The AI makes the design decisions: building shapes, materials, layouts, decorative features and purpose, chosen from a flexible *construction grammar* (massing → structure → roof → openings → ornament, constrained by culture, era, materials and site). The engine turns those choices into efficient geometry: merged meshes per material, instancing for repeated parts, and automatic LOD levels (App. B). Many unique buildings therefore stay cheap to render.
+- **Signature monuments.** Each civ has one signature monument at the heart of its identity. If another player or civ takes control of it, that civilization collapses and can be absorbed. This is a major path to absorbing civs that doesn't need war. The exact means of "taking" it is TBD and must fit the no-war-for-now scope: purchase, influence, or cultural/economic takeover (e.g. owning the land and institutions around it, winning over its custodians). The monument's state is a visible, high-stakes target for diplomacy and economy.

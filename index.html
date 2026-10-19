@@ -2,20 +2,22 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Mine City (MVP)</title>
+<title>EARTH</title>
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <canvas id="view"></canvas>
 <div id="topbar">
-  <div class="brand">Mine City</div>
+  <div class="brand">EARTH</div>
   <div class="stat" title="Money">💰 <span id="s-money">0</span></div>
   <div class="stat" title="Population">👥 <span id="s-pop">0</span></div>
   <div class="stat" title="Happiness">🙂 <span id="s-happy">0</span></div>
   <div class="stat" title="Era">🏺 <span id="s-era"></span></div>
   <div class="stat" id="s-date"></div>
   <div class="speeds" id="speeds"></div>
+  <div class="stat fps" id="s-fps"></div>
   <div class="res" id="s-res"></div>
 </div>
 <div id="toolbar">
@@ -23,6 +25,8 @@
   <button data-tool="road" title="Dirt road (drag) – 2 money/tile">🛤️<span>Road</span></button>
   <button data-tool="build" title="Build menu">🏠<span>Build</span></button>
   <button data-tool="survey" title="Survey (15 money, 12 h, radius 4)">🧭<span>Survey</span></button>
+  <button data-tool="scout" title="Scouts: hire, select and send them to explore">🚶<span>Scout</span></button>
+  <button data-tool="level" title="Level / terrace steep ground (needs Earthworks + Carpenter's Yard; 40 money + 6 stone, 30 h)">⛰️<span>Level</span></button>
   <button data-tool="block" title="Block build (B)">🧱<span>Blocks</span></button>
   <button data-tool="bulldoze" title="Bulldoze">🚜<span>Bulldoze</span></button>
   <button id="btn-under" title="Underground view (U)">⛏️<span>Under</span></button>
@@ -40,12 +44,26 @@
   <button data-panel="tech">Tech</button><button data-panel="stats">Stats</button><button data-panel="log">Log</button>
   <button id="btn-save">Save</button><button id="btn-load">Load</button><button id="btn-export">Export</button><button id="btn-import">Import</button>
   <button data-panel="newgame">New</button><button data-panel="dev" class="dev">Dev</button>
+  <select id="q-sel" title="Graphics quality"></select>
   <input type="file" id="file-import" accept=".json" class="hidden">
 </div>
 <div id="info" class="hidden"></div>
 <div id="panel" class="hidden"><div class="ph"><span id="panel-title"></span><button id="panel-close">✕</button></div><div id="panel-body"></div></div>
 <div id="eventline"></div>
 <div id="toast"></div>
+<div id="title">
+  <div class="t-card">
+    <div class="t-logo">EARTH</div>
+    <div class="t-line">Welcome to Earth. Enjoy the journey.</div>
+    <div class="t-btns">
+      <button id="t-play" class="primary">New game</button>
+      <button id="t-cont">Continue</button>
+      <button id="t-sand">Sandbox</button>
+    </div>
+    <label class="t-q">Graphics <select id="t-q"></select></label>
+    <div class="t-foot">Early build · single-player · PC browser</div>
+  </div>
+</div>
 <script type="module" src="src/main.js"></script>
 </body>
 </html>
