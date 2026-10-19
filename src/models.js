@@ -127,7 +127,7 @@ export const MODELS = {
   berryhut: { dims: { w: 0.44, d: 0.44, h: 0.16, roof: 'cone', wall: 'wood', round: true }, finished(k) {
     k.cyl(0.18, 0.2, 0.16, 9, 0x9c7a50, -0.08, 0, -0.08); k.cone(0.27, 0.22, 9, 'thatch2', -0.08, 0.15, -0.08);
     for (const [x, z] of [[0.24, 0.12], [0.1, 0.28], [0.3, -0.12]]) { k.add(new THREE.IcosahedronGeometry(0.075, 0), mat(0x3f7a3a), x, 0.07, z); for (let i = 0; i < 4; i++) k.add(new THREE.SphereGeometry(0.014, 5, 4), mat(0xb3243b), x + Math.cos(i * 1.7) * 0.06, 0.08 + (i % 2) * 0.03, z + Math.sin(i * 1.7) * 0.06); }
-    for (const [x, z] of [[-0.24, 0.22], [-0.16, 0.26]]) k.cyl(0.04, 0.03, 0.06, 7, 0xa88350, x, 0, z);
+    for (const [x, z] of [[-0.24, 0.22], [-0.12, 0.27]]) { k.cyl(0.055, 0.04, 0.07, 8, 0xa88350, x, 0, z); for (let i = 0; i < 9; i++) k.add(new THREE.SphereGeometry(0.016, 5, 4), mat(i % 3 ? 0xc22a40 : 0x5a2a6a), x + Math.cos(i * 2.4) * 0.03 * Math.sqrt(i / 9), 0.075 + (i % 2) * 0.01, z + Math.sin(i * 2.4) * 0.03 * Math.sqrt(i / 9)); }
   } },
   hunter: { dims: { w: 0.58, d: 0.58, h: 0.1, roof: 'cone', wall: 'wood', round: true }, finished(k) {
     // a wide, low hide lodge on a pole frame with a smoke hole, a skin on a stretching frame, antlers and spears
@@ -146,6 +146,7 @@ export const MODELS = {
     k.box(0.62, 0.02, 0.62, 'soil');
     for (let i = 0; i < 11; i++) { const a = -1.1 + i * 0.22; k.cyl(0.012, 0.012, 0.16, 4, 'woodDark', Math.sin(a) * 0.32, -0.04, 0.25 - Math.cos(a) * 0.1 + 0.08); } // stake fence of the weir
     k.add(new THREE.ConeGeometry(0.06, 0.2, 8, 1, true), mat(0xb59460, { side: THREE.DoubleSide }), 0.0, 0.03, 0.33, Math.PI / 2, 0, 0); // wicker fish trap
+    k.emitters.push({ x: 0, y: 0.0, z: 0.38, type: 'fish' }); for (let i = 0; i < 3; i++) k.add(new THREE.ConeGeometry(0.016, 0.07, 5), mat(0xaab8c4), -0.2 + i * 0.05, 0.02, -0.15, 0, i, Math.PI / 2); // a catch on the bank
     k.box(0.06, 0.18, 0.06, 'woodDark', -0.2, 0, -0.2); k.box(0.24, 0.012, 0.012, 'wood', -0.12, 0.17, -0.2);
     for (let i = 0; i < 3; i++) k.add(new THREE.ConeGeometry(0.018, 0.07, 4), mat(0x9fb3c2), -0.12 + i * 0.05, 0.12, -0.2, Math.PI, 0, 0); // drying fish
   } },
@@ -160,7 +161,7 @@ export const MODELS = {
   rack: { dims: { w: 0.6, d: 0.4, h: 0.3, roof: 'none', wall: 'wood' }, finished(k) {
     for (const x of [-0.26, 0.26]) for (const z of [-0.12, 0.12]) k.box(0.02, 0.34, 0.02, 'woodDark', x, 0, z);
     for (const y of [0.2, 0.32]) for (const z of [-0.12, 0.12]) k.box(0.56, 0.015, 0.015, 'wood', 0, y, z);
-    for (let i = 0; i < 6; i++) { k.add(new THREE.ConeGeometry(0.02, 0.09, 4), mat(i % 2 ? 0xb4542e : 0x9fb3c2), -0.2 + i * 0.08, 0.27, -0.12, Math.PI, 0, 0); k.box(0.05, 0.1, 0.008, 0x8a3b28, -0.2 + i * 0.08, 0.2, 0.12); }
+    for (let i = 0; i < 6; i++) { const f = k.add(new THREE.ConeGeometry(0.03, 0.13, 5), mat(0xb9c7d2, { metalness: 0.3, roughness: 0.4 }), -0.2 + i * 0.08, 0.24, -0.12, Math.PI, 0, 0); f.scale.z = 0.4; k.add(new THREE.ConeGeometry(0.022, 0.03, 3), mat(0x8fa0ad), -0.2 + i * 0.08, 0.165, -0.12, 0, 0, 0); k.box(0.065, 0.13, 0.014, i % 2 ? 0xa33a2a : 0xb8503a, -0.2 + i * 0.08, 0.17, 0.12); k.box(0.066, 0.02, 0.016, 0xeee0c8, -0.2 + i * 0.08, 0.27, 0.12); }
     k.cyl(0.06, 0.07, 0.02, 7, 'stoneDark', 0, 0, 0); k.emitters.push({ x: 0, y: 0.06, z: 0, type: 'hut' });
   } },
   platform: { dims: { w: 0.5, d: 0.5, h: 0.24, roof: 'gable', wall: 'wood' }, finished(k) {
@@ -179,7 +180,8 @@ export const MODELS = {
   knapper: { dims: { w: 0.6, d: 0.5, h: 0.05, roof: 'none', wall: 'stone' }, finished(k) {
     k.box(0.6, 0.015, 0.5, 0x8a8778); k.cyl(0.08, 0.1, 0.1, 7, 'stone', -0.12, 0, 0); k.cyl(0.06, 0.07, 0.08, 7, 'stoneDark', 0.16, 0, -0.1);
     for (let i = 0; i < 16; i++) k.add(new THREE.TetrahedronGeometry(0.012 + (i % 3) * 0.004, 0), mat(i % 2 ? 0x3a3a3f : 0x5c5a60), -0.2 + (i * 37 % 40) / 100, 0.02, -0.18 + (i * 53 % 36) / 100, i, i * 2, 0); // flint flakes
-    k.pile(7, 0.07, 0x4a4a52, 0.2, 0.15); k.add(new THREE.BoxGeometry(0.2, 0.012, 0.1), mat(0xc09a6a), -0.15, 0.015, 0.18);
+    k.pile(7, 0.07, 0x4a4a52, 0.2, 0.15); k.add(new THREE.BoxGeometry(0.2, 0.012, 0.1), mat(0xc09a6a), -0.15, 0.015, 0.18); k.emitters.push({ x: -0.12, y: 0.12, z: 0, type: 'chips' });
+    for (let i = 0; i < 4; i++) k.add(new THREE.ConeGeometry(0.016, 0.06, 4), mat(0x2e2e34), -0.05 + i * 0.05, 0.025, 0.2, Math.PI / 2, 0, 0); // finished blades laid out
     k.box(0.02, 0.22, 0.02, 'woodDark', 0.26, 0, 0.2); k.box(0.02, 0.22, 0.02, 'woodDark', -0.26, 0, -0.2); k.add(new THREE.BoxGeometry(0.62, 0.012, 0.5), mat(0xb08b5a), 0, 0.22, 0, 0.12, 0, 0);
   } },
   canoe: { dims: { w: 0.7, d: 0.5, h: 0.05, roof: 'none', wall: 'wood' }, finished(k) {
@@ -192,8 +194,21 @@ export const MODELS = {
   firepit: { dims: { w: 0.4, d: 0.4, h: 0.04, roof: 'none', wall: 'stone' }, finished(k) {
     for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI * 2; k.add(new THREE.DodecahedronGeometry(0.04, 0), mat(i % 2 ? 'stone' : 'stoneDark'), Math.cos(a) * 0.14, 0.03, Math.sin(a) * 0.14); }
     k.cyl(0.11, 0.11, 0.01, 10, 'charcoal'); for (let i = 0; i < 4; i++) k.log(0.18, 0.016, 'woodDark', 0, 0.03, 0, i * 0.8);
-    k.cone(0.06, 0.12, 6, GLOW(0xff7a1a, 2.4), 0, 0.03, 0); k.emitters.push({ x: 0, y: 0.14, z: 0, type: 'hut' });
+    k.cone(0.06, 0.12, 6, GLOW(0xff7a1a, 2.4), 0, 0.03, 0); k.cone(0.035, 0.09, 5, GLOW(0xffc04a, 3), 0.03, 0.03, 0.02); k.emitters.push({ x: 0, y: 0.14, z: 0, type: 'fire' });
     for (const [x, z, r] of [[-0.3, 0.1, 0.4], [0.28, -0.12, -0.6], [0.05, 0.3, 1.6]]) k.log(0.18, 0.025, 'wood', x, 0.025, z, r);
+  } },
+  flowers: { dims: { w: 0.6, d: 0.6, h: 0.03, roof: 'none', wall: 'soil' }, finished(k) {
+    k.box(0.62, 0.012, 0.62, 0x6f8f45);
+    const C = [0xe8c33a, 0xd94a5a, 0xf1f0ea, 0x8a5ad0, 0xf08a3a];
+    for (let i = 0; i < 26; i++) { const a = i * 2.39, r = 0.27 * Math.sqrt(i / 26), x = Math.cos(a) * r, z = Math.sin(a) * r; k.cyl(0.004, 0.004, 0.06, 3, 0x4f7a32, x, 0.01, z); k.add(new THREE.IcosahedronGeometry(0.022, 0), mat(C[i % C.length]), x, 0.075, z); }
+  } },
+  shrubs: { dims: { w: 0.6, d: 0.6, h: 0.1, roof: 'none', wall: 'soil' }, finished(k) {
+    for (const [x, z, r] of [[-0.15, -0.12, 0.13], [0.15, -0.05, 0.11], [0.0, 0.17, 0.12], [0.2, 0.2, 0.08], [-0.22, 0.15, 0.08]]) { k.add(new THREE.IcosahedronGeometry(r, 0), mat(0x4a7a36), x, r * 0.75, z); k.add(new THREE.IcosahedronGeometry(r * 0.6, 0), mat(0x5f9440), x + r * 0.3, r * 1.25, z - r * 0.2); }
+  } },
+  garden: { dims: { w: 0.7, d: 0.7, h: 0.05, roof: 'none', wall: 'soil' }, finished(k) {
+    k.box(0.72, 0.015, 0.72, 'soil');
+    for (let r = 0; r < 3; r++) { k.box(0.6, 0.03, 0.14, 0x5b3f28, 0, 0.015, -0.22 + r * 0.22); for (let i = 0; i < 6; i++) k.add(new THREE.IcosahedronGeometry(0.03, 0), mat([0x5f9a3f, 0x7aa84e, 0x8a9a3a][r]), -0.25 + i * 0.1, 0.07, -0.22 + r * 0.22); }
+    k.fence([[-0.34, -0.34], [0.34, -0.34], [0.34, 0.34], [-0.34, 0.34], [-0.34, -0.1]], 0.08);
   } },
   shrine: { dims: { w: 0.5, d: 0.5, h: 0.2, roof: 'none', wall: 'stone' }, finished(k) {
     k.cyl(0.25, 0.27, 0.04, 10, 'stoneDark'); k.box(0.12, 0.3, 0.07, 'stone', 0, 0.04, -0.08); k.box(0.2, 0.05, 0.14, 'stoneDark', 0, 0.04, 0.1);

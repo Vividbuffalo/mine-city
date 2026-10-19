@@ -169,3 +169,13 @@ body.intitle #status,body.intitle #btn-idle,body.intitle #pbars{display:none!imp
   body.sheet-open #btn-idle{display:none}
 }
 @media (max-height: 520px) and (orientation: landscape) { #status{left:66px;top:40px;width:250px} #btn-idle{left:66px;bottom:6px} }
+/* v2.3: next-era checklist and research button (status only) */
+#st-goal .gh{font-size:11px;color:var(--ink);margin-bottom:2px}
+#st-goal .chk{display:flex;flex-wrap:wrap;gap:2px 8px}
+#st-goal .chk span{white-space:nowrap}
+#st-goal .chk .no{color:var(--sub)}
+#st-goal .chk .tech{cursor:pointer;text-decoration:underline dotted}
+#st-goal .st-res{margin-top:4px;padding:2px 8px;font-size:11px;border-radius:7px;display:flex;align-items:center;gap:5px}
+#st-goal .rb{display:inline-block;width:50px;height:5px;background:#e3e6e8;border-radius:3px;overflow:hidden}
+#st-goal .rb i{display:block;height:100%;background:#4f8fd6;transition:width .6s}
+.sb .bt i{transition:width .8s ease}

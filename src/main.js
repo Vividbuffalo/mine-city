@@ -159,7 +159,8 @@ cv.addEventListener('pointerdown', e => {
   // touch: hold still ~0.45 s, then drag = box select
   if (!mouse && ui.tool === 'select') gesture.lp = setTimeout(() => { if (gesture && gesture.kind === 'pending') { gesture.kind = 'box'; if (navigator.vibrate) navigator.vibrate(15); } }, 450);
   // mouse painting tools act immediately on press
-  if (mouse && e.button === 0 && ['road', 'dismantle', 'plant'].includes(ui.tool) && !unitClick(e.clientX, e.clientY)) { gesture.kind = 'paint'; gesture.last = null; paintAt(e.clientX, e.clientY, true); }
+  if (mouse && e.button === 0 && ui.tool === 'road' && !unitClick(e.clientX, e.clientY)) { const q = renderer.pick(e.clientX, e.clientY); if (q) { gesture.kind = 'road'; ui.roadPath = [[q.x, q.y]]; roadPreview(); } }
+  else if (mouse && e.button === 0 && ['dismantle', 'plant'].includes(ui.tool) && !unitClick(e.clientX, e.clientY)) { gesture.kind = 'paint'; gesture.last = null; paintAt(e.clientX, e.clientY, true); }
 });
 cv.addEventListener('pointermove', e => {
   const p = ptrs.get(e.pointerId);
@@ -179,6 +180,7 @@ cv.addEventListener('pointermove', e => {
   if (gesture.kind === 'pending' && moved) { clearTimeout(gesture.lp); gesture.kind = gesture.mouse && ui.tool === 'select' && p.button === 0 ? 'box' : 'pan'; }
   if (gesture.kind === 'pan') renderer.dragPan(dx, dy, dt);
   else if (gesture.kind === 'paint') { paintAt(e.clientX, e.clientY, false); hoverAt(e.clientX, e.clientY); }
+  else if (gesture.kind === 'road') { const q = renderer.pick(e.clientX, e.clientY); if (q) { roadExtend(q.x, q.y); roadPreview(); } }
   else if (gesture.kind === 'box') { const el = $('selbox'); el.classList.remove('hidden'); Object.assign(el.style, { left: Math.min(p.x0, p.x) + 'px', top: Math.min(p.y0, p.y) + 'px', width: Math.abs(p.x - p.x0) + 'px', height: Math.abs(p.y - p.y0) + 'px' }); }
   if (e.pointerType === 'mouse' && gesture.kind !== 'paint') hoverAt(e.clientX, e.clientY);
 });
@@ -192,6 +194,7 @@ function endPointer(e, cancel) {
   if (g.kind === 'pan') { renderer.dragEnd(true); if (g.right && Math.hypot(p.x - p.x0, p.y - p.y0) <= TAP_PX) { if (ui.units.length && ui.tool === 'select') { const q = renderer.pick(p.x, p.y); if (q) orderSelected(q); } else disarm(); } return; } // right-click: order selected units, else cancel / disarm
   if (g.kind === 'box') { $('selbox').classList.add('hidden'); const ids = renderer.unitsInRect(p.x0, p.y0, p.x, p.y); if (ids.length) { setUnits(ids); showUnits(); toast(`${ids.length} unit${ids.length > 1 ? 's' : ''} selected`); } return; }
   if (g.kind === 'paint') return;
+  if (g.kind === 'road') { const tiles = ui.roadPath || []; ui.roadPath = null; renderer.setRoadPreview(null); if (tiles.length) { const r = cmd({ type: 'roadLine', tiles }); if (r.ok) toast(`${r.n} road tile${r.n === 1 ? '' : 's'} planned`); } return; }
   tapAt(p.x, p.y, e);
 }
 cv.addEventListener('pointerup', e => endPointer(e, false));
@@ -245,28 +248,40 @@ function selectAt(p) {
 // road: tap tiles one by one, or two taps in the same row/column fill the line between
 function roadTap(p) {
   const a = ui.roadA;
-  if (a && (a.x === p.x || a.y === p.y) && Math.abs(a.x - p.x) + Math.abs(a.y - p.y) > 1 && performance.now() - a.t < 8000) {
-    const sx = Math.sign(p.x - a.x), sy = Math.sign(p.y - a.y); let n = 0;
-    for (let x = a.x, y = a.y; ; x += sx, y += sy) { const t = S.tile(state, x, y); if (t && !t.road && !t.rp) { if (S.applyCommand(state, { type: 'road', x, y }).ok) n++; } if (x === p.x && y === p.y) break; }
-    toast(`${n} road tile${n === 1 ? '' : 's'} planned`); ui.roadA = null; return;
+  if (a && Math.abs(a.x - p.x) + Math.abs(a.y - p.y) > 1 && performance.now() - a.t < 8000) {
+    ui.roadPath = [[a.x, a.y]]; roadExtend(p.x, p.y); const tiles = ui.roadPath; ui.roadPath = null; renderer.setRoadPreview(null);
+    const r = cmd({ type: 'roadLine', tiles }); if (r.ok) toast(`${r.n} road tile${r.n === 1 ? '' : 's'} planned`); ui.roadA = null; return;
   }
   const t = S.tile(state, p.x, p.y); if (t && !t.road && !t.rp) cmd({ type: 'road', x: p.x, y: p.y });
   ui.roadA = { x: p.x, y: p.y, t: performance.now() };
+}
+// extend the drawn road to (x, y) with 4-connected steps along the straightest line; stepping back undoes
+function roadExtend(x, y) {
+  const P = ui.roadPath; let [cx, cy] = P[P.length - 1]; if (cx === x && cy === y) return;
+  const ax = Math.abs(x - cx), ay = Math.abs(y - cy), sx = Math.sign(x - cx), sy = Math.sign(y - cy);
+  for (let g = 0; (cx !== x || cy !== y) && g < 400; g++) {
+    const rx = Math.abs(x - cx), ry = Math.abs(y - cy);
+    if (rx > 0 && rx * ay >= ry * ax) cx += sx; else cy += sy;
+    const k = P.length; if (k >= 2 && P[k - 2][0] === cx && P[k - 2][1] === cy) P.pop(); else if (!P.some(q => q[0] === cx && q[1] === cy)) P.push([cx, cy]);
+  }
+}
+function roadPreview() {
+  const P = ui.roadPath || []; let prev = null;
+  renderer.setRoadPreview(P.map(([x, y]) => { const t = S.tile(state, x, y); let ok = !!t && t.vis && t.t !== S.T.WATER && !t.occ && !S.isSteep(t); if (ok && prev && Math.abs(S.tileTopH(t) - S.tileTopH(prev)) > 0.3) ok = false; if (t) prev = t; return [x, y, ok ? (t.trees ? 2 : 1) : 0]; }));
 }
 function paintAt(cx, cy, first) {
   const p = renderer.pick(cx, cy); if (!p) return;
   if (gesture && gesture.last && gesture.last.x === p.x && gesture.last.y === p.y) return; if (gesture) gesture.last = p;
   const t = S.tile(state, p.x, p.y);
-  if (ui.tool === 'road') { if (first) roadTap(p); else if (t && !t.road && !t.rp) S.applyCommand(state, { type: 'road', x: p.x, y: p.y }); }
-  else if (ui.tool === 'dismantle') { const r = first ? cmd({ type: 'dismantle', x: p.x, y: p.y }) : S.applyCommand(state, { type: 'dismantle', x: p.x, y: p.y }); if (r.ok && r.id) select(r.id); }
+  if (ui.tool === 'dismantle') { const r = first ? cmd({ type: 'dismantle', x: p.x, y: p.y }) : S.applyCommand(state, { type: 'dismantle', x: p.x, y: p.y }); if (r.ok && r.id) select(r.id); }
   else if (ui.tool === 'plant') { if (first) cmd({ type: 'plant', x: p.x, y: p.y }); else S.applyCommand(state, { type: 'plant', x: p.x, y: p.y }); }
 }
 function hoverAt(cx, cy) { ui.hover = renderer.pick(cx, cy); updateGhost(); cv.style.cursor = renderer.unitAtScreen(cx, cy, 24) != null ? 'pointer' : ''; }
 function updateGhost() {
   const p = ui.hover; if (!p || TOUCH) return renderer.setGhost(null);
   const t = S.tile(state, p.x, p.y);
-  if (ui.tool === 'build' && ui.kind) renderer.setGhost({ x: p.x, y: p.y, size: BUILDINGS[ui.kind].size, ok: !S.checkPlacement(state, ui.kind, p.x, p.y) });
-  else if (ui.tool === 'road') renderer.setGhost({ x: p.x, y: p.y, h: 0.05, ok: t.vis && !t.occ && t.t !== S.T.WATER });
+  if (ui.tool === 'build' && ui.kind) { const ok = !S.checkPlacement(state, ui.kind, p.x, p.y); renderer.setGhost({ x: p.x, y: p.y, size: BUILDINGS[ui.kind].size, ok, level: ok && ui.kind !== 'quarry' && S.needsLevel(state, S.footprint(ui.kind, p.x, p.y)) }); }
+  else if (ui.tool === 'road') renderer.setGhost({ x: p.x, y: p.y, h: 0.05, ok: t.vis && !t.occ && t.t !== S.T.WATER && !S.isSteep(t) });
   else if (ui.tool === 'plant') renderer.setGhost({ x: p.x, y: p.y, h: 0.05, ok: t.vis && !t.occ && !t.road && t.t !== S.T.WATER && !S.isSteep(t) });
   else if (ui.tool === 'dismantle') renderer.setGhost({ x: p.x, y: p.y, h: 0.1, ok: !!(t.occ || t.road || t.rp) });
   else if (ui.tool === 'survey') renderer.setGhost({ x: p.x, y: p.y, h: 0.05, ok: true });
@@ -302,7 +317,7 @@ function selectTile(x, y) { closeSheets('info'); ui.popCard = false; ui.sel = nu
 function setHTML(el, h) { if (el._h === h) return false; el._h = h; el.innerHTML = h; return true; }
 const row = (k, v) => `<div class="row"><span>${k}</span><b>${v}</b></div>`;
 const head = (title) => `<div class="sh-head"><b>${title}</b><button class="x" data-close="1">✕</button></div>`;
-function treesNear(b, r) { let n = 0, sp = 0; for (let y = b.y - r; y <= b.y + r; y++) for (let x = b.x - r; x <= b.x + r; x++) { const t = S.tile(state, x, y); if (t && t.vis) { n += t.trees; sp += t.sp ? t.sp.length : 0; } } return { n, sp }; }
+function treesNear(b, r) { let n = 0, sp = 0; for (let y = b.y - r; y <= b.y + r; y++) for (let x = b.x - r; x <= b.x + r; x++) { const t = S.tile(state, x, y); if (t && !t.occ) { n += t.trees; sp += t.sp ? t.sp.length : 0; } } return { n, sp }; }
 function renderInfo() {
   const el = $('info'); let h = '', btns = [];
   if (ui.popCard) {
@@ -331,6 +346,7 @@ function renderInfo() {
       btns.push(`<button data-skip="dismantle">Skip ⏭</button>`);
     } else {
       const st = S.stageOf(b); h += row('Stage', STAGE_NAMES[st]);
+      if (!b.done && b.levelLeft > 0) h += row('Levelling ground', `${Math.round((1 - b.levelLeft / b.levelTotal) * 100)}%`);
       if (!b.done) { h += `<div class="bar"><i style="width:${Math.round(b.progress * 100)}%"></i></div>` + row('Builders', `${b.builders || 0}`) + (b.mt ? row('Materials on site', `${Math.floor(b.mg || 0)} / ${b.mt}`) : ''); btns.push(`<button data-act="sendbuild">Send selected villagers</button>`); btns.push(`<button data-skip="build" data-id="${b.id}">Skip ⏭</button>`); }
       if (b.done && b.cond !== undefined) h += row('Condition', `${S.condName(b)} (${Math.round(b.cond)}%)`) + `<div class="bar cond"><i style="width:${Math.round(b.cond)}%;background:${condCol(b.cond)}"></i></div>`;
       if (b.done && d.culture) h += row('Culture', `+${d.culture}/day`);
@@ -339,6 +355,8 @@ function renderInfo() {
       const cap = S.capOf(b); if (cap) h += row('Residents', `${b.residents} / ${cap}`);
       const jobs = b.kind === 'custom' ? b.jobs : d.jobs; if (jobs) h += row('Workers', b.done && !b.workers ? `<span class="no">0 / ${jobs}</span>` : `${b.workers} / ${jobs}`);
       if (d.extract === 'wood') { const tn = treesNear(b, d.radius); h += row('Trees in reach', tn.n + (tn.sp ? ` (+${tn.sp} growing)` : '')); if (b.done) h += row('Status', !b.workers || !tn.n ? '<span class="no">Idle</span>' : 'Felling trees'); }
+      else if (b.kind === 'quarry' || b.kind === 'claypit') { const R = S.QUARRY_REACH, res = d.extract[0], maxD = Math.min(d.maxDepth || 99, ERAS[state.era].maxDepth); let left = 0; for (let y = b.y - R; y <= b.y + R; y++) for (let x = b.x - R; x <= b.x + R; x++) { if (Math.hypot(x - b.x, y - b.y) > R) continue; const t = S.tile(state, x, y); if (!t || (t.occ && t.occ !== b.id)) continue; if (t.dep && t.dep.r === res && t.dep.depth <= maxD && (S.knownDeposit(t) || t.vis)) left += t.dep.amt; else if (res === 'stone' && t.t === S.T.HILL && t.vis) left += t.rock ?? 20; }
+        h += row(res === 'stone' ? 'Stone in reach' : 'Clay in reach', Math.floor(left)) + (b.src ? row('Walk to source', `${Math.hypot(b.src[0] - b.x, b.src[1] - b.y).toFixed(1)} tiles`) : ''); }
       else if (d.extract) { const maxD = Math.min(d.maxDepth || 99, ERAS[state.era].maxDepth); let left = 0; for (let y = b.y - d.radius; y <= b.y + d.radius; y++) for (let x = b.x - d.radius; x <= b.x + d.radius; x++) { const t = S.tile(state, x, y); if (S.knownDeposit(t) && d.extract.includes(t.dep.r) && t.dep.depth <= maxD) left += t.dep.amt; } h += row('Extracts', d.extract.join(', ')) + row('Known in reach', Math.round(left)); }
       if (d.recipe) h += row('Recipe', Object.entries(d.recipe.in).map(([r, n]) => n + ' ' + r).join(' + ') + ' → ' + Object.entries(d.recipe.out).map(([r, n]) => n + ' ' + r).join(', '));
       if (d.food) h += row('Food', `${d.food}/day at full staff`);
@@ -553,6 +571,7 @@ const rep = { t0: performance.now(), snap: null, delta: {} };
 function snapStats() { const o = {}; for (const [k, , , fn] of STAT_DEFS) o[k] = fn().v; return o; }
 let stCollapsed = localStorage.getItem('earth.status') ? localStorage.getItem('earth.status') === '0' : TOUCH;
 $('st-tog').onclick = () => { stCollapsed = !stCollapsed; localStorage.setItem('earth.status', stCollapsed ? '0' : '1'); statusHud(true); };
+$('st-goal').onclick = (e) => { if (e.target.closest('#st-res, .tech')) openPanel('tech'); };
 $('st-pop').onclick = () => { closeSheets('info'); setUnits([]); ui.popCard = true; renderInfo(); };
 $('btn-idle').onclick = () => { const idle = S.villagers(state).filter(u => u.vstate === 'idle' && !(u.path && u.path.length)); if (!idle.length) return; ui.idleI = ((ui.idleI || 0) + 1) % idle.length; const u = idle[ui.idleI]; disarm(); setUnits([u.id]); showUnits(); renderer.target.set(u.x + 0.5, renderer.target.y, u.y + 0.5); };
 function statusHud(force) {
@@ -560,16 +579,26 @@ function statusHud(force) {
   const p = popInfo(), g = state.growth || { ok: true };
   setHTML($('st-pop'), `👥 <b>${p.pop}</b> <small>pop</small> · 🛖 ${p.res}/${p.cap} · ⚒ ${p.employed} · <span class="${p.free ? '' : 'dim'}">free ${p.free}</span> · 🧑‍🌾 ${p.vil}`);
   const ib = $('btn-idle'); ib.classList.toggle('hidden', !p.idleV); ib.innerHTML = `🧑‍🌾 <b>${p.idleV}</b> idle`;
-  let h = '';
-  for (const [k, ic, name, fn] of STAT_DEFS) { const v = fn(), d = rep.delta[k]; h += `<div class="sb ${v.low === 2 ? 'low' : v.low === 1 ? 'warn' : ''}" title="${name}"><span class="ic">${ic}</span><span class="bt"><i style="width:${Math.round(Math.max(0, Math.min(1, v.f)) * 100)}%"></i></span><b>${v.txt}</b><em class="${d > 0 ? 'up' : d < 0 ? 'dn' : ''}">${d ? (d > 0 ? '+' : '−') + Math.abs(d) : ''}</em></div>`; }
-  setHTML($('st-bars'), h);
-  const er = S.eraReady(state);
-  setHTML($('st-goal'), er.items.length ? `Next era: ${er.items.map(i => i.key ? `<span class="${i.ok ? 'ok' : ''}">${{ pop: 'population', buildings: 'buildings', culture: 'culture' }[i.key]} ${i.v}/${i.need}</span>` : `<span class="${i.ok ? 'ok' : ''}">${i.label.replace(' researched', '')}${i.ok ? ' ✓' : ''}</span>`).join(' · ')}${er.ready ? ' · <b class="ok">ready (Research)</b>' : ''}` : 'Last era in this build');
+  const bars = $('st-bars');
+  if (!bars._els) { bars.innerHTML = STAT_DEFS.map(([k, ic, name]) => `<div class="sb" title="${name}"><span class="ic">${ic}</span><span class="bt"><i></i></span><b></b><em></em></div>`).join(''); bars._els = [...bars.children].map(el => ({ el, i: el.querySelector('i'), b: el.querySelector('b'), em: el.querySelector('em') })); }
+  STAT_DEFS.forEach(([k, , , fn], n) => { const v = fn(), d = rep.delta[k] || 0, E = bars._els[n];
+    const cls = 'sb ' + (v.low === 2 ? 'low' : v.low === 1 ? 'warn' : ''); if (E.el.className !== cls) E.el.className = cls;
+    const w = Math.round(Math.max(0, Math.min(1, v.f)) * 100) + '%'; if (E.i.style.width !== w) E.i.style.width = w;
+    const t = String(v.txt); if (E.b.textContent !== t) E.b.textContent = t;
+    if (E._d !== d || E._c !== rep.cycleN) { E._d = d; E._c = rep.cycleN; E.em.className = d > 0 ? 'up' : d < 0 ? 'dn' : ''; E.em.textContent = d ? (d > 0 ? '+' : '−') + Math.abs(d) : ''; } });
+  // next-era checklist (status only) and the current research
+  const er = S.eraReady(state), r = state.research;
+  let gh = '';
+  if (er.items.length) {
+    gh += `<div class="gh">Next era: <b>${ERAS[state.era + 1] ? ERAS[state.era + 1].name : ''}</b></div><div class="chk">` + er.items.map(i => `<span class="${i.ok ? 'ok' : 'no'}${i.key ? '' : ' tech'}">${i.ok ? '✓' : '☐'} ${i.key ? `${{ pop: 'Population', buildings: 'Buildings', culture: 'Culture' }[i.key]} ${i.v} / ${i.need}` : i.label.replace(' researched', '') + (r.current && TECHS[r.current] && i.label.startsWith(TECHS[r.current].name) ? ` ${Math.floor(r.progress / techCost(r.current, state.culture) * 100)}%` : '')}</span>`).join('') + '</div>';
+  } else gh += '<div class="gh">Last era in this build</div>';
+  gh += `<button id="st-res" class="st-res">🔬 ${r.current ? `${TECHS[r.current].name} <i class="rb"><i style="width:${Math.min(100, Math.floor(r.progress / techCost(r.current, state.culture) * 100))}%"></i></i> ${Math.min(100, Math.floor(r.progress / techCost(r.current, state.culture) * 100))}%` : `Research · ${Math.floor(r.bank || 0)} pts`}</button>`;
+  setHTML($('st-goal'), gh);
 }
 function cycleTick() {
   const el = (performance.now() - rep.t0) / 1000;
   if (!rep.snap) rep.snap = snapStats();
-  if (el >= CYCLE) { const now = snapStats(); rep.delta = {}; for (const k in now) rep.delta[k] = Math.round(now[k] - rep.snap[k]); rep.snap = now; rep.t0 = performance.now(); statusHud(); $('status').classList.remove('pulse'); void $('status').offsetWidth; $('status').classList.add('pulse'); }
+  if (el >= CYCLE) { rep.cycleN = (rep.cycleN || 0) + 1; const now = snapStats(); rep.delta = {}; for (const k in now) rep.delta[k] = Math.round(now[k] - rep.snap[k]); rep.snap = now; rep.t0 = performance.now(); statusHud(); $('status').classList.remove('pulse'); void $('status').offsetWidth; $('status').classList.add('pulse'); }
   const f = Math.min(1, ((performance.now() - rep.t0) / 1000) / CYCLE), C = 2 * Math.PI * 7;
   $('st-ring').style.strokeDashoffset = (C * f).toFixed(2); $('st-cd').textContent = Math.ceil(CYCLE * (1 - f));
 }
@@ -580,6 +609,7 @@ function progressBars() {
   const box = $('pbars'), seen = new Set(), hidden = renderer.underground || document.body.classList.contains('intitle');
   if (!hidden) for (const b of Object.values(state.buildings)) {
     if (b.ruin) continue; const d = BUILDINGS[b.kind]; if (!d) continue;
+    const hv = ui.hover && S.tile(state, ui.hover.x, ui.hover.y); if (ui.sel !== b.id && !(hv && hv.occ === b.id)) continue; // bars only on hover / selection: the work itself is visible on the map
     let kind = null, f = 0;
     if (b.dis) { kind = 'dis'; f = 1 - b.progress; }
     else if (!b.done) { kind = 'build'; f = b.progress; }
@@ -612,7 +642,7 @@ function loop(now) {
   cycleTick(); progressBars();
   requestAnimationFrame(loop);
 }
-function exposeForTests() { window.game = { get state() { return state; }, cmd, S, renderer, ui, setSpeed, setTool, startGame, hideTitle, setUnits, toggleUnder, setLegend, openPanel }; }
+function exposeForTests() { window.game = { BUILDINGS, ERAS, get state() { return state; }, cmd, S, renderer, ui, setSpeed, setTool, startGame, hideTitle, setUnits, toggleUnder, setLegend, openPanel }; }
 
 // ---------- quality ----------
 $('q-sel').innerHTML = Object.entries(QUALITY).map(([k, q]) => `<option value="${k}" ${k === renderer.qKey ? 'selected' : ''}>${q.name}</option>`).join('');

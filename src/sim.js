@@ -6,6 +6,8 @@ export const undergroundUnlocked = (state) => state.era >= 2;
 // Steep = mountain ground (high hill) not yet terraced. Only quarries can go on it until it is levelled.
 import { tickUnits, spawnUnit, orderMove, UNIT_TYPES } from './units.js';
 import { tickVillagers, VILLAGER_COMMANDS, spawnVillager, villagers, maxVillagers, buildersAt, featureAt } from './villagers.js';
+import { tickAnimals, spawnAnimals, ANIMALS, preyNear } from './animals.js';
+export { ANIMALS };
 export { villagers, maxVillagers, featureAt };
 export const ROAD_RATE = 4; // road tiles completed per game hour (crude dirt tracks)
 export const isSteep = (t) => !!t && t.t === T.HILL && t.h >= 2 && !t.lv;
@@ -111,7 +113,7 @@ export function newGame(opts = {}) {
     world: genWorld(seed),
     era, res: { money: 300, wood: 50, clay: 6, stone: 12, copper: 0, tin: 0, brick: 0, bronze: 0, food: 60 },
     stats: { bricksMade: 0, bronzeMade: 0, deaths: 0, arrivals: 0, left: 0, collapses: 0 },
-    research: { points: 0, done: [], current: null, progress: 0 },
+    research: { points: 0, bank: 0, done: [], current: null, progress: 0 },
     buildings: {}, nextId: 1, incidents: [], crews: [], surveys: [], earthworks: [], roadRemove: [], saplingTiles: [], felled: [], roadJobs: [], units: [], draft: [],
     flags: { collapses: true, unlimitedMoney: sandbox, freeBlocks: sandbox, riskOverlay: false },
     happiness: 60, grief: 0, hungry: false,
@@ -134,6 +136,7 @@ export function newGame(opts = {}) {
     if (era === 2) state.research.done = ['pottery', 'smelting'];
     for (const c of Object.values(state.world.chunks)) for (const t of c.tiles) { t.sv = 1; t.vis = 1; }
   }
+  spawnAnimals(state);
   addLog(state, sandbox ? `Sandbox started in the ${ERAS[era].name} era.` : 'Settlement founded.');
   return state;
 }
@@ -196,15 +199,25 @@ export function checkPlacement(state, kind, x, y) {
     if (t.t === T.WATER) return 'Water';
     if (t.occ || t.road || t.rp) return 'Occupied';
     if (t.lvJob) return 'Earthworks in progress';
-    if (isSteep(t) && kind !== 'quarry') return 'Too steep';
     if (d.terrain && !d.terrain.includes(t.t)) return 'Needs open grassland';
   }
+  if (kind !== 'quarry' && needsLevel(state, tiles) && !canAutoLevel(state)) return 'Not flat';
   if (d.needs && !hasBuilt(state, d.needs)) return `Needs a finished ${BUILDINGS[d.needs].name}`;
   if (d.nearWater && !tiles.some(([tx, ty]) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, c]) => { const n = tile(state, tx + a, ty + c); return n && n.t === T.WATER; }))) return 'Must be next to the river';
   if (!canAfford(state, d.cost)) return 'Not enough resources';
   return null;
 }
 
+// flat footprint rule: every tile within a small height tolerance and none steep; with earthworks, a levelling job is added first
+export const FLAT_TOL = 0.12;
+export const tileTopH = (t) => t.t === T.WATER ? 0.08 : t.t === T.HILL ? 0.25 + 0.28 * (t.lv ? 1 : t.h) : 0.25;
+export function needsLevel(state, tiles) {
+  let lo = 1e9, hi = -1e9;
+  for (const [x, y] of tiles) { const t = tile(state, x, y); if (!t) continue; if (isSteep(t)) return true; const h = tileTopH(t); lo = Math.min(lo, h); hi = Math.max(hi, h); }
+  return hi - lo > FLAT_TOL;
+}
+export function canAutoLevel(state) { return state.research.done.includes(EARTHWORKS.tech); }
+export const LEVEL_HOURS = 10; // per tile, crew of townsfolk
 // ---------- Pathfinding (BFS over road tiles) ----------
 export function findRoadPath(state, fromTiles, toTiles) {
   const starts = roadNeighbors(state, fromTiles), goals = new Set(roadNeighbors(state, toTiles).map(p => p[0] + ',' + p[1]));
@@ -262,18 +275,32 @@ const COMMANDS = {
     pay(state, BUILDINGS[kind].cost);
     const tiles = footprint(kind, x, y);
     for (const [tx, ty] of tiles) { const t = tile(state, tx, ty); if (t.trees) { t.trees = 0; state.dirty.trees = true; } }
+    const lvl = kind !== 'quarry' && needsLevel(state, tiles);
     const b = createBuilding(state, kind, tiles, { rot: rot || 0 });
+    if (lvl) { b.levelLeft = LEVEL_HOURS * tiles.length; b.levelTotal = b.levelLeft; }
     { let mt = 0; for (const [k, v] of Object.entries(BUILDINGS[kind].cost || {})) if (k !== 'money') mt += v; b.mt = mt; b.mg = 0; } // materials still to be carried to the site
     return { ok: true, id: b.id };
   },
   road(state, { x, y }) {
     const t = tile(state, x, y);
     if (!t || !t.vis || t.t === T.WATER || t.occ || t.road || t.rp) return { ok: false, err: 'Cannot build road here' };
+    if (isSteep(t)) return { ok: false, err: 'Too steep' };
     const cost = { money: 2 };
     if (!canAfford(state, cost)) return { ok: false, err: 'Not enough money' };
-    pay(state, cost); t.rp = 1; if (t.trees) { t.trees = 0; state.dirty.trees = true; }
-    (state.roadJobs = state.roadJobs || []).push([x, y]); // planned; built by tickRoads, never reveals before it's built
+    pay(state, cost); t.rp = 1; t.rw = 0; // trees on the line are felled by the road crew first
+    (state.roadJobs = state.roadJobs || []).push([x, y]); // planned; built tile by tile by the road crew
     state.dirty.roads = true; return { ok: true };
+  },
+  // a whole drawn line at once (tiles in drawing order); skips tiles that can't take a road, stops at steep steps
+  roadLine(state, { tiles }) {
+    let n = 0, prev = null, err = null;
+    for (const [x, y] of tiles || []) {
+      const t = tile(state, x, y); if (!t) continue;
+      if (prev && Math.abs(tileTopH(t) - tileTopH(prev)) > 0.3) { err = 'Too steep'; break; }
+      prev = t; if (t.road || t.rp) continue;
+      const r = COMMANDS.road(state, { x, y }); if (r.ok) n++; else if (!err) err = r.err;
+    }
+    return n ? { ok: true, n } : { ok: false, err: err || 'Cannot build road here' };
   },
   bulldoze(state, { x, y }) {
     const t = tile(state, x, y); if (!t) return { ok: false };
@@ -364,12 +391,12 @@ const COMMANDS = {
   research(state, { tech }) {
     const d = TECHS[tech];
     if (!d || d.era > state.era || state.research.done.includes(tech) || !d.req.every(r => state.research.done.includes(r))) return { ok: false, err: 'Cannot research' };
-    if (state.research.current !== tech) { state.research.current = tech; state.research.progress = 0; }
+    if (state.research.current !== tech) { state.research.current = tech; const take = Math.min(state.research.bank || 0, techCost(tech, state.culture)); state.research.progress = take; state.research.bank = (state.research.bank || 0) - take; }
     return { ok: true };
   },
   advanceEra(state) {
     if (!eraReady(state).ready) return { ok: false, err: 'Requirements not met' };
-    state.era = 2; addLog(state, 'The Bronze era has begun.'); state.dirty.all = true; return { ok: true };
+    state.era += 1; addLog(state, `The ${ERAS[state.era].name} era has begun.`); state.dirty.all = true; return { ok: true };
   },
   // ---- block build ----
   blockPlace(state, { x, y, m }) { // x,y in half-tile sub-cells
@@ -410,7 +437,7 @@ const COMMANDS = {
   skip(state, { what, id }) {
     if (what === 'build') { const b = state.buildings[id]; if (b && !b.done) { b.progress = 1; b.mg = b.mt; b.q = (b.q ?? 0.85) - 0.05; finishBuilding(state, b); } } // rushed: slightly worse hidden quality
     else if (what === 'research') { if (state.research.current) completeResearch(state); }
-    else if (what === 'roads') { tickRoads(state, 1e9); }
+    else if (what === 'roads') { let k = 0; while ((state.roadJobs || []).length && k++ < 30) tickRoads(state, 1e9); }
     else if (what === 'dismantle') { tickDismantle(state, true); }
     else if (what === 'saplings') { tickSaplings(state, SAPLING.grownAt); }
     else if (what === 'units') { for (let i = 0; i < 200 && (state.units || []).some(u => u.path.length); i++) tickUnits(state); }
@@ -478,7 +505,12 @@ export function tick(state) {
   tickSaplings(state);
   for (const b of Object.values(state.buildings)) if (!b.done && !b.ruin && !b.dis) {
     // townsfolk build slowly on their own; villagers on site speed it up (materials are delivered when placed)
-    const nb = buildersAt(state, b); b.builders = nb; if (nb && b.q !== undefined) b.q = Math.min(0.97, b.q + 0.0006 * Math.min(4, nb)); // careful hands raise hidden build quality
+    const nb = buildersAt(state, b); b.builders = nb;
+    if (b.levelLeft > 0) { // the ground is levelled before anything is built
+      b.levelLeft = Math.max(0, b.levelLeft - (1 + 0.5 * Math.min(4, nb)));
+      if (b.levelLeft <= 0) { let h = 1e9; for (const [x, y] of b.tiles) { const t = tile(state, x, y); h = Math.min(h, t.t === T.HILL ? (t.lv ? 1 : t.h) : 0); } for (const [x, y] of b.tiles) { const t = tile(state, x, y); if (t.t === T.HILL) { t.lv = 1; t.h = Math.max(0, Math.min(1, h)); } } state.dirty.terrain = state.dirty.earth = state.dirty.grass = true; }
+      continue;
+    } if (nb && b.q !== undefined) b.q = Math.min(0.97, b.q + 0.0006 * Math.min(4, nb)); // careful hands raise hidden build quality
     if (b.mt) b.mg = Math.min(b.mt, (b.mg || 0) + b.mt * VILLAGER.haul / buildTime(b)); // townsfolk carry materials slowly; villagers haul faster
     const allowed = matAllowed(b);
     b.progress = Math.min(allowed, b.progress + (0.5 + 0.75 * Math.min(4, nb)) / buildTime(b));
@@ -503,7 +535,10 @@ export function tick(state) {
   if (state.research.current) {
     state.research.progress += rp;
     if (state.research.progress >= techCost(state.research.current, state.culture)) completeResearch(state);
-  }
+  } else state.research.bank = (state.research.bank || 0) + rp; // unspent points are kept for the next research
+  // the next era begins as soon as every requirement is met
+  if (ERA_REQ[state.era] && eraReady(state).ready) COMMANDS.advanceEra(state);
+  tickAnimals(state);
   if (hour === 0) dailyTick(state);
 }
 
@@ -526,13 +561,13 @@ function prog(state, b, f, res) { b.prog = (b.prog || 0) + f; if (b.prog >= 1) {
 function runBuilding(state, b, hours) {
   const d = BUILDINGS[b.kind]; const e = eff(state, b) * condMult(b) * (roadAccess(state, b) ? 1.15 : 1);
   if (d.food) {
-    const add = d.food / 24 * e * hours * (1 + foodBonus(state));
+    const add = d.food / 24 * e * hours * (1 + foodBonus(state)) * (b.kind === 'hunter' ? 0.4 + 0.6 * Math.min(1, preyNear(state, b.x, b.y) / 4) : 1);
     state.res.food += add; prog(state, b, add / 4, 'food'); // progress bar pops every 4 food
   }
   if (d.extract) {
     if (e <= 0) { b.info = 'No workers'; return; }
-    if (b.info === 'Depleted') { b.depCheck = (b.depCheck || 0) + 1; if (b.depCheck % 24) return; } // re-check once a day (trees regrow)
-    b.acc += d.rate / 24 * e * hours;
+    if (b.info === 'Depleted') { b.depCheck = (b.depCheck || 0) + 1; if (b.depCheck % 6) return; } // re-check every 6 h (trees regrow, deposits found)
+    b.acc += d.rate / 24 * e * hours * (b.walkF ?? 1); // workers walk to the source and back: far sources mean fewer loads
     while (b.acc >= 1) {
       b.acc -= 1;
       const before = { ...state.res };
@@ -558,10 +593,11 @@ function extractOne(state, b, d) {
   const cx = b.x, cy = b.y, R = d.radius;
   if (d.extract === 'wood') {
     for (let r = 0; r <= R; r++) for (let y = cy - r; y <= cy + r; y++) for (let x = cx - r; x <= cx + r; x++) {
-      const t = tile(state, x, y); if (t && t.trees > 0 && t.vis) { if (b.info === 'Depleted') b.info = ''; t.chop = (t.chop || 0) + 1; if (t.chop >= (d.woodPerTree || 4)) { t.chop = 0; t.trees--; t.stumps = Math.min(4, (t.stumps || 0) + 1); state.fellN = (state.fellN || 0) + 1; (state.felled = state.felled || []).push([x, y, t.trees, state.fellN]); if (state.felled.length > 40) state.felled.shift(); state.dirty.trees = true; } state.res.wood += 1; return true; }
+      const t = tile(state, x, y); if (t && t.trees > 0 && !t.occ) { if (b.info === 'Depleted') b.info = ''; b.src = [x, y]; b.walkF = Math.sqrt(3 / (2 + Math.max(1, Math.hypot(x - cx, y - cy)))); t.chop = (t.chop || 0) + 1; if (t.chop >= (d.woodPerTree || 4)) { t.chop = 0; t.trees--; t.stumps = Math.min(4, (t.stumps || 0) + 1); state.fellN = (state.fellN || 0) + 1; (state.felled = state.felled || []).push([x, y, t.trees, state.fellN]); if (state.felled.length > 40) state.felled.shift(); state.dirty.trees = true; } state.res.wood += 1; return true; }
     }
-    return false;
+    b.src = null; return false;
   }
+  if (b.kind === 'quarry' || b.kind === 'claypit') return quarryOne(state, b, d);
   const maxD = Math.min(d.maxDepth, ERAS[state.era].maxDepth);
   let best = null;
   for (let y = cy - R; y <= cy + R; y++) for (let x = cx - R; x <= cx + R; x++) {
@@ -592,6 +628,34 @@ function extractOne(state, b, d) {
   return true;
 }
 
+// open quarries and clay pits: workers walk to the nearest exposed source (hill rock, outcrop, clay bank), dig, carry back.
+// Sources deplete (hill rock 20 per tile; deposits by amount); the dug ground becomes a pit (hidden subsidence risk nearby).
+export const QUARRY_REACH = 6;
+function quarrySource(state, b, d) {
+  const cx = b.x, cy = b.y, R = QUARRY_REACH, maxD = Math.min(d.maxDepth, ERAS[state.era].maxDepth), res = d.extract[0];
+  let best = null;
+  for (let y = cy - R; y <= cy + R; y++) for (let x = cx - R; x <= cx + R; x++) {
+    const t = tile(state, x, y); if (!t || (t.occ && t.occ !== b.id) || t.road) continue;
+    const dist = Math.hypot(x - cx, y - cy); if (dist > R + 0.01) continue;
+    let ok = false;
+    if (t.dep && t.dep.amt > 0 && t.dep.r === res && t.dep.depth <= maxD) ok = true;
+    else if (res === 'stone' && t.t === T.HILL && (t.rock ?? 20) > 0) ok = true;
+    if (ok && (!best || dist < best.dist)) best = { t, x, y, dist };
+  }
+  return best;
+}
+function quarryOne(state, b, d) {
+  const best = quarrySource(state, b, d);
+  if (!best) { b.src = null; return false; }
+  if (b.info === 'Depleted') b.info = '';
+  const t = best.t, res = d.extract[0];
+  b.src = [best.x, best.y]; b.walkF = 3 / (2 + Math.max(1, best.dist));
+  if (t.dep && t.dep.amt > 0 && t.dep.r === res) { t.dep.amt -= 1; if (t.dep.amt <= 0) { t.dep.amt = 0; state.dirty.under = true; } }
+  else { const before = t.rock ?? 20; t.rock = before - 1; if (Math.floor(before / 4) !== Math.floor(t.rock / 4)) state.dirty.grass = true; }
+  t.pit = Math.min(60, (t.pit || 0) + 1); if (t.pit % 10 === 1) state.dirty.grass = true;
+  state.res[res] += 1;
+  return true;
+}
 function tickDismantle(state, all) {
   const helpers = Math.max(0, state.unemployed || 0);
   for (const b of Object.values(state.buildings)) {
@@ -623,10 +687,19 @@ function tickSaplings(state, hours = 1) {
   if (any) state.dirty.trees = true;
 }
 export function saplingStage(age) { return age < SAPLING.stages[0] ? 0 : age < SAPLING.stages[1] ? 1 : 2; }
+// road crews: each works one tile at a time in drawing order; felling trees on the line first, then grading the track
+export const ROAD_CREWS = 2, ROAD_HOURS = 1.5, ROAD_TREE_HOURS = 2;
 function tickRoads(state, n) {
-  const q = state.roadJobs || (state.roadJobs = []); if (!q.length) return;
-  for (const [x, y] of q.splice(0, n)) { const t = tile(state, x, y); if (!t || !t.rp) continue; t.rp = 0; t.road = 1; reveal(state, x, y, 2); }
-  state.dirty.roads = true;
+  const q = state.roadJobs || (state.roadJobs = []); state.roadWork = [];
+  if (!q.length) return;
+  const crews = n > 50 ? q.length : ROAD_CREWS;
+  for (let i = 0; i < Math.min(crews, q.length); i++) {
+    const [x, y] = q[i], t = tile(state, x, y); if (!t || !t.rp) { q.splice(i, 1); i--; continue; }
+    state.roadWork.push([x, y, t.trees ? 'fell' : 'dig']);
+    t.rw = (t.rw || 0) + (n > 50 ? 1e9 : 1);
+    if (t.trees) { if (t.rw >= ROAD_TREE_HOURS) { t.rw = 0; t.trees--; t.stumps = 0; state.res.wood += 2; state.fellN = (state.fellN || 0) + 1; (state.felled = state.felled || []).push([x, y, t.trees, state.fellN]); if (state.felled.length > 40) state.felled.shift(); state.dirty.trees = true; } continue; }
+    if (t.rw >= ROAD_HOURS) { t.rp = 0; t.road = 1; t.rw = 0; t.stumps = 0; reveal(state, x, y, 2); q.splice(i, 1); i--; state.dirty.roads = state.dirty.grass = true; }
+  }
 }
 function tickEarthworks(state, noDec) {
   const list = state.earthworks || (state.earthworks = []);
@@ -656,12 +729,16 @@ function tickSurveys(state) {
 }
 
 // ---------- Subsidence (hidden risk) ----------
+export function pitRisk(state, x, y, weight = 1) { // ground next to open pits slowly gives way under heavy buildings
+  let p = 0; for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const n = tile(state, x + dx, y + dy); if (n && n.pit) p += n.pit / (1 + Math.hypot(dx, dy)); }
+  return p > 6 ? 0.00025 * (p - 6) * weight : 0;
+}
 export function tileRisk(state, x, y, weight = 1) {
-  const t = tile(state, x, y); if (!t || !t.work) return 0;
+  const t = tile(state, x, y); if (!t) return 0; const pr = pitRisk(state, x, y, weight); if (!t.work) return pr;
   const w = t.work;
   const depthF = w.depth < 30 ? 1 : w.depth < 100 ? 0.3 : 0.05;
   const ageF = (1 + w.age / 20) * (w.abandoned ? 2 : 1);
-  return 0.006 * depthF * w.support * ageF * weight;
+  return 0.006 * depthF * w.support * ageF * weight + pr;
 }
 export function buildingRisk(state, b) {
   let r = 0; for (const [x, y] of b.tiles) r = Math.max(r, tileRisk(state, x, y, weightOf(b))); return r;
@@ -679,7 +756,7 @@ function dailyTick(state) {
   }
   // subsidence checks (no warnings)
   if (state.flags.collapses) for (const b of Object.values(state.buildings)) {
-    if (b.ruin || b.kind === 'shaft') continue;
+    if (b.ruin || b.kind === 'shaft' || b.kind === 'quarry' || b.kind === 'claypit') continue;
     const r = buildingRisk(state, b);
     if (r > 0 && rand(state) < r) collapse(state, b, false);
   }
@@ -795,7 +872,9 @@ function collapse(state, b, forced) {
   state.incidents.push(inc);
   if (!hasBuilt(state, 'rescue')) state.hidden.reputation -= 1;
   addLog(state, `${name} at (${b.x}, ${b.y}) collapsed: ${initialDead} dead${trapped ? `, ${trapped} trapped` : ''}.`);
-  state.dirty.buildings = true; state.dirty.incidents = true;
+  // the collapse lays the ground open: what lies beneath nearby becomes known
+  for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) { const t = tile(state, b.x + dx, b.y + dy); if (t) t.sv = 1; }
+  state.dirty.buildings = true; state.dirty.incidents = true; state.dirty.under = true;
 }
 
 function tickIncidents(state) {
