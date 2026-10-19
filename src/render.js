@@ -502,23 +502,48 @@ export class Renderer {
     const pack = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.08, 0.04), M(0x8a6a3e)); pack.position.set(0, 0.18, -0.055); body.add(pack);
     const staff = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.34, 4), M(0x9c6b3e)); staff.position.set(0.07, 0.17, 0.02); body.add(staff);
     g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    const mount = this.makeHorse(0x8a6a4a); mount.scale.setScalar(1.15); mount.visible = false; g.add(mount); g.userData.mount = mount; // scouts ride once the town has horses
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.11, 0.15, 24), new THREE.MeshBasicMaterial({ color: 0xfff1a8, transparent: true, opacity: 0.9, depthWrite: false })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.012; ring.visible = false; g.add(ring); g.userData.ring = ring;
     g.scale.setScalar(1.6); return g;
   }
   // ship: a small square-rigged trading vessel
+  // ship: a planked hull lofted from U-shaped sections (sheer rises to bow and stern), deck, two masts with square sails, rudder
   makeShipModel() {
-    const g = new THREE.Group(), M = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.8, flatShading: true });
+    const g = new THREE.Group(), M = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.8, flatShading: true, side: THREE.DoubleSide, ...o });
     const body = new THREE.Group(); g.add(body); g.userData.body = body; g.userData.legs = [new THREE.Object3D(), new THREE.Object3D()];
-    const hull = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.05, 0.42, 6, 1, false, 0, Math.PI), M(0x6b4a2a)); hull.rotation.set(Math.PI / 2, 0, Math.PI / 2); hull.position.y = 0.06; body.add(hull);
-    const deck = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.015, 0.4), M(0xa77a48)); deck.position.y = 0.065; body.add(deck);
-    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.01, 0.42, 5), M(0x5e3d22)); mast.position.y = 0.27; body.add(mast);
-    const sail = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.18, 0.01), M(0xf1e7d2)); sail.position.set(0, 0.3, 0.012); body.add(sail);
-    const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.04, 0.012), M(0xa9472f)); stripe.position.set(0, 0.3, 0.013); body.add(stripe);
-    const flag = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.03, 0.005), M(0xa9472f)); flag.position.set(0.03, 0.49, 0); body.add(flag);
-    for (const z of [-0.17, 0.17]) { const c = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.05, 0.06), M(0x7a5434)); c.position.set(0, 0.09, z); body.add(c); }
+    const L = 0.56, B = 0.19, D = 0.1, NS = 12, NP = 7, P = [], I = [];
+    for (let i = 0; i <= NS; i++) { const t = i / NS, z = (t - 0.5) * L, e = Math.abs(2 * t - 1), w = B / 2 * Math.sqrt(Math.max(0.0001, 1 - Math.pow(e, 2.4))), sheer = D + 0.05 * e * e, keel = 0.012 * e;
+      for (let k = 0; k <= NP; k++) { const a = Math.PI * k / NP; P.push(-Math.cos(a) * w, sheer - (sheer - keel) * Math.pow(Math.sin(a), 0.7), z); } }
+    for (let i = 0; i < NS; i++) for (let k = 0; k < NP; k++) { const a = i * (NP + 1) + k, b = a + NP + 1; I.push(a, b, a + 1, a + 1, b, b + 1); }
+    const hg = new THREE.BufferGeometry(); hg.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); hg.setIndex(I); hg.computeVertexNormals();
+    const hull = new THREE.Mesh(hg, M(0x6b4a2a)); body.add(hull);
+    const wale = new THREE.Mesh(hg, M(0x2e2a26)); wale.scale.set(1.03, 0.25, 1.0); wale.position.y = 0.07; body.add(wale); // dark strake along the sheer
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(B * 0.92, 0.012, L * 0.8), M(0xb08552)); deck.position.y = D - 0.008; body.add(deck);
+    const castle = new THREE.Mesh(new THREE.BoxGeometry(B * 0.8, 0.05, 0.1), M(0x7a5434)); castle.position.set(0, D + 0.02, -L * 0.36); body.add(castle);
+    const rudder = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.09, 0.05), M(0x5e3d22)); rudder.position.set(0, 0.05, -L / 2 - 0.02); body.add(rudder);
+    for (const [z, h, sw] of [[0.06, 0.44, 0.24], [-0.14, 0.32, 0.17]]) {
+      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.01, h, 6), M(0x5e3d22)); mast.position.set(0, D + h / 2, z); body.add(mast);
+      const yard = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, sw * 1.1, 5), M(0x5e3d22)); yard.rotation.z = Math.PI / 2; yard.position.set(0, D + h * 0.92, z); body.add(yard);
+      const sg = new THREE.PlaneGeometry(sw, h * 0.55, 4, 3), sp = sg.attributes.position; for (let v = 0; v < sp.count; v++) { const x = sp.getX(v) / sw * 2; sp.setZ(v, 0.03 * (1 - x * x)); } sg.computeVertexNormals();
+      const sail = new THREE.Mesh(sg, M(0xf1e7d2)); sail.position.set(0, D + h * 0.62, z + 0.01); body.add(sail);
+      if (z > 0) { const st = new THREE.Mesh(new THREE.PlaneGeometry(sw, 0.035), M(0xa9472f)); st.position.set(0, D + h * 0.62, z + 0.042); body.add(st); }
+    }
+    const flag = new THREE.Mesh(new THREE.BoxGeometry(0.005, 0.03, 0.06), M(0xa9472f)); flag.position.set(0, D + 0.47, 0.03); body.add(flag);
+    for (let i = 0; i < 3; i++) { const c = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.04, 0.05), M(i % 2 ? 0x8a6a3e : 0x9c7a4a)); c.position.set((i - 1) * 0.05, D + 0.02, 0.18); body.add(c); }
+    body.rotation.y = 0; body.position.y = -0.03;
     g.traverse(o => { if (o.isMesh) o.castShadow = true; });
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.22, 0.27, 24), new THREE.MeshBasicMaterial({ color: 0xfff1a8, transparent: true, opacity: 0.9, depthWrite: false })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.012; ring.visible = false; g.add(ring); g.userData.ring = ring;
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.26, 0.31, 24), new THREE.MeshBasicMaterial({ color: 0xfff1a8, transparent: true, opacity: 0.9, depthWrite: false })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.012; ring.visible = false; g.add(ring); g.userData.ring = ring;
     g.scale.setScalar(1.6); return g;
+  }
+  // small draught horse (used for villager carts and mounted scouts)
+  makeHorse(c = 0x6b4a32) {
+    const g = new THREE.Group(), M = (k) => new THREE.MeshStandardMaterial({ color: k, roughness: 0.85, flatShading: true });
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.17), M(c)); torso.position.y = 0.11; g.add(torso);
+    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.08, 0.04), M(c)); neck.position.set(0, 0.16, 0.08); neck.rotation.x = -0.5; g.add(neck);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.035, 0.07), M(c)); head.position.set(0, 0.19, 0.12); g.add(head);
+    const mane = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.06, 0.05), M(0x2a1f17)); mane.position.set(0, 0.18, 0.07); mane.rotation.x = -0.5; g.add(mane);
+    g.userData.legs = []; for (const [x, z] of [[-0.025, 0.06], [0.025, 0.06], [-0.025, -0.06], [0.025, -0.06]]) { const l = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.08, 0.018), M(c)); l.geometry.translate(0, -0.04, 0); l.position.set(x, 0.08, z); g.add(l); g.userData.legs.push(l); }
+    g.traverse(o => { if (o.isMesh) o.castShadow = true; }); return g;
   }
   // villager: hide tunic, bare head with hair, a hafted stone tool that swings while working, a load bundle on the back
   makeVillagerModel() {
@@ -535,6 +560,12 @@ export class Renderer {
     const haft = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.16, 4), M(0x8a6038)); haft.position.set(0, -0.08, 0.06); haft.rotation.x = Math.PI / 2; arm.add(haft);
     const headT = new THREE.Mesh(new THREE.DodecahedronGeometry(0.02, 0), M(0x5d5d63)); headT.position.set(0, -0.08, 0.14); arm.add(headT);
     const load = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.07, 0.06), M(0x9c6b3e)); load.position.set(0, 0.22, -0.065); load.visible = false; body.add(load); g.userData.load = load;
+    { const cart = new THREE.Group(), W = M(0x5e3d22); const bed = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, 0.14), M(0x8a6038)); bed.position.y = 0.07; cart.add(bed);
+      for (const sx of [-1, 1]) { const w = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.012, 10), W); w.rotation.z = Math.PI / 2; w.position.set(sx * 0.07, 0.035, 0); cart.add(w); }
+      const shaft = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.01, 0.16), W); shaft.position.set(0, 0.075, 0.14); cart.add(shaft);
+      const cl = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 0.11), M(0x9c6b3e)); cl.position.y = 0.11; cart.add(cl); cart.userData.load = cl;
+      const horse = this.makeHorse(); horse.position.set(0, 0, 0.27); cart.add(horse); cart.userData.horse = horse;
+      cart.position.set(0.13, 0, 0); cart.visible = false; g.add(cart); g.userData.cart = cart; }
     g.traverse(o => { if (o.isMesh) o.castShadow = true; });
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.11, 0.15, 24), new THREE.MeshBasicMaterial({ color: 0xfff1a8, transparent: true, opacity: 0.9, depthWrite: false })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.012; ring.visible = false; g.add(ring); g.userData.ring = ring;
     g.scale.setScalar(1.6); return g;
@@ -550,6 +581,7 @@ export class Renderer {
       if (moving) { v.root.rotation.y = Math.atan2(u.x - u.px, u.y - u.py); v.phase += dt * 9; } else v.phase *= 0.9;
       const sw = Math.sin(v.phase) * (moving ? 0.6 : 0); v.root.userData.legs[0].rotation.x = sw; v.root.userData.legs[1].rotation.x = -sw; v.root.userData.body.position.y = moving ? Math.abs(Math.sin(v.phase)) * 0.012 : 0;
       const ud = v.root.userData;
+      if (ud.mount) { const ride = !!(state.flags && state.flags.horses); ud.mount.visible = ride; if (ride) { ud.body.position.y += 0.1; ud.legs.forEach(l => l.rotation.x = 0); ud.mount.userData.legs.forEach((l, i) => l.rotation.x = moving ? Math.sin(v.phase * 1.4 + (i % 2 ? Math.PI : 0) + (i > 1 ? Math.PI / 2 : 0)) * 0.7 : 0); } }
       if (ud.tool) { // villager work animation + carried load
         const work = !moving && (u.vstate === 'working' || u.vstate === 'building');
         if (work) { v.wph = (v.wph || 0) + dt * 7; const j = u.job; if (j) { const tx = j.type === 'build' ? (state.buildings[j.id] || u).x : j.x, ty = j.type === 'build' ? (state.buildings[j.id] || u).y : j.y; if (tx !== u.x || ty !== u.y) v.root.rotation.y = Math.atan2(tx - u.x, ty - u.y); } }
@@ -557,6 +589,7 @@ export class Renderer {
         ud.body.rotation.x = work ? Math.max(0, Math.sin(v.wph)) * 0.18 : 0;
         const c = u.carry && u.carry.n > 0.5 ? u.carry : null; ud.load.visible = !!c;
         if (c) { ud.load.material.color.setHex({ wood: 0x9c6b3e, stone: 0x9a9a96, clay: 0xc4865a, food: 0xb3243b }[c.res] || 0x9c6b3e); const k = 0.5 + 0.5 * Math.min(1, c.n / 10); ud.load.scale.set(k, k, k); }
+        const carts = !!(state.flags && state.flags.horses && state.flags.carts) && !!c && moving; ud.cart.visible = carts; if (carts) { ud.load.visible = false; ud.cart.userData.load.material.color.copy(ud.load.material.color); ud.cart.userData.horse.userData.legs.forEach((l, i) => l.rotation.x = Math.sin(v.phase * 1.3 + (i % 2 ? Math.PI : 0) + (i > 1 ? Math.PI / 2 : 0)) * 0.6); }
       }
       v.root.userData.ring.visible = this.selUnit === u.id || !!(this.selUnits && this.selUnits.has(u.id));
       v.root.visible = !this.underground;
