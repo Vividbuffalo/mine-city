@@ -1,5 +1,6 @@
 // EARTH simulation. Pure data + rules, no rendering. All mutations go through applyCommand().
 import { BUILDINGS, TECHS, ERAS, ERA_REQ, BLOCKS, SAVE_VERSION, HOURS_PER_DAY, techCost, EARTHWORKS, SURFACE_DEPTH, SAPLING, DISMANTLE, VILLAGER, DECAY, CONDITION_STAGES, TOOLS, RESOURCES, TRADE, DEPOSITS } from './data.js';
+import { tickRail, railF } from './rail.js';
 import { makeTowns, tickTowns, TOWN_KINDS } from './towns.js';
 export { TOWN_KINDS };
 // a deposit the player knows about: surveyed, or shallow enough to be seen on the surface once explored
@@ -595,6 +596,7 @@ export function tick(state) {
   for (const b of Object.values(state.buildings)) if (b.done && !b.ruin) runBuilding(state, b, 1);
   tickRoads(state, ROAD_RATE);
   tickUnits(state);
+  if (state.era >= 7) tickRail(state);
   tickVillagers(state);
   if (hour % 4 === 0) growthTick(state);
   // free hands forage: unemployed adults gather a little food and firewood (never a soft-lock)
@@ -644,7 +646,7 @@ function runBuilding(state, b, hours) {
   if (d.extract) {
     if (e <= 0) { b.info = 'No workers'; return; }
     if (b.info === 'Depleted') { b.depCheck = (b.depCheck || 0) + 1; if (b.depCheck % 6) return; } // re-check every 6 h (trees regrow, deposits found)
-    b.acc += d.rate / 24 * e * hours * (b.walkF ?? 1); // workers walk to the source and back: far sources mean fewer loads
+    b.acc += d.rate / 24 * e * hours * (b.walkF ?? 1) * railF(state, b); // workers walk to the source and back: far sources mean fewer loads
     while (b.acc >= 1) {
       b.acc -= 1;
       const before = { ...state.res };
@@ -655,7 +657,7 @@ function runBuilding(state, b, hours) {
   }
   if (d.recipe) {
     if (e <= 0) return;
-    b.acc += d.recipe.perDay / 24 * e * hours * guildF(state);
+    b.acc += d.recipe.perDay / 24 * e * hours * guildF(state) * railF(state, b);
     while (b.acc >= 1) {
       const inp = d.recipe.in;
       if (!Object.keys(inp).every(k => state.res[k] >= inp[k] + ((d.recipe.keep || {})[k] || 0))) { b.acc = Math.min(b.acc, 1); b.info = 'Waiting for inputs'; return; }

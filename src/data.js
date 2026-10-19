@@ -208,6 +208,8 @@ export const TOOLS = { boost: 0.25, ironBoost: 0.4, wearPerWorkerDay: 0.01 };
 // horses: scouts ride (faster); with a cart maker, villagers haul with carts (bigger loads)
 export const HORSES = { scoutSpeed: 1.7, cartLoad: 2 };
 // neighbouring towns met through exploration; a trading post sends a caravan to each known town every few days
+// railways: train speed (tiles/hour), stop time, freight income per arrival, production boost near served stations
+export const RAIL = { speed: 4, stopHours: 3, base: 6, perTile: 0.6, radius: 5, boost: 0.25 };
 export const TRADE = { everyDays: 3, perTrip: 8, keep: 60 }; // towns only buy what you have beyond the keep stock
 
 // Block-build materials (0.5-tile blocks)

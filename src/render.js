@@ -79,7 +79,7 @@ export class Renderer {
     this.sun.shadow.bias = -0.0004; this.sun.shadow.normalBias = 0.03; this.sun.shadow.radius = 3;
     this.scene.add(this.sun, this.sun.target);
     this.groups = {};
-    for (const k of ['terrain', 'earth', 'water', 'trees', 'grass', 'berries', 'roads', 'buildings', 'proxies', 'units', 'under', 'overlay', 'vehicles', 'draft', 'ghost', 'fx', 'workers', 'animals', 'towns']) { this.groups[k] = new THREE.Group(); this.scene.add(this.groups[k]); }
+    for (const k of ['terrain', 'earth', 'water', 'trees', 'grass', 'berries', 'roads', 'buildings', 'proxies', 'units', 'under', 'overlay', 'vehicles', 'trains', 'draft', 'ghost', 'fx', 'workers', 'animals', 'towns']) { this.groups[k] = new THREE.Group(); this.scene.add(this.groups[k]); }
     this.bvis = new Map(); this.vvis = new Map(); this.uvis = new Map(); this.selUnit = null; this.windowMats = new Set();
     this.underground = false; this.clock = 0; this.night = 0;
     this.uTime = { value: 0 }; this.initFog();
@@ -1058,6 +1058,35 @@ export class Renderer {
     for (const [id, v] of this.vvis) if (!seen.has(id)) { this.groups.vehicles.remove(v.root); this.vvis.delete(id); }
   }
 
+  // ---------- trains: an engine and two wagons running along the track ----------
+  makeTrainCar(engine) {
+    const g = new THREE.Group(), M = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.6, metalness: 0.2, flatShading: true, ...o }), B = (w, h, d, m, x, y, z) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); b.castShadow = true; g.add(b); return b; };
+    const black = M(0x1e1f22), red = M(0x8b1e1e), wood = M(0x6a4a2e);
+    B(0.28, 0.03, 0.72, black, 0, 0.05, 0);
+    for (const z of [-0.24, 0, 0.24]) for (const x of [-0.13, 0.13]) { const w = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.03, 10), black); w.rotation.z = Math.PI / 2; w.position.set(x, 0.05, z); g.add(w); }
+    if (engine) { const boiler = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.44, 12), black); boiler.rotation.x = Math.PI / 2; boiler.position.set(0, 0.17, 0.1); boiler.castShadow = true; g.add(boiler);
+      B(0.26, 0.24, 0.22, red, 0, 0.18, -0.22); B(0.3, 0.03, 0.26, black, 0, 0.31, -0.22); const ch = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.14, 8), black); ch.position.set(0, 0.32, 0.26); g.add(ch);
+      B(0.24, 0.03, 0.04, M(0xc9a640, { metalness: 0.7 }), 0, 0.2, 0.33); g.userData.chimney = new THREE.Vector3(0, 0.42, 0.26); }
+    else { B(0.27, 0.16, 0.66, wood, 0, 0.14, 0); const load = new THREE.Mesh(new THREE.DodecahedronGeometry(0.12, 0), M(0x26262a)); load.scale.set(1, 0.5, 2.3); load.position.set(0, 0.24, 0); g.add(load); }
+    return g;
+  }
+  syncTrains(state, frac, dt) {
+    this.trvis = this.trvis || new Map(); const seen = new Set();
+    for (const tr of state.trains || []) {
+      seen.add(tr.id); let v = this.trvis.get(tr.id);
+      if (!v) { v = { cars: [this.makeTrainCar(true), this.makeTrainCar(false), this.makeTrainCar(false)] }; v.cars.forEach(c => this.groups.trains.add(c)); this.trvis.set(tr.id, v); }
+      const path = tr.path, moving = !!path && tr.wait <= 0, pos = path ? Math.min(path.length - 1, tr.pos + (moving ? 4 * frac : 0)) : 0;
+      const at = (q) => { if (!path) return null; q = Math.max(0, Math.min(path.length - 1, q)); const i = Math.floor(q), f = q - i, a = path[i], b = path[Math.min(path.length - 1, i + 1)]; return [a[0] + (b[0] - a[0]) * f + 0.5, a[1] + (b[1] - a[1]) * f + 0.5]; };
+      v.cars.forEach((car, k) => { const p = at(pos - k * 0.85), p2 = at(pos - k * 0.85 + 0.2); if (!p) { car.visible = false; return; }
+        const fi = Math.max(0, Math.min(SIZE * SIZE - 1, Math.floor(p[1]) * SIZE + Math.floor(p[0])));
+        car.visible = !this.underground && (!this.fogCur || this.fogCur[fi] > 0.5);
+        car.position.set(p[0], this.topXY(Math.floor(p[0]), Math.floor(p[1])) + 0.04, p[1]);
+        if (p2 && (p2[0] !== p[0] || p2[1] !== p[1])) car.rotation.y = Math.atan2(p2[0] - p[0], p2[1] - p[1]); });
+      const eng = v.cars[0]; if (moving && eng.visible && Math.random() < dt * 10 * this.q.smoke) { const c = eng.userData.chimney.clone().applyEuler(eng.rotation).add(eng.position); this.spawn(c, 0xd9d9d9, 0.12, 0.6, 2.2, [(Math.random() - 0.5) * 0.08, 0.25, (Math.random() - 0.5) * 0.08]); }
+    }
+    for (const [id, v] of this.trvis) if (!seen.has(id)) { v.cars.forEach(c => this.groups.trains.remove(c)); this.trvis.delete(id); }
+  }
+
   // ---------- ghost / picking / camera ----------
   // drawn road line before it is dropped: green = ok, amber = trees to fell first, red = can't build there
   setRoadPreview(list) {
@@ -1180,7 +1209,7 @@ export class Renderer {
     if (d.all || d.towns || d.fog) this.syncTowns(state);
     state.dirty = {};
     this.syncFelling(state, dt);
-    this.syncBuildings(state, dt, speed); this.syncVehicles(state, frac, dt); this.syncUnits(state, frac, dt); this.syncAnimals(state, frac, dt); this.syncWorkers(state, dt); this.updateParticles(dt);
+    this.syncBuildings(state, dt, speed); this.syncVehicles(state, frac, dt); this.syncTrains(state, frac, dt); this.syncUnits(state, frac, dt); this.syncAnimals(state, frac, dt); this.syncWorkers(state, dt); this.updateParticles(dt);
     this.waterMat.normalMap.offset.x = this.clock * 0.012; this.waterMat.normalMap.offset.y = this.clock * 0.007;
     // gentle day/night (stays readable); windows and lamps glow at dusk/night
     const hour = (state.tick % HOURS_PER_DAY) + frac, day = 0.5 - 0.5 * Math.cos((hour - 2) / 24 * Math.PI * 2);
