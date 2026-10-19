@@ -16,6 +16,6 @@ Level tool: terrace steep mountain tiles so they can be built on (needs Earthwor
 
 Graphics quality: Low / Medium / High selector (top right or title screen), or `?q=low|medium|high`.
 
-Status panel (top left): population · housed/capacity · employed · free · villagers (tap for who works where and the growth blocker), resource/happiness/health/condition bars, a 15 s report ring with per-bar changes, and the next-era goal. ▸/▾ collapses it.
+Status panel (top left): population · housed/capacity · employed · free · villagers (tap for numbers per building), resource/happiness/health/condition bars, a 15 s report ring with per-bar changes, and the next-era goal. ▸/▾ collapses it.
 
-Tests: `node tests/isaac.mjs` (Isaac's housing/worker case), `node tests/longrun.mjs` (60-day balance run).
+Tests: `node tests/isaac.mjs` (Isaac's housing/worker case), `node tests/longrun.mjs` (60-day balance run), `node tests/haul.mjs` (material hauling).

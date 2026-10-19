@@ -2,6 +2,8 @@
 
 > Formerly "Mine City". Title screen line: "Welcome to Earth. Enjoy the journey."
 
+*v1.0.1 (game v2.2.1): Isaac's rule applied everywhere: the UI shows only numbers, bars and trends, never causes, blockers or advice (no growth-blocker text, no happiness-factor breakdown, no "needs X" hints, tool tips are names only). Villagers haul materials to build sites; ruins salvage 20% of materials on cleanup; culture has diminishing returns per building kind (next era needs 100); villager gathering rates halved, hill rock finite (20 per tile), quarry 12/day; organic Woodcutter's Camp and Hunter's Lodge models.*
+
 *v1.0 changes (game v2.2): AoE-style villagers who gather, carry and build; economy fixed (no soft-lock, foraging, faster wood); 31 archaeologically grounded Stone Age buildables; growth driven by housing + food + happiness; era advance needs population, buildings and culture milestones; copper ore locked to Bronze, iron to the Iron era; status bars with a 15 s report cycle and per-building progress bars; building aging/decay and hidden build quality with rare structural failure; graphics presets re-tiered for the v3 art pass (App. I).*
 
 *v0.9 changes (game v2.1): block building dropped (ready-made buildings only); Dismantle replaces early Bulldoze (bulldozer is a late-era unlock); Plant Trees tool and visible tree felling/regrowth; surface-visible resources in the Stone era, Survey/Prospecting and the Underground view unlock in Bronze; river depth classes (fords, shallow reaches, deep channels) with wading risk; mobile/touch UI, controls legend, smooth camera, GPU fog of war (App. H).*
@@ -563,17 +565,14 @@ Hard rules (no gambling, pyramid or securities-like mechanics):
 - **Building**: construction has a base pace (the townsfolk), and every villager on site adds speed (up to 4) and slightly raises hidden build quality. After building they go back to what they were gathering.
 - **Idle-villager button** (bottom left) shows the idle count and selects/centres the next idle villager.
 - **New villagers**: population growth brings new adults into homes; the camp's **Train villager** turns a free adult into a villager for 10 food. The cap is 3 + 1 per 5 people. Villagers count toward population but are not housed and do not take building jobs.
-- Materials are paid when a building is placed. Delivery is abstracted for now; villagers hauling materials to sites is a later step.
+- Materials are paid when a building is placed and then have to reach the site. Townsfolk carry them slowly at the base build pace. Villagers assigned to build fetch loads of 10 from the nearest store and carry them over (visible bundle), then build. Construction can't run more than a foundation's worth (10%) ahead of the delivered materials. The card shows "Materials on site x / y".
 
 ### Economy fixes (Isaac's stall)
 - Root cause of "no free workers" in v2.1: new residents only moved into homes with road access, jobs needed roads too, and growth ran once a day. Now roads are optional (a +15% bonus), growth runs every 4 hours, and housing fills quickly when there is food and happiness ≥ 40.
 - **No soft-lock**: free adults forage (a little food and wood each day), villagers can always gather for free, and the basic food buildings (Gatherer's Hut, Fish Weir, Field) cost wood only.
 - **Woodcutter's Camp** output is much higher (40/day at full staff), so wood income is steady and visible.
 - The happiness water term counts homes within 4 tiles of the river as watered in the Stone Age (a well covers the rest). Unemployment only hurts above 50%.
-- The population readout (status panel top line) shows total · housed / capacity · employed · free · villagers, plus the growth blocker when growth is paused. Tapping it opens a card with:
-  - who works where (per building type, workers / jobs)
-  - the growth status ("Growth paused: no food" / "no free housing" / "people are unhappy (water)")
-  - the happiness factors
+- The population readout (status panel top line) shows total · housed / capacity · employed · free · villagers. Tapping it opens a card with numbers only: total, housing, employed, free, villagers (idle), arrivals in the last 4 h, food and days left, workers / jobs per building type, happiness and health. Per Isaac's rule (v2.2.1), no cause, blocker or advice text is shown anywhere.
 - Test: `tests/isaac.mjs` (in the game folder) reproduces his case (5 tents/pole huts + a woodcutter, no roads) and asserts that the woodcutter is staffed on day 1, homes fill by day 2, and growth is not paused. `tests/longrun.mjs` is a 60-day balance run.
 
 ### Era gating
@@ -591,11 +590,11 @@ Hard rules (no gambling, pyramid or securities-like mechanics):
 | Culture & decoration | Fire Pit · Shrine · Standing Stones · Timber Circle 2×2 · Great Timber Hall 2×2 · Palisade Section · Wooden Trackway · Stone Cairn |
 | Services | Barter Place (hides, pots, flint) · Well (stone-lined, with a well sweep) · Healer & Rescue Post |
 
-Every building has its own procedural model and build-menu thumbnail. Culture buildings add **culture per day** and **happiness**. Decoration happiness is capped at +20.
+Every building has its own procedural model and build-menu thumbnail. Culture buildings add **culture per day** and **happiness**. Each further building of the same kind counts half as much as the previous one. Decoration happiness is capped at +20.
 
 ### Growth and progression loop
 - **Growth** needs all of: free housing, food in store, happiness ≥ 40. Arrivals per 4 h = 1 + 4% of population, limited by free housing.
-- **Next era** needs population 30, 15 finished buildings, 60 culture, plus Pottery and Smelting research. A plain one-line readout sits under the status bars, e.g. "Next era: population 18/30 · buildings 12/15 · culture 40/60 · Pottery ✓ · Smelting". No tutorial or hints.
+- **Next era** needs population 30, 15 finished buildings, 100 culture, plus Pottery and Smelting research. A plain one-line readout sits under the status bars, e.g. "Next era: population 18/30 · buildings 12/15 · culture 40/100 · Pottery ✓ · Smelting". No tutorial or hints.
 
 ### Status bars and the 15-second report cycle
 - Compact bars (colour shifts amber/red when low):
@@ -618,7 +617,7 @@ Every building has its own procedural model and build-menu thumbnail. Culture bu
 - **Maintenance**: idle hands repair buildings (+6 a day, using a little wood). A busy town with no free hands decays.
 - Visible stages: **Good (≥75) → Weathered (≥50) → Worn (≥25) → Derelict (≥1) → Ruins**. The model darkens and greys, then leans and sags. The building card shows condition and a bar.
 - Lower condition cuts output (Worn ×0.75, Derelict ×0.5), housing (Derelict halves capacity) and happiness.
-- At 0 the building collapses into **ruins**. Cleanup is through the incident pipeline: rescue → cleanup crew → rubble cleared. A small materials refund on cleanup is planned.
+- At 0 the building collapses into **ruins**. Cleanup is through the incident pipeline: rescue → cleanup crew → rubble cleared. Cleanup salvages 20% of the building's materials.
 
 ### Hidden build quality and rare structural failure
 - Each building gets a hidden quality when placed, from:
@@ -631,7 +630,7 @@ Every building has its own procedural model and build-menu thumbnail. Culture bu
   - +12 culture/day, +8 happiness, houses 6
   - ambition 0.85: a rushed or neglected hall has roughly a 0.5% daily chance of failing; a carefully built (villagers on site) and maintained hall has about half that or less
   - fair and rare: in a 60-day test run, no collapses happened
-  - the build menu marks it "ambitious build"; there is no per-building warning
+  - nothing in the UI marks it as risky; there is no warning
 
 ### Graphics presets (for the v3 art pass; note only)
 - Isaac's PC runs the current **High** smoothly, so in v3 the current High becomes the new **LOW**.

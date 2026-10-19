@@ -129,13 +129,18 @@ export const MODELS = {
     for (const [x, z] of [[0.24, 0.12], [0.1, 0.28], [0.3, -0.12]]) { k.add(new THREE.IcosahedronGeometry(0.075, 0), mat(0x3f7a3a), x, 0.07, z); for (let i = 0; i < 4; i++) k.add(new THREE.SphereGeometry(0.014, 5, 4), mat(0xb3243b), x + Math.cos(i * 1.7) * 0.06, 0.08 + (i % 2) * 0.03, z + Math.sin(i * 1.7) * 0.06); }
     for (const [x, z] of [[-0.24, 0.22], [-0.16, 0.26]]) k.cyl(0.04, 0.03, 0.06, 7, 0xa88350, x, 0, z);
   } },
-  hunter: { dims: { w: 0.56, d: 0.46, h: 0.22, roof: 'gable', wall: 'wood' }, finished(k) {
-    k.box(0.5, 0.2, 0.4, 0x7d5a3a, -0.04, 0, -0.04); k.roof(0.5, 0.4, 0.2, 0x8a6a48, 0.2, 0x7d5a3a, -0.04, -0.04);
-    k.door('front', 0.5, 0.32, 0.09, 0.14, -0.08, 'soilDark');
-    // antlers over the door, a hide on a stretching frame, spears
-    for (const s of [-1, 1]) k.add(new THREE.TorusGeometry(0.05, 0.008, 4, 6, Math.PI * 0.8), mat(0xe8dcc0), -0.04 + s * 0.04, 0.33, 0.17, 0, 0, s * 0.6);
-    k.box(0.02, 0.24, 0.02, 'woodDark', 0.26, 0, 0.22); k.box(0.02, 0.24, 0.02, 'woodDark', 0.26, 0, 0.0); k.box(0.012, 0.16, 0.18, 0xc09a6a, 0.26, 0.06, 0.11);
-    for (let i = 0; i < 3; i++) k.add(new THREE.CylinderGeometry(0.006, 0.006, 0.36, 4), mat('wood'), -0.3 + i * 0.03, 0.17, 0.2, 0.25, 0, 0.15);
+  hunter: { dims: { w: 0.58, d: 0.58, h: 0.1, roof: 'cone', wall: 'wood', round: true }, finished(k) {
+    // a wide, low hide lodge on a pole frame with a smoke hole, a skin on a stretching frame, antlers and spears
+    k.cyl(0.28, 0.3, 0.03, 12, 'soilDark', -0.05, 0, -0.05);
+    k.cone(0.27, 0.36, 12, 0x9a7650, -0.05, 0.02, -0.05); k.cone(0.2, 0.08, 12, 0x7d5d3c, -0.05, 0.02, -0.05);
+    for (let i = 0; i < 7; i++) { const a = i / 7 * Math.PI * 2; k.add(new THREE.CylinderGeometry(0.006, 0.006, 0.14, 4), mat('woodDark'), -0.05 + Math.cos(a) * 0.03, 0.41, -0.05 + Math.sin(a) * 0.03, Math.sin(a) * 0.35, 0, -Math.cos(a) * 0.35); }
+    k.emitters.push({ x: -0.05, y: 0.42, z: -0.05, type: 'hut' }); k.add(new THREE.PlaneGeometry(0.11, 0.14), mat('soilDark', { side: THREE.DoubleSide }), -0.05, 0.07, 0.17, -0.55, 0, 0);
+    for (const sx of [-1, 1]) k.cyl(0.012, 0.014, 0.3, 5, 'woodDark', 0.26 + sx * 0.0, 0, 0.1 + sx * 0.1);
+    k.add(new THREE.CircleGeometry(0.09, 8), mat(0xc09a6a, { side: THREE.DoubleSide }), 0.26, 0.16, 0.1, 0, Math.PI / 2, 0); // stretched hide
+    k.add(new THREE.TorusGeometry(0.095, 0.006, 4, 10), mat('woodDark'), 0.26, 0.16, 0.1, 0, Math.PI / 2, 0);
+    for (const s of [-1, 1]) k.add(new THREE.TorusGeometry(0.045, 0.007, 4, 6, Math.PI * 0.8), mat(0xe8dcc0), -0.05 + s * 0.04, 0.2, 0.23, -0.4, 0, s * 0.6);
+    for (let i = 0; i < 3; i++) k.add(new THREE.CylinderGeometry(0.005, 0.005, 0.38, 4), mat('wood'), -0.3 + i * 0.025, 0.17, 0.12, 0.2, 0, 0.25);
+    k.pile(4, 0.04, 0x8a3b28, 0.2, -0.24);
   } },
   weir: { dims: { w: 0.6, d: 0.6, h: 0.05, roof: 'none', wall: 'wood' }, finished(k) {
     k.box(0.62, 0.02, 0.62, 'soil');
@@ -279,14 +284,17 @@ export const MODELS = {
     for (const sx of [-1, 1]) k.add(new THREE.BoxGeometry(0.015, 0.34, 0.015), mat('wood'), sx * 0.05, 0.16, 0.36, -0.35, 0, 0);
     for (let i = 0; i < 4; i++) k.box(0.1, 0.012, 0.012, 'wood', 0, 0.04 + i * 0.075, 0.41 - i * 0.026);
   } },
-  woodcutter: { dims: { w: 0.48, d: 0.4, h: 0.26, roof: 'gable', wall: 'wood' }, finished(k) {
-    const W = 0.48, D = 0.4, x0 = -0.12, z0 = -0.12;
-    for (let i = 0; i < 6; i++) { k.log(W, 0.024, i % 2 ? 'wood' : 'woodDark', x0, 0.024 + i * 0.044, z0 + D / 2); k.log(W, 0.024, i % 2 ? 'wood' : 'woodDark', x0, 0.024 + i * 0.044, z0 - D / 2); k.log(D, 0.024, i % 2 ? 'woodDark' : 'wood', x0 - W / 2, 0.046 + i * 0.044, z0, Math.PI / 2); k.log(D, 0.024, i % 2 ? 'woodDark' : 'wood', x0 + W / 2, 0.046 + i * 0.044, z0, Math.PI / 2); }
-    k.box(W - 0.02, 0.26, D - 0.02, 'woodDark', x0, 0, z0);
-    k.ox = x0; k.oz = z0; k.door('front', W, D, 0.09, 0.15, 0, 'wood'); k.ox = k.oz = 0;
-    k.roof(W, D, 0.2, 'shingle', 0.27, 'wood', x0, z0);
-    k.logPile(0.24, 0.16, 3, 0.3, 0.2); k.cyl(0.06, 0.065, 0.07, 8, 'wood', 0.25, 0, -0.22); k.box(0.012, 0.1, 0.012, 'woodLight', 0.25, 0.07, -0.22, 0, 0.4);
-    k.chimney(x0 - 0.12, z0 - 0.05, 0.27, 0.18, 'stone');
+  woodcutter: { dims: { w: 0.5, d: 0.44, h: 0.12, roof: 'gable', wall: 'wood' }, finished(k) {
+    // A-frame of poles covered in bark and brush, a chopping stump with a hafted stone axe, split-log stacks and chips
+    const x0 = -0.1, z0 = -0.1;
+    for (let i = 0; i < 7; i++) { const z = z0 - 0.18 + i * 0.06; for (const s of [-1, 1]) k.add(new THREE.CylinderGeometry(0.011, 0.013, 0.36, 5), mat(i % 2 ? 'woodDark' : 'wood'), x0 + s * 0.09, 0.15, z, 0, 0, s * 0.62); }
+    for (const s of [-1, 1]) k.add(new THREE.BoxGeometry(0.21, 0.016, 0.44), mat(s < 0 ? 0x6e5236 : 0x7d5e3c), x0 + s * 0.095, 0.15, z0, 0, 0, s * 0.95); // bark sheets
+    k.log(0.5, 0.014, 'woodDark', x0, 0.29, z0, Math.PI / 2);
+    for (let i = 0; i < 5; i++) k.add(new THREE.IcosahedronGeometry(0.04, 0), mat(0x58733a), x0 - 0.12 + i * 0.06, 0.25, z0 - 0.2 + (i % 2) * 0.03); // brush on the ridge
+    k.cyl(0.065, 0.075, 0.08, 9, 'wood', 0.2, 0, 0.16); k.cyl(0.062, 0.062, 0.004, 9, 0xd9b98a, 0.2, 0.08, 0.16); // chopping stump
+    k.add(new THREE.CylinderGeometry(0.006, 0.006, 0.14, 4), mat('woodDark'), 0.22, 0.13, 0.16, 0.3, 0, 0.5); k.add(new THREE.DodecahedronGeometry(0.018, 0), mat(0x5d5d63), 0.25, 0.19, 0.18);
+    k.logPile(0.26, -0.14, 3, 0.26, 0.3); k.logPile(-0.04, 0.25, 2, 0.2, Math.PI / 2 + 0.2);
+    for (let i = 0; i < 9; i++) k.add(new THREE.BoxGeometry(0.03, 0.006, 0.014), mat(0xd9b98a), 0.12 + (i * 37 % 20) / 100, 0.004, 0.08 + (i * 53 % 22) / 100, 0, i, 0);
   } },
   claypit: { dims: { w: 0.84, d: 0.84, h: 0.05, roof: 'none', wall: 'soil' }, finished(k) {
     k.box(0.9, 0.025, 0.9, 'soil'); k.box(0.66, 0.03, 0.66, 'clay', 0, 0.0); k.box(0.46, 0.035, 0.46, 0xa86f48, 0, 0.0);

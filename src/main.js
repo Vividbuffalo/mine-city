@@ -65,8 +65,6 @@ function setTool(t) {
   if (t === 'build') { if (ui.kind) showPlacing(); else { closeSheets('build'); $('buildmenu').classList.remove('hidden'); renderBuildMenu(); } }
   else $('buildmenu').classList.add('hidden');
   if (t === 'scout') { closeSheets('info'); ui.unitCard = true; if (!ui.units.length && (state.units || []).length) setUnits([state.units[0].id]); renderInfo(); }
-  if (t === 'plant') toast(`Plant trees: tap or drag (${S.costStr(SAPLING.cost)} each)`);
-  if (t === 'dismantle') toast('Dismantle: tap a building or road; workers take it apart');
   renderer.setGhost(null);
 }
 // disarm the active tool (Esc / right-click / selecting a unit) without closing what the player is looking at
@@ -120,7 +118,7 @@ function bdetail(k) {
   if (d.recipe) parts.push(Object.entries(d.recipe.in).map(([r, n]) => n + ' ' + r).join(' + ') + ' → ' + Object.entries(d.recipe.out).map(([r, n]) => n + ' ' + r).join(', '));
   if (d.extract) parts.push('extracts ' + (Array.isArray(d.extract) ? d.extract.join('/') : d.extract));
   if (d.food) parts.push(`${d.food} food/day`); if (d.culture) parts.push(`culture +${d.culture}/day`); if (d.happy) parts.push(`happiness +${d.happy}`); if (d.store) parts.push('storage'); if (d.trains) parts.push('trains villagers');
-  if (d.ambition) parts.push('ambitious build'); if (d.nearWater) parts.push('by the river');
+  if (d.nearWater) parts.push('by the river');
   if (d.size > 1) parts.push(`${d.size}×${d.size}`); return parts.join(' · ');
 }
 // armed build tool: the sheet collapses to a small chip so the map stays usable
@@ -226,13 +224,12 @@ function tapAt(cx, cy, e) {
   const t = ui.tool;
   if (t === 'road') { roadTap(p); }
   else if (t === 'dismantle' || t === 'plant') paintAt(cx, cy, true);
-  else if (t === 'build' && ui.kind) { const r = cmd({ type: 'place', kind: ui.kind, x: p.x, y: p.y, rot: ui.rot }); if (r.ok) toast(`${BUILDINGS[ui.kind].name} placed: workers will build it`); }
+  else if (t === 'build' && ui.kind) { const r = cmd({ type: 'place', kind: ui.kind, x: p.x, y: p.y, rot: ui.rot }); if (r.ok) toast(`${BUILDINGS[ui.kind].name} placed`); }
   else if (t === 'survey') cmd({ type: 'survey', x: p.x, y: p.y });
   else if (t === 'level') cmd({ type: 'level', x: p.x, y: p.y });
   else if (t === 'devcollapse') { const tt = S.tile(state, p.x, p.y); if (tt.occ) { cmd({ type: 'dev', action: 'collapse', id: tt.occ }); select(tt.occ); } setTool('select'); }
   else if (t === 'scout' || (t === 'select' && ui.units.length && ui.unitCard)) {
     if (ui.units.length) orderSelected(p);
-    else if (t === 'scout') toast('Hire a scout first (in the card below)', true);
     if (t === 'select' && !ui.units.length) selectAt(p);
   } else selectAt(p);
   updateGhost();
@@ -315,13 +312,11 @@ function renderInfo() {
     const allV = sel.length && sel.every(x => x.kind === 'villager'), nm = (x) => x.kind === 'villager' ? 'Villager' : 'Scout';
     h = head(sel.length > 1 ? `${sel.length} ${allV ? 'villagers' : 'units'} selected` : u ? `${nm(u)} #${u.id}` : 'Units');
     if (u && sel.length === 1) {
-      if (u.kind === 'villager') h += row('Status', vStatus(u)) + (u.carry && u.carry.n > 0.5 ? row('Carrying', `${Math.floor(u.carry.n)} / ${VILLAGER.load} ${u.carry.res}`) : '') + (u.info ? row('Note', u.info) : '');
-      else h += row('Status', u.state === 'moving' ? `Travelling to ${u.dest[0]}, ${u.dest[1]}` : u.state === 'arrived' ? 'Arrived' : u.state === 'blocked' ? 'No way through' : 'Waiting') + row('Walked', `${u.dist.toFixed(1)} tiles`);
+      if (u.kind === 'villager') h += row('Status', vStatus(u)) + (u.carry && u.carry.n > 0.5 ? row('Carrying', `${Math.floor(u.carry.n)} / ${VILLAGER.load} ${u.carry.res}`) : '');
+      else h += row('Status', u.state === 'moving' ? `Travelling to ${u.dest[0]}, ${u.dest[1]}` : u.state === 'arrived' ? 'Arrived' : u.state === 'blocked' ? 'Stopped' : 'Waiting') + row('Walked', `${u.dist.toFixed(1)} tiles`);
     } else if (sel.length > 1) { const c = {}; for (const x of sel) { const k = x.kind === 'villager' ? vStatus(x).split(':')[0] : (x.state === 'moving' ? 'Travelling' : 'Waiting'); c[k] = (c[k] || 0) + 1; } h += Object.entries(c).map(([k, n]) => row(k, n)).join(''); }
     const nv = units.filter(x => x.kind === 'villager').length, ns = units.filter(x => x.kind === 'scout').length;
     h += row('Villagers', `${nv} / ${S.maxVillagers(state, S.popTotal(state))}`) + row('Scouts', `${ns} / 3`);
-    if (u && (u.kind === 'villager')) h += `<div class="sub">${TOUCH ? 'Tap' : 'Right-click (or click)'} a tree, hill rock, clay bank or berry bush to gather · a construction site to build · ground to walk.</div>`;
-    else if (u) h += `<div class="sub">${TOUCH ? 'Tap' : 'Right-click (or click)'} the map to send ${sel.length > 1 ? 'them' : 'it'}.</div>`;
     btns.push(`<button data-act="hire">Hire scout (25)</button>`); if (u) btns.push(`<button data-act="stop">Stop</button>`);
     for (const x of units) btns.push(`<button data-unit="${x.id}" class="${ui.units.includes(x.id) ? 'on' : ''}">${x.kind === 'villager' ? '🧑‍🌾' : '🚶'}${x.id}</button>`);
   } else if (ui.sel) {
@@ -336,19 +331,19 @@ function renderInfo() {
       btns.push(`<button data-skip="dismantle">Skip ⏭</button>`);
     } else {
       const st = S.stageOf(b); h += row('Stage', STAGE_NAMES[st]);
-      if (!b.done) { h += `<div class="bar"><i style="width:${Math.round(b.progress * 100)}%"></i></div>` + row('Builders', `${b.builders || 0} villager${b.builders === 1 ? '' : 's'} on site`); btns.push(`<button data-act="sendbuild">Send selected villagers</button>`); btns.push(`<button data-skip="build" data-id="${b.id}">Skip ⏭</button>`); }
+      if (!b.done) { h += `<div class="bar"><i style="width:${Math.round(b.progress * 100)}%"></i></div>` + row('Builders', `${b.builders || 0}`) + (b.mt ? row('Materials on site', `${Math.floor(b.mg || 0)} / ${b.mt}`) : ''); btns.push(`<button data-act="sendbuild">Send selected villagers</button>`); btns.push(`<button data-skip="build" data-id="${b.id}">Skip ⏭</button>`); }
       if (b.done && b.cond !== undefined) h += row('Condition', `${S.condName(b)} (${Math.round(b.cond)}%)`) + `<div class="bar cond"><i style="width:${Math.round(b.cond)}%;background:${condCol(b.cond)}"></i></div>`;
       if (b.done && d.culture) h += row('Culture', `+${d.culture}/day`);
       if (b.done && d.trains) { h += row('Villagers', `${S.villagers(state).length} / ${S.maxVillagers(state, S.popTotal(state))}`) + row('Train', `${S.costStr(VILLAGER.trainCost)} + a free adult`); btns.push(`<button data-act="train">Train villager</button>`); }
       if (!S.roadAccess(state, b)) h += row('Road access', '<span class="no">None</span>');
       const cap = S.capOf(b); if (cap) h += row('Residents', `${b.residents} / ${cap}`);
-      const jobs = b.kind === 'custom' ? b.jobs : d.jobs; if (jobs) h += row('Workers', b.done && !b.workers ? `<span class="no">0 / ${jobs} (no free workers)</span>` : `${b.workers} / ${jobs}`);
-      if (d.extract === 'wood') { const tn = treesNear(b, d.radius); h += row('Trees in reach', tn.n + (tn.sp ? ` (+${tn.sp} growing)` : '')); if (b.done) h += row('Status', !b.workers ? '<span class="no">Idle: needs workers</span>' : !tn.n ? '<span class="no">No trees left: plant some</span>' : 'Felling trees'); }
+      const jobs = b.kind === 'custom' ? b.jobs : d.jobs; if (jobs) h += row('Workers', b.done && !b.workers ? `<span class="no">0 / ${jobs}</span>` : `${b.workers} / ${jobs}`);
+      if (d.extract === 'wood') { const tn = treesNear(b, d.radius); h += row('Trees in reach', tn.n + (tn.sp ? ` (+${tn.sp} growing)` : '')); if (b.done) h += row('Status', !b.workers || !tn.n ? '<span class="no">Idle</span>' : 'Felling trees'); }
       else if (d.extract) { const maxD = Math.min(d.maxDepth || 99, ERAS[state.era].maxDepth); let left = 0; for (let y = b.y - d.radius; y <= b.y + d.radius; y++) for (let x = b.x - d.radius; x <= b.x + d.radius; x++) { const t = S.tile(state, x, y); if (S.knownDeposit(t) && d.extract.includes(t.dep.r) && t.dep.depth <= maxD) left += t.dep.amt; } h += row('Extracts', d.extract.join(', ')) + row('Known in reach', Math.round(left)); }
       if (d.recipe) h += row('Recipe', Object.entries(d.recipe.in).map(([r, n]) => n + ' ' + r).join(' + ') + ' → ' + Object.entries(d.recipe.out).map(([r, n]) => n + ' ' + r).join(', '));
       if (d.food) h += row('Food', `${d.food}/day at full staff`);
       if (b.kind === 'rescue') { const cs = state.crews.filter(c => c.post === b.id); h += row('Crews', `${cs.length} (${cs.filter(c => c.state === 'idle').length} idle)`); }
-      if (b.info && d.extract !== 'wood') h += row('Status', b.info);
+      if (b.done && (d.extract || d.recipe) && d.extract !== 'wood') h += row('Status', b.workers && !b.info ? 'Working' : b.info === 'Depleted' ? '<span class="no">Depleted</span>' : '<span class="no">Idle</span>');
       if (d.extract && b.done && DEV) btns.push(`<button data-skip="mine" data-id="${b.id}">Run 1 day ⏭</button>`);
       btns.push(`<button data-act="dismantle">🪓 Dismantle</button>`);
       if (DEV) btns.push(`<button data-dev="collapse" data-id="${b.id}">Dev: collapse</button>`);
@@ -356,12 +351,11 @@ function renderInfo() {
   } else if (ui.selTile) {
     const { x, y } = ui.selTile, t = S.tile(state, x, y);
     h = head(t.vis ? (t.t === S.T.WATER ? ['River: shallow ford', 'River: shallow reach', 'River: deep channel'][t.wd ?? 2] : TERRAIN_NAMES[t.t] + (t.t === S.T.HILL ? ` (level ${t.h})` : '')) : 'Unexplored');
-    if (t.vis && t.t === S.T.WATER) h += row('On foot', t.bridge ? 'Bridge' : t.wd === 2 ? '<span class="no">Impassable (needs a raft, boat or bridge)</span>' : t.wd === 0 ? 'Wadeable, slow; small risk' : 'Wadeable, very slow; risky');
+    if (t.vis && t.t === S.T.WATER) h += row('On foot', t.bridge ? 'Bridge' : t.wd === 2 ? '<span class="no">Impassable</span>' : t.wd === 0 ? 'Wadeable, slow; small risk' : 'Wadeable, very slow; risky');
     if (t.vis) {
-      if (t.lv) h += row('Ground', 'Terraced'); else if (S.isSteep(t)) h += row('Ground', 'Steep: needs terracing');
+      if (t.lv) h += row('Ground', 'Terraced'); else if (S.isSteep(t)) h += row('Ground', 'Steep');
       if (t.lvJob) { const e = state.earthworks.find(e => e.id === t.lvJob); if (e) h += row('Earthworks', `${Math.round(100 * (1 - e.left / e.total))}%`); }
       if (t.berryMax) h += row('Berry bushes', `${Math.floor(t.berry || 0)} / ${t.berryMax} ripe`);
-      { const f = S.featureAt(state, x, y); if (f) h += row('Villagers can', GATHER[f].name.toLowerCase()); }
       if (t.trees) h += row('Trees', t.trees); if (t.sp && t.sp.length) h += row('Saplings', t.sp.map(a => ['sapling', 'young', 'almost grown'][S.saplingStage(a)]).join(', ')); if (t.stumps) h += row('Stumps', t.stumps);
       if (t.road) h += row('Road', t.rx ? 'Being taken up' : 'Dirt'); else if (t.rp) h += row('Road', 'Planned');
       if (S.knownDeposit(t)) h += row('Deposit', DEPOSITS[t.dep.r].name + (t.sv ? '' : ' (visible on the surface)')) + row('Amount · depth', `${t.dep.amt} · ${t.dep.depth} m`);
@@ -524,6 +518,8 @@ function vStatus(u) {
   const j = u.job;
   if (u.vstate === 'working' && j) return GATHER[j.res].name;
   if (u.vstate === 'building') return 'Building';
+  if (u.vstate === 'hauling') return `Carrying ${u.carry ? u.carry.res : 'materials'} to build site`;
+  if (u.vstate === 'fetching') return 'Fetching materials';
   if (u.vstate === 'returning') return `Carrying ${u.carry ? u.carry.res : 'goods'} to store`;
   if (u.path && u.path.length) return j ? (j.type === 'build' ? 'Walking to build site' : `Walking to ${j.res === 'food' ? 'berries' : j.res}`) : 'Walking';
   return 'Idle';
@@ -534,12 +530,12 @@ function popInfo() {
 }
 function popDetail() {
   const p = popInfo(), g = state.growth || { ok: true };
-  let h = row('Total', p.pop) + row('Housing', `${p.res} housed / ${p.cap} places`) + row('Employed in buildings', p.employed) + row('Free (foraging)', p.free) + row('Villagers', `${p.vil} (${p.idleV} idle)`);
-  h += row('Growth', g.ok ? (p.res >= p.cap ? '<span class="no">Growth paused: no free housing</span>' : '<span class="ok">Growing</span>') : `<span class="no">Growth paused: ${g.reason}</span>`);
+  let h = row('Total', p.pop) + row('Housing', `${p.res} housed / ${p.cap} places`) + row('Employed in buildings', p.employed) + row('Free', p.free) + row('Villagers', `${p.vil} (${p.idleV} idle)`);
+  h += row('Arrivals (last 4 h)', state.growth && state.growth.arrived != null ? state.growth.arrived : 0);
   h += row('Food', `${Math.floor(state.res.food)} · ${(g.foodDays ?? 0).toFixed(1)} days`);
   const jobs = {}; for (const b of Object.values(state.buildings)) { if (!b.done || b.ruin) continue; const d = BUILDINGS[b.kind], j = b.kind === 'custom' ? b.jobs : d.jobs; if (!j) continue; const k = d.name; jobs[k] = jobs[k] || [0, 0, 0]; jobs[k][0] += b.workers || 0; jobs[k][1] += j; jobs[k][2]++; }
   const jl = Object.entries(jobs); if (jl.length) h += '<h5>Who works where</h5>' + jl.map(([k, [w, j, n]]) => row(k + (n > 1 ? ` ×${n}` : ''), `${w} / ${j}`)).join('');
-  if (state.happyF) h += '<h5>Happiness ' + state.happiness + '</h5>' + state.happyF.map(([k, v]) => row(k, `<span class="${v < 0 ? 'no' : 'ok'}">${v > 0 ? '+' : ''}${v}</span>`)).join('');
+  h += row('Happiness', state.happiness) + row('Health', state.health ?? 80);
   return h;
 }
 const STAT_DEFS = [
@@ -562,7 +558,7 @@ $('btn-idle').onclick = () => { const idle = S.villagers(state).filter(u => u.vs
 function statusHud(force) {
   const st = $('status'); st.classList.toggle('collapsed', stCollapsed); $('st-tog').textContent = stCollapsed ? '▸' : '▾';
   const p = popInfo(), g = state.growth || { ok: true };
-  setHTML($('st-pop'), `👥 <b>${p.pop}</b> <small>pop</small> · 🛖 ${p.res}/${p.cap} · ⚒ ${p.employed} · <span class="${p.free ? '' : 'dim'}">free ${p.free}</span> · 🧑‍🌾 ${p.vil}` + (!g.ok ? ` <span class="no">· ⏸ ${g.reason.replace('no free housing', 'needs housing').replace('no food', 'needs food').replace(/people are unhappy.*/, 'unhappy')}</span>` : ''));
+  setHTML($('st-pop'), `👥 <b>${p.pop}</b> <small>pop</small> · 🛖 ${p.res}/${p.cap} · ⚒ ${p.employed} · <span class="${p.free ? '' : 'dim'}">free ${p.free}</span> · 🧑‍🌾 ${p.vil}`);
   const ib = $('btn-idle'); ib.classList.toggle('hidden', !p.idleV); ib.innerHTML = `🧑‍🌾 <b>${p.idleV}</b> idle`;
   let h = '';
   for (const [k, ic, name, fn] of STAT_DEFS) { const v = fn(), d = rep.delta[k]; h += `<div class="sb ${v.low === 2 ? 'low' : v.low === 1 ? 'warn' : ''}" title="${name}"><span class="ic">${ic}</span><span class="bt"><i style="width:${Math.round(Math.max(0, Math.min(1, v.f)) * 100)}%"></i></span><b>${v.txt}</b><em class="${d > 0 ? 'up' : d < 0 ? 'dn' : ''}">${d ? (d > 0 ? '+' : '−') + Math.abs(d) : ''}</em></div>`; }

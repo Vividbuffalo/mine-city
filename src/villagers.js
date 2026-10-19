@@ -1,7 +1,7 @@
 // Villagers: selectable workers on the shared unit/movement layer (units.js). Data-driven via GATHER / VILLAGER (data.js).
 // Jobs: gather (walk to a tree / stone outcrop / clay bank / berry bush, work it, carry a load to the nearest store, repeat
 // on nearby resources of the same kind) and build (walk to a construction site and speed it up). Ticked once per game hour.
-import { tile, T, addLog, knownDeposit, rand, footprint } from './sim.js';
+import { tile, T, addLog, knownDeposit, rand, footprint, matAllowed } from './sim.js';
 import { GATHER, VILLAGER, BUILDINGS } from './data.js';
 import { orderMove } from './units.js';
 
@@ -11,7 +11,7 @@ export function featureAt(state, x, y) {
   if (t.trees > 0) return 'wood';
   if (t.berry > 0) return 'food';
   if (knownDeposit(t) && t.dep.r === 'clay') return 'clay';
-  if (t.t === T.HILL && !t.occ) return 'stone'; // exposed rock: loose stone can always be broken off hills
+  if (t.t === T.HILL && !t.occ && (t.rock ?? 20) > 0) return 'stone'; // exposed rock: loose stone can be broken off hills (finite per tile)
   if (knownDeposit(t) && t.dep.r === 'stone') return 'stone';
   return null;
 }
@@ -42,13 +42,14 @@ function takeFrom(state, res, x, y, amt) {
   }
   if (res === 'food') { const a = Math.min(amt, t.berry || 0); const b0 = Math.ceil(t.berry / 6); t.berry -= a; if (t.berry <= 0.01) t.berry = 0; if (Math.ceil(t.berry / 6) !== b0) state.dirty.berries = true; return a; }
   if (t.dep && t.dep.r === res && t.dep.amt > 0) { const a = Math.min(amt, t.dep.amt); t.dep.amt -= a; if (t.dep.amt <= 0) { t.dep.amt = 0; state.dirty.under = true; } return a; }
-  return res === 'stone' && t.t === T.HILL ? amt : 0;
+  if (res === 'stone' && t.t === T.HILL) { const a = Math.min(amt, t.rock ?? 40); t.rock = (t.rock ?? 20) - a; return a; }
+  return 0;
 }
 
 export const VILLAGER_COMMANDS = {
   // send villagers to work a resource tile (or to build if the tile holds an unfinished building, or just walk there)
   villagerTask(state, { ids, x, y }) {
-    const list = (state.units || []).filter(u => ids.includes(u.id) && isVillager(u)); if (!list.length) return { ok: false, err: 'Select villagers first' };
+    const list = (state.units || []).filter(u => ids.includes(u.id) && isVillager(u)); if (!list.length) return { ok: false, err: 'No villagers selected' };
     const t = tile(state, x, y); if (!t) return { ok: false };
     const b = t.occ && state.buildings[t.occ];
     if (b && !b.done && !b.ruin && !b.dis) { for (const u of list) { const prev = u.job && u.job.type === 'gather' ? u.job : u.job && u.job.prev; u.job = { type: 'build', id: b.id, prev };  u.info = ''; go(state, u, b.x, b.y); } return { ok: true, task: 'build' }; }
@@ -59,7 +60,7 @@ export const VILLAGER_COMMANDS = {
   trainVillager(state) {
     const camp = Object.values(state.buildings).find(b => b.kind === 'camp' && b.done && !b.ruin); if (!camp) return { ok: false, err: 'Needs a finished Gathering Camp' };
     const pop = popOf(state), n = villagers(state).length;
-    if (n >= maxVillagers(state, pop)) return { ok: false, err: `Villager limit ${maxVillagers(state, pop)} (grows with population)` };
+    if (n >= maxVillagers(state, pop)) return { ok: false, err: `Villagers: ${n} / ${maxVillagers(state, pop)}` };
     if ((state.unemployed || 0) < 1) return { ok: false, err: 'No free adult to train' };
     const cost = VILLAGER.trainCost; for (const k in cost) if ((state.res[k] || 0) < cost[k]) return { ok: false, err: 'Not enough ' + k };
     const home = Object.values(state.buildings).find(b => b.residents > 0); if (!home) return { ok: false, err: 'No free adult to train' };
@@ -78,11 +79,25 @@ export function tickVillagers(state) {
   const bonus = gatherBonus(state);
   for (const u of state.units || []) {
     if (!isVillager(u)) continue;
-    const j = u.job; if (u.path.length) { u.vstate = u.carry && u.carry.n >= VILLAGER.load ? 'returning' : j && j.type === 'build' ? 'walking' : 'walking'; continue; }
+    const j = u.job; if (u.path.length) { u.vstate = u.carry && u.carry.site ? 'hauling' : u.carry && u.carry.n >= VILLAGER.load ? 'returning' : 'walking'; continue; }
     if (!j) { u.vstate = 'idle'; continue; }
     if (j.type === 'build') {
       const b = state.buildings[j.id];
-      if (!b || b.done || b.ruin) { const p = j.prev; u.job = p ? { type: 'gather', res: p.res, x: p.x, y: p.y } : null; u.vstate = 'idle'; if (u.job) go(state, u, p.x, p.y); continue; } // back to what they were gathering
+      if (!b || b.done || b.ruin) { if (u.carry && u.carry.site) u.carry = null; const p = j.prev; u.job = p ? { type: 'gather', res: p.res, x: p.x, y: p.y } : null; u.vstate = 'idle'; if (u.job) go(state, u, p.x, p.y); continue; } // back to what they were gathering
+      // delivering a load of materials
+      if (u.carry && u.carry.site === b.id) {
+        if (dist(u, b.x, b.y) > 1.6) { go(state, u, b.x, b.y); u.vstate = 'hauling'; continue; }
+        b.mg = Math.min(b.mt || 0, (b.mg || 0) + u.carry.n); u.carry = null; u.vstate = 'building'; continue;
+      }
+      const need = (b.mt || 0) - (b.mg || 0) - inTransit(state, b);
+      if (need > 0.5 && b.progress >= matAllowed(b) - 0.05) { // fetch materials from the nearest store
+        const st = nearestStore(state, u);
+        if (st) {
+          if (dist(u, st.x, st.y) > 1.6) { go(state, u, st.x, st.y); u.vstate = 'fetching'; continue; }
+          if (u.carry && !u.carry.site) { state.res[u.carry.res] += u.carry.n; state.stats.gathered = (state.stats.gathered || 0) + u.carry.n; }
+          u.carry = { res: mainMat(b), n: Math.min(VILLAGER.load, need), site: b.id }; go(state, u, b.x, b.y); u.vstate = 'hauling'; continue;
+        }
+      }
       if (dist(u, b.x, b.y) > 1.6) { go(state, u, b.x, b.y); continue; }
       u.vstate = 'building'; continue;
     }
@@ -106,5 +121,7 @@ export function tickVillagers(state) {
     if (!u.carry) u.carry = { res: j.res, n: 0 }; u.carry.n += got; u.vstate = 'working'; u.info = '';
   }
 }
+function inTransit(state, b) { let n = 0; for (const u of state.units || []) if (u.carry && u.carry.site === b.id) n += u.carry.n; return n; }
+function mainMat(b) { let best = 'wood', bn = 0; for (const [k, v] of Object.entries((BUILDINGS[b.kind] || {}).cost || {})) if (k !== 'money' && v > bn) { bn = v; best = k; } return best; }
 // builders currently on site for building b
 export function buildersAt(state, b) { let n = 0; for (const u of state.units || []) if (isVillager(u) && u.job && u.job.type === 'build' && u.job.id === b.id && u.vstate === 'building') n++; return n; }

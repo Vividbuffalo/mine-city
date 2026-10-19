@@ -45,7 +45,7 @@ export const BUILDINGS = {
   woodcutter: { name: "Woodcutter's Camp", cat: 'Gathering', era: 1, size: 1, cost: { wood: 4 }, time: 6, jobs: 2, extract: 'wood', rate: 40, radius: 4, woodPerTree: 6, weight: 0.5, upkeep: 0, mat: 'wood' },
   knapper:    { name: 'Knapping Site', cat: 'Gathering', era: 1, size: 1, cost: { stone: 6, wood: 2 }, time: 5, jobs: 2, gatherMult: 0.15, weight: 0.3, upkeep: 0, mat: 'stone' },
   claypit:    { name: 'Clay Pit', cat: 'Gathering', era: 1, size: 1, cost: { wood: 4 }, time: 6, jobs: 2, extract: ['clay'], rate: 20, radius: 3, maxDepth: 5, weight: 0.3, upkeep: 0, mat: 'stone' },
-  quarry:     { name: 'Stone Quarry', cat: 'Gathering', era: 1, size: 1, cost: { wood: 6 }, time: 8, jobs: 3, extract: ['stone'], rate: 18, radius: 3, maxDepth: 5, weight: 0.3, upkeep: 0, mat: 'stone' },
+  quarry:     { name: 'Stone Quarry', cat: 'Gathering', era: 1, size: 1, cost: { wood: 6 }, time: 8, jobs: 3, extract: ['stone'], rate: 12, radius: 3, maxDepth: 5, weight: 0.3, upkeep: 0, mat: 'stone' },
   orepit:     { name: 'Copper Ore Pit', cat: 'Gathering', era: 2, size: 1, cost: { money: 40, wood: 6 }, time: 12, jobs: 3, extract: ['copper', 'tin'], rate: 6, radius: 2, maxDepth: 5, weight: 0.3, upkeep: 0.3, mat: 'wood' },
   shaft:      { name: 'Shaft Mine', cat: 'Gathering', era: 2, size: 1, cost: { money: 120, wood: 20, stone: 10 }, time: 30, jobs: 5, extract: ['copper', 'tin', 'stone', 'clay'], rate: 8, radius: 3, maxDepth: 30, shaft: true, needs: 'carpentry', weight: 1, upkeep: 1, mat: 'wood' },
   // --- crafts & industry ---
@@ -72,12 +72,12 @@ export const BUILDINGS = {
 
 // Villagers (shared unit system): what they gather from which map feature, rates per game hour, load size
 export const GATHER = {
-  wood:  { name: 'Chopping wood', rate: 1.0, from: 'tree' },
-  stone: { name: 'Breaking stone', rate: 0.7, from: 'outcrop' },
-  clay:  { name: 'Digging clay', rate: 0.8, from: 'claybank' },
-  food:  { name: 'Picking berries', rate: 1.2, from: 'berry' },
+  wood:  { name: 'Chopping wood', rate: 0.55, from: 'tree' },
+  stone: { name: 'Breaking stone', rate: 0.35, from: 'outcrop' },
+  clay:  { name: 'Digging clay', rate: 0.45, from: 'claybank' },
+  food:  { name: 'Picking berries', rate: 0.7, from: 'berry' },
 };
-export const VILLAGER = { load: 10, trainCost: { food: 10 }, startCount: 3, perPop: 5 /* +1 max villager per 5 people */ };
+export const VILLAGER = { load: 10, trainCost: { food: 10 }, startCount: 3, perPop: 8 /* +1 max villager per 8 people */, haul: 0.5 /* townsfolk carry materials at the base build pace */ };
 // Aging: condition (0..100) lost per day by durability class; maintenance by idle hands restores it using a little wood
 export const DECAY = { hide: 0.9, thatch: 0.7, wood: 0.5, daub: 0.45, stone: 0.12, brick: 0.18 };
 export const CONDITION_STAGES = [[75, 'Good'], [50, 'Weathered'], [25, 'Worn'], [1, 'Derelict']];
@@ -104,7 +104,7 @@ export const SAPLING = { cost: { money: 3 }, stages: [48, 96], grownAt: 144 };
 export const DISMANTLE = { timeMult: 0.6, refund: 0.5, bulldozerEra: 'Industrial' };
 
 // Next-era milestones (shown as a plain status line): population, finished buildings, culture points, techs
-export const ERA_REQ = { 1: { pop: 30, buildings: 15, culture: 60, techs: ['pottery', 'smelting'] } };
+export const ERA_REQ = { 1: { pop: 30, buildings: 15, culture: 100, techs: ['pottery', 'smelting'] } };
 
 // Block-build materials (0.5-tile blocks)
 export const BLOCKS = {

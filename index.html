@@ -21,7 +21,7 @@
   <div class="speeds"><button id="sp-pause" title="Pause / play (0)">⏸</button><button id="sp-speed" title="Game speed (1–6)">1x</button></div>
   <div class="stat fps hidden" id="s-fps"></div>
 </div>
-<div id="status"><div id="st-head"><button id="st-tog" title="Show / hide status bars">▾</button><span id="st-pop" title="Population: tap for details"></span><span id="st-cycle" title="Report cycle: changes over the last 15 s"><svg viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" class="bg"/><circle id="st-ring" cx="9" cy="9" r="7" class="fg"/></svg><b id="st-cd">15</b></span></div><div id="st-bars"></div><div id="st-goal"></div></div>
+<div id="status"><div id="st-head"><button id="st-tog" title="Show / hide status bars">▾</button><span id="st-pop" title="Population"></span><span id="st-cycle" title="15 s report cycle"><svg viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" class="bg"/><circle id="st-ring" cx="9" cy="9" r="7" class="fg"/></svg><b id="st-cd">15</b></span></div><div id="st-bars"></div><div id="st-goal"></div></div>
 <div id="pbars"></div>
 <button id="btn-idle" class="hidden" title="Select the next idle villager"></button>
 <button id="btn-menu" title="Menu">☰</button>
@@ -42,14 +42,14 @@
   <input type="file" id="file-import" accept=".json" class="hidden">
 </div>
 <div id="toolbar">
-  <button data-tool="select" data-tip="Inspect / select: tap a building, unit or ground. Drag a box to select several units.">🔍<span>Select</span></button>
-  <button data-tool="build" data-tip="Build: pick a building, then tap the map">🏠<span>Build</span></button>
-  <button data-tool="road" data-tip="Road: tap or drag tiles; tap two points in a line to fill it (2 money/tile)">🛤️<span>Road</span></button>
-  <button data-tool="plant" data-tip="Plant trees: saplings (3 money) grow into trees over a few days">🌱<span>Plant</span></button>
-  <button data-tool="scout" data-tip="Units: villagers gather and build; scouts explore. Select one, then tap the map.">🚶<span>Units</span></button>
-  <button data-tool="survey" data-tip="Survey: find buried deposits (needs Prospecting)">🧭<span>Survey</span></button>
-  <button data-tool="level" data-tip="Level: terrace steep ground so it can be built on (Earthworks)">⛰️<span>Level</span></button>
-  <button data-tool="dismantle" data-tip="Dismantle: workers take a building or road apart and recover some materials">🪓<span>Dismantle</span></button>
+  <button data-tool="select" data-tip="Select">🔍<span>Select</span></button>
+  <button data-tool="build" data-tip="Build">🏠<span>Build</span></button>
+  <button data-tool="road" data-tip="Road (2 money / tile)">🛤️<span>Road</span></button>
+  <button data-tool="plant" data-tip="Plant trees">🌱<span>Plant</span></button>
+  <button data-tool="scout" data-tip="Units">🚶<span>Units</span></button>
+  <button data-tool="survey" data-tip="Survey">🧭<span>Survey</span></button>
+  <button data-tool="level" data-tip="Level / terrace">⛰️<span>Level</span></button>
+  <button data-tool="dismantle" data-tip="Dismantle">🪓<span>Dismantle</span></button>
   <button id="btn-under" data-tip="Underground view (U)">⛏️<span>Under</span></button>
 </div>
 <div id="viewctl"><button id="btn-help" title="Controls (?)">⌨️</button><button id="rot-l" title="Rotate view (Q)">⟲</button><button id="rot-r" title="Rotate view (E)">⟳</button></div>
