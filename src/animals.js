@@ -58,7 +58,7 @@ function hitUnit(state, a, u) {
 
 export function tickAnimals(state) {
   if (!state.animals) spawnAnimals(state);
-  const units = (state.units || []).filter(u => !u.dead);
+  const units = (state.units || []).filter(u => !u.dead && u.kind !== 'ship');
   for (const a of state.animals) {
     a.px = a.x; a.py = a.y; const A = ANIMALS[a.kind]; if (a.cd > 0) a.cd--; if (a.calm > 0) a.calm--;
     const homeD = Math.hypot(a.x - a.hx, a.y - a.hy);

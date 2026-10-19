@@ -8,11 +8,11 @@ import { tile, T, addLog } from './sim.js';
 const SIZE = 64;
 export const TOWN_KINDS = {
   river:  { name: 'Riverfolk', color: 0x3d7fb2, houses: { 1: ['tent', 'polehut'], 2: ['hut', 'mudhouse'], 3: ['mudhouse', 'stonehouse'], 4: ['stonehouse', 'insula'] }, landmark: { 1: 'shrine', 2: 'statue', 3: 'stonewell', 4: 'fountain' },
-            buys: { tools: 3, cloth: 2, iron: 4, bronze: 3 }, sells: { food: 0.5, clay: 0.4, pots: 0.8 } },
+            buys: { tools: 3, cloth: 2, iron: 4, bronze: 3 }, sells: { food: 0.5, clay: 0.4, tin: 2.2, copper: 1.5 } },
   hill:   { name: 'Hill clans', color: 0xb5452f, houses: { 1: ['bonehut', 'hut'], 2: ['brickhouse', 'hut'], 3: ['stonehouse'], 4: ['stonehouse', 'insula'] }, landmark: { 1: 'stones', 2: 'cairn', 3: 'stonewall', 4: 'statue' },
-            buys: { food: 0.9, cloth: 2.2, wine: 3.5 }, sells: { stone: 0.3, copper: 1.2, tin: 1.6, ironore: 1 } },
+            buys: { food: 0.9, cloth: 2.2, wine: 3.5 }, sells: { stone: 0.3, copper: 1.2, tin: 1.6, ironore: 1, iron: 4 } },
   forest: { name: 'Forest people', color: 0x3f7d3a, houses: { 1: ['polehut', 'leanto'], 2: ['polehut', 'hut'], 3: ['hut', 'stonehouse'], 4: ['stonehouse'] }, landmark: { 1: 'firepit', 2: 'shrine', 3: 'shrine', 4: 'statue' },
-            buys: { pots: 1.2, bronze: 3, tools: 3, wine: 3 }, sells: { wood: 0.25, wool: 0.8, charcoal: 0.6, horses: 20 } },
+            buys: { pots: 1.2, bronze: 3, tools: 3, wine: 3 }, sells: { wood: 0.25, wool: 0.8, tin: 1.8, copper: 1.4, iron: 4.5, horses: 20 } },
 };
 const SYL = ['ka', 'lo', 'ren', 'va', 'tu', 'mi', 'sa', 'dor', 'el', 'an', 'ib', 'ur', 'te', 'no', 'ash', 'bel', 'ki', 'mar'];
 const h = (seed, a, b) => { let x = (seed * 374761393 + a * 668265263 + b * 2147483647) | 0; x = (x ^ (x >>> 13)) * 1274126177 | 0; return ((x ^ (x >>> 16)) >>> 0) / 4294967296; };
@@ -78,7 +78,7 @@ function claim(state) {
 export function tickTowns(state) {
   if (!state.towns) return;
   const day = Math.floor(state.tick / 24);
-  const posts = Object.values(state.buildings).filter(b => b.done && !b.ruin && BUILDINGS[b.kind] && BUILDINGS[b.kind].trade && (b.workers || 0) > 0).length;
+  let posts = 0; for (const b of Object.values(state.buildings)) if (b.done && !b.ruin && BUILDINGS[b.kind] && BUILDINGS[b.kind].trade && (b.workers || 0) > 0) posts += BUILDINGS[b.kind].trade;
   for (const town of state.towns) {
     if (!town.met && town.houses.some(p => { const t = tile(state, p.x, p.y); return t && t.vis; })) { town.met = true; addLog(state, `You have met the ${TOWN_KINDS[town.kind].name} of ${town.name}.`); state.dirty.towns = true; }
     // growth: steady, faster with trade wealth; their era follows the player's (never ahead)
@@ -88,7 +88,7 @@ export function tickTowns(state) {
     if (!town.met || !posts || day % TRADE.everyDays) continue;
     const K = TOWN_KINDS[town.kind], n = TRADE.perTrip * posts; let money = 0;
     for (const [k, price] of Object.entries(K.buys)) { const q = Math.min(n, Math.floor((state.res[k] || 0) - 10)); if (q > 0) { state.res[k] -= q; money += q * price; } }
-    for (const [k, price] of Object.entries(K.sells)) { if ((state.res[k] || 0) >= 30 || state.res.money < 150) continue; const q = k === 'horses' ? 1 : n; state.res[k] = (state.res[k] || 0) + q; money -= q * price; }
+    for (const [k, price] of Object.entries(K.sells)) { if ((k === 'iron' || k === 'ironore') && town.era < 3) continue; if ((state.res[k] || 0) >= 30 || state.res.money < 150) continue; const q = k === 'horses' ? 1 : n; state.res[k] = (state.res[k] || 0) + q; money -= q * price; }
     state.res.money += money; town.wealth += Math.abs(money); town.traded += money; state.tradeIncome = (state.tradeIncome || 0) + money;
   }
 }

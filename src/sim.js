@@ -139,6 +139,8 @@ export function newGame(opts = {}) {
     Object.assign(state.res, { money: 100000, wood: 800, clay: 400, stone: 400, copper: 300, tin: 150, brick: 600, bronze: 400, food: 500, tools: 200, pots: 50, wool: 50, flax: 50, cloth: 50, ironore: 100, charcoal: 100, iron: 300, blocks: 2000, horses: 5, grapes: 50, wine: 30 });
     for (const id in TECHS) if (TECHS[id].era < era || era === 2 && TECHS[id].era === 1) state.research.done.push(id);
     if (era === 2) state.research.done = ['pottery', 'smelting'];
+    if (era >= 3) for (const id in TECHS) if (TECHS[id].era <= era && !state.research.done.includes(id)) state.research.done.push(id);
+    for (const k of RESOURCES) if (k !== 'money' && k !== 'horses') state.res[k] = Math.max(state.res[k] || 0, 9999);
     for (const c of Object.values(state.world.chunks)) for (const t of c.tiles) { t.sv = 1; t.vis = 1; }
   }
   spawnAnimals(state);
@@ -206,7 +208,7 @@ export function checkPlacement(state, kind, x, y) {
     if (t.t === T.WATER) return 'Water';
     if (t.occ || t.road || t.rp || t.tocc) return 'Occupied';
     if (t.lvJob) return 'Earthworks in progress';
-    if (d.terrain && !d.terrain.includes(t.t)) return 'Needs open grassland';
+    if (d.terrain && !d.terrain.includes(t.t)) return d.terrain.includes(0) ? 'Needs open grassland' : 'Must be on a hill';
   }
   if (d.tech && !state.research.done.includes(d.tech)) return `Needs ${TECHS[d.tech].name}`;
   if (!d.onWater && !d.slopeOk && kind !== 'quarry' && needsLevel(state, tiles) && !canAutoLevel(state)) return 'Not flat';
@@ -229,6 +231,8 @@ export function waterNear(state, tiles, r, built = false) {
   return false;
 }
 // bronze tools speed up work while the town has some
+// guild halls make every workshop more productive (diminishing, max +40%)
+export function guildF(state) { let g = 0, n = 0; for (const b of Object.values(state.buildings)) { const d = BUILDINGS[b.kind]; if (b.done && !b.ruin && d && d.guild) g += d.guild * Math.pow(0.5, n++) * eff(state, b); } return 1 + Math.min(0.4, g); }
 export const toolsF = (state) => (state.res.tools || 0) >= 1 ? 1 + (state.flags.ironTools ? TOOLS.ironBoost : TOOLS.boost) : 1;
 // flat footprint rule: every tile within a small height tolerance and none steep; with earthworks, a levelling job is added first
 export const FLAT_TOL = 0.12;
@@ -297,10 +301,10 @@ const COMMANDS = {
     pay(state, BUILDINGS[kind].cost);
     const tiles = footprint(kind, x, y);
     for (const [tx, ty] of tiles) { const t = tile(state, tx, ty); if (t.trees) { t.trees = 0; state.dirty.trees = true; } }
-    const lvl = kind !== 'quarry' && !BUILDINGS[kind].onWater && !BUILDINGS[kind].slopeOk && needsLevel(state, tiles);
+    const lvl = kind !== 'quarry' && !BUILDINGS[kind].onWater && !BUILDINGS[kind].slopeOk && (needsLevel(state, tiles) || (BUILDINGS[kind].terrace && canAutoLevel(state) && tiles.some(([tx, ty]) => { const t = tile(state, tx, ty); return t.t === T.HILL && !t.lv; }))); // castles cut terraces into their hill
     if (BUILDINGS[kind].aqueduct) for (const [tx, ty] of tiles) tile(state, tx, ty).aqP = 1;
     if (BUILDINGS[kind].ditch) for (const [tx, ty] of tiles) tile(state, tx, ty).ditchP = 1;
-    if (kind === 'bridge' && !rot) { const land = (a, c) => { const n = tile(state, x + a, y + c); return n && (n.t !== T.WATER || n.bridge || (n.occ && state.buildings[n.occ] && state.buildings[n.occ].kind === 'bridge')); }; rot = (land(1, 0) || land(-1, 0)) ? 0 : 1; }
+    if (BUILDINGS[kind].onWater && !rot) { const land = (a, c) => { const n = tile(state, x + a, y + c); return n && (n.t !== T.WATER || n.bridge || (n.occ && state.buildings[n.occ] && BUILDINGS[state.buildings[n.occ].kind].onWater)); }; rot = (land(1, 0) || land(-1, 0)) ? 0 : 1; }
     const b = createBuilding(state, kind, tiles, { rot: rot || 0 });
     if (lvl) { b.levelLeft = LEVEL_HOURS * tiles.length; b.levelTotal = b.levelLeft; }
     { let mt = 0; for (const [k, v] of Object.entries(BUILDINGS[kind].cost || {})) if (k !== 'money') mt += v; b.mt = mt; b.mg = 0; } // materials still to be carried to the site
@@ -394,7 +398,9 @@ const COMMANDS = {
     const ut = UNIT_TYPES[kind]; if (!ut) return { ok: false, err: 'Unknown unit' };
     if ((state.units || []).filter(u => u.kind === kind).length >= ut.max) return { ok: false, err: `${ut.name}s: ${ut.max} / ${ut.max}` };
     if (!canAfford(state, ut.cost)) return { ok: false, err: 'Not enough money' };
-    pay(state, ut.cost); const u = spawnUnit(state, kind, state.start.x, state.start.y); addLog(state, `${ut.name} hired.`); return { ok: true, id: u.id };
+    let sx = state.start.x, sy = state.start.y;
+    if (ut.needs) { if (!state.flags[ut.needs]) return { ok: false, err: 'Not available' }; const yard = Object.values(state.buildings).find(b => b.done && !b.ruin && BUILDINGS[b.kind] && BUILDINGS[b.kind].enables === ut.needs); let spot = null; if (yard) for (const [tx, ty] of yard.tiles) for (const [a, c] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = tile(state, tx + a, ty + c); if (!spot && n && n.t === T.WATER) spot = [tx + a, ty + c]; } if (!spot) return { ok: false, err: 'No water by the shipyard' }; [sx, sy] = spot; }
+    pay(state, ut.cost); const u = spawnUnit(state, kind, sx, sy); addLog(state, `${ut.name} hired.`); return { ok: true, id: u.id };
   },
   orderUnit(state, { id, x, y }) {
     const u = (state.units || []).find(u => u.id === id); if (!u) return { ok: false, err: 'No such unit' };
@@ -497,6 +503,7 @@ export function eraReady(state) {
     { label: `Buildings ${finishedCount(state)} / ${req.buildings}`, ok: finishedCount(state) >= req.buildings, key: 'buildings', v: finishedCount(state), need: req.buildings },
     { label: `Culture ${Math.floor(state.cult || 0)} / ${req.culture}`, ok: (state.cult || 0) >= req.culture, key: 'culture', v: Math.floor(state.cult || 0), need: req.culture },
     ...req.techs.map(t => ({ label: `${TECHS[t].name} researched`, ok: state.research.done.includes(t), tech: t })),
+    ...(req.built || []).map(k => ({ label: `${BUILDINGS[k].name} built`, ok: hasBuilt(state, k), key: 'made' })),
     ...Object.entries(req.made || {}).map(([k, need]) => { const v = Math.floor(((state.stats.made || {})[k]) ?? (k === 'bronze' ? state.stats.bronzeMade : 0) ?? 0); return { label: `${k[0].toUpperCase() + k.slice(1)} made ${Math.min(v, need)} / ${need}`, ok: v >= need, key: 'made', v, need }; }),
   ];
   return { ready: items.every(i => i.ok), items };
@@ -563,7 +570,7 @@ export function tick(state) {
   // research: points per hour
   const pop = popTotal(state);
   let rb = 0; for (const b of Object.values(state.buildings)) { const d = BUILDINGS[b.kind]; if (b.done && !b.ruin && d && d.research) rb += d.research * eff(state, b); }
-  const rp = (pop * 0.06 + 0.4) * (state.research.done.includes('writing') ? 1.5 : 1) * (1 + Math.min(1, rb));
+  const rp = (pop * 0.06 + 0.4) * (state.research.done.includes('writing') ? 1.5 : 1) * (1 + Math.min(1.5, rb));
   state.research.points += rp;
   if (state.research.current) {
     state.research.progress += rp;
@@ -612,10 +619,10 @@ function runBuilding(state, b, hours) {
   }
   if (d.recipe) {
     if (e <= 0) return;
-    b.acc += d.recipe.perDay / 24 * e * hours;
+    b.acc += d.recipe.perDay / 24 * e * hours * guildF(state);
     while (b.acc >= 1) {
       const inp = d.recipe.in;
-      if (!Object.keys(inp).every(k => state.res[k] >= inp[k])) { b.acc = Math.min(b.acc, 1); b.info = 'Waiting for inputs'; return; }
+      if (!Object.keys(inp).every(k => state.res[k] >= inp[k] + ((d.recipe.keep || {})[k] || 0))) { b.acc = Math.min(b.acc, 1); b.info = 'Waiting for inputs'; return; }
       if (Object.keys(d.recipe.out).every(k => k !== 'money' && (state.res[k] || 0) >= STOCK_CAP)) { b.acc = Math.min(b.acc, 1); return; } // store full: work pauses
       b.acc -= 1; b.info = '';
       for (const k in inp) state.res[k] -= inp[k];
@@ -814,6 +821,7 @@ function dailyTick(state) {
   let sold = 0;
   for (const b of Object.values(state.buildings)) { const d = BUILDINGS[b.kind]; if (!b.done || b.ruin || !d || !d.sells) continue; let cap = 6 * eff(state, b); for (const [k, price] of Object.entries(d.sells)) { const n = Math.min(cap, Math.floor(state.res[k] || 0) - (k === 'tools' ? 4 : 0)); if (n > 0) { state.res[k] -= n; state.res.money += n * price; cap -= n; sold += n; } } }
   state.goodsSold = sold;
+  for (const b of Object.values(state.buildings)) { const d = BUILDINGS[b.kind]; if (b.done && !b.ruin && d && d.bank) state.res.money += Math.min(60, Math.max(0, state.res.money) * d.bank * eff(state, b)); }
   tickTowns(state);
   if ((state.res.tools || 0) > 0) state.res.tools = Math.max(0, state.res.tools - employed * TOOLS.wearPerWorkerDay);
   const shopIncome = Math.min(pop, shopCap) * 0.35;

@@ -332,7 +332,7 @@ function renderInfo() {
     } else if (sel.length > 1) { const c = {}; for (const x of sel) { const k = x.kind === 'villager' ? vStatus(x).split(':')[0] : (x.state === 'moving' ? 'Travelling' : 'Waiting'); c[k] = (c[k] || 0) + 1; } h += Object.entries(c).map(([k, n]) => row(k, n)).join(''); }
     const nv = units.filter(x => x.kind === 'villager').length, ns = units.filter(x => x.kind === 'scout').length;
     h += row('Villagers', `${nv} / ${S.maxVillagers(state, S.popTotal(state))}`) + row('Scouts', `${ns} / 3`);
-    btns.push(`<button data-act="hire">Hire scout (25)</button>`); if (u) btns.push(`<button data-act="stop">Stop</button>`);
+    btns.push(`<button data-act="hire">Hire scout (25)</button>`); if (state.flags.ships) btns.push(`<button data-act="hireShip">Build ship (120, 30 wood)</button>`); if (u) btns.push(`<button data-act="stop">Stop</button>`);
     for (const x of units) btns.push(`<button data-unit="${x.id}" class="${ui.units.includes(x.id) ? 'on' : ''}">${x.kind === 'villager' ? '🧑‍🌾' : '🚶'}${x.id}</button>`);
   } else if (ui.sel) {
     const b = state.buildings[ui.sel]; if (!b) return closeInfo();
@@ -392,6 +392,7 @@ function renderInfo() {
   el.querySelectorAll('[data-unit]').forEach(b => b.onclick = () => { setUnits([+b.dataset.unit]); renderInfo(); });
   el.querySelectorAll('[data-act]').forEach(b => b.onclick = () => {
     const a = b.dataset.act;
+    if (a === 'hireShip') { const r = cmd({ type: 'hireUnit', kind: 'ship' }); if (r.ok) setUnits([r.id]); else toast(r.err); }
     if (a === 'hire') { const r = cmd({ type: 'hireUnit', kind: 'scout' }); if (r.ok) { setUnits([r.id]); toast('Scout hired: tap the map to send it'); } }
     else if (a === 'stop') for (const id of ui.units) cmd({ type: 'stopUnit', id });
     else if (a === 'train') { const r = cmd({ type: 'trainVillager' }); if (r.ok) toast('Villager trained'); }

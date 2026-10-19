@@ -1,6 +1,8 @@
-# EARTH — Game Design Document (draft v1.3)
+# EARTH — Game Design Document (draft v1.4)
 
 > Formerly "Mine City". Title screen line: "Welcome to Earth. Enjoy the journey."
+
+*v1.4 (game v2.6, Medieval → Renaissance): Castle (hills only; cuts terraces into the hill first), Stone Bridge, Watermill, Windmill, Guild Hall (workshops +20%, max +40%), Timber-Frame House, Parish Church, Monastery, Inn, Town Wall, Gatehouse, Market Hall, Shipyard (ships sail rivers and coasts, sight 5); Renaissance Townhouse, Palazzo, University, Printing Press, Bank, Observatory, Harbour (counts as two trading posts), Clock Tower and the Cathedral (second monument). Era goals can require a built landmark (Great Monument for Medieval, Castle for Renaissance). Neighbouring towns now also sell tin and copper (and iron once in the Iron era) so a map without a tin vein cannot stall the Bronze era. Appendix K.*
 
 *v1.3 (game v2.5, Iron + Classical): iron ore (hill veins and bog iron by rivers), Charcoal Burner → Bloomery → iron, Blacksmith (iron tools: +40% work speed), Stonemason (cut blocks) and stone buildings, Horse Breeder (faster scouts; with a Cart Maker villagers carry double loads), Vineyard + Wine Press, Trading Post; Classical: Aqueduct (from river or hill spring) feeding Public Fountains and Bathhouses, Apartment Block, Villa, Forum, Library (+research), Amphitheatre, Mint, and the first monument (Great Monument, 3×3). Three neighbouring towns (Riverfolk, Hill clans, Forest people) are met through exploration, grow, keep pace with your era in their own building style, and trade with your Trading Posts (no war). Workshops pause when their goods pass 400 in store. Appendix J.*
 
@@ -680,4 +682,20 @@ Era goals: Iron → Classical: population 120, 55 buildings, culture 2000, Mason
 Neighbouring towns (`src/towns.js`): three per map, ≥20 tiles from the start, one of each culture (Riverfolk / Hill clans / Forest people), each with its own house styles per era, a landmark and a banner colour. They grow about one house per 12 days (faster with trade), claim land around them (tile info shows "Land of …"), and catch up with the player's era but never pass it. Met when any of their buildings is seen. No war.
 
 Wildlife: after an animal drives someone off it stays calm for 36 h (fewer repeat deaths at the same spot).
+
+## Appendix K — Medieval and Renaissance eras as built (game v2.6)
+
+| Era | Feature | Buildings |
+|---|---|---|
+| Medieval | Castles: hills only; placing one adds a terracing job (Ground Levelling) before building; sight 9, culture 12 | Castle |
+| Medieval | Crossing: Stone Bridge on any river tile (lasts longer than the wooden one) | Stone Bridge |
+| Medieval | Food: Watermill (next to the river, +15%), Windmill (may stand on slopes, +12%) | Watermill, Windmill |
+| Medieval | Guilds (tech): each Guild Hall makes every workshop faster (+20%, halving per extra hall, max +40%) | Guild Hall |
+| Medieval | Town: Timber-Frame House (12), Parish Church, Monastery (food + research), Inn, Market Hall, Town Wall, Gatehouse | |
+| Medieval | Ships (Navigation tech): Shipyard by the water; ships are built from the Units panel, move on water only, sight 5 | Shipyard |
+| Renaissance | Townhouse (16, coloured façades), Palazzo (14), University (+50% research), Printing Press (Printing tech, +40% research), Bank (Banking tech; interest 0.2%/day, max 60/day), Observatory (sight 11), Harbour (trade ×2), Clock Tower, Cathedral (3×3, second monument) | |
+
+Era goals: Classical → Medieval: population 200, 80 buildings, culture 5000, Engineering + Philosophy, 60 wine made, Great Monument built. Medieval → Renaissance: population 320, 110 buildings, culture 12000, Guilds + Navigation, 200 cloth made, Castle built. The Renaissance is the last era in this build.
+
+Recipes can keep a reserve of an input (the Mint leaves 40 bronze for monuments). Balance run (`tests/renaissance_run.mjs`): Bronze ≈ day 20, Iron ≈ 195, Classical ≈ 215, Medieval ≈ 290, Renaissance ≈ 300. Iron is the slow step; it is the next thing to tune.
 

@@ -7,6 +7,8 @@ export const ERAS = {
   2: { name: 'Bronze', maxDepth: 30, tier: 'Shallow shaft' },
   3: { name: 'Iron', maxDepth: 60, tier: 'Deep shaft' },
   4: { name: 'Classical', maxDepth: 80, tier: 'Deep shaft' },
+  5: { name: 'Medieval', maxDepth: 120, tier: 'Deep shaft' },
+  6: { name: 'Renaissance', maxDepth: 160, tier: 'Deep shaft' },
 };
 
 export const RESOURCES = ['wood', 'clay', 'stone', 'copper', 'tin', 'brick', 'bronze', 'food', 'tools', 'pots', 'wool', 'flax', 'cloth', 'ironore', 'charcoal', 'iron', 'blocks', 'horses', 'grapes', 'wine'];
@@ -97,7 +99,7 @@ export const BUILDINGS = {
   horsefarm:  { name: 'Horse Breeder', cat: 'Food', era: 3, size: 2, cost: { wood: 24, stone: 6 }, time: 20, jobs: 2, terrain: [0], recipe: { in: { food: 4 }, out: { horses: 1 }, perDay: 0.5 }, weight: 0.4, upkeep: 0.3, mat: 'wood', enables: 'horses' },
   vineyard:   { name: 'Vineyard', cat: 'Food', era: 3, size: 2, cost: { wood: 12, tools: 1 }, time: 14, jobs: 2, terrain: [0, 2], recipe: { in: {}, out: { grapes: 3 }, perDay: 1 }, weight: 0.2, upkeep: 0, mat: 'wood', slopeOk: true },
   winepress:  { name: 'Wine Press', cat: 'Industry', era: 3, size: 1, cost: { blocks: 6, wood: 8 }, time: 14, jobs: 2, recipe: { in: { grapes: 2, pots: 1 }, out: { wine: 2 }, perDay: 3 }, weight: 0.6, upkeep: 0.1, mat: 'stone' },
-  tradepost:  { name: 'Trading Post', cat: 'Services', era: 3, size: 1, cost: { wood: 20, blocks: 4 }, time: 16, jobs: 2, weight: 0.5, upkeep: 0.4, mat: 'wood', trade: 1 },
+  tradepost:  { name: 'Trading Post', cat: 'Services', era: 2, size: 1, cost: { wood: 20, brick: 4 }, time: 16, jobs: 2, weight: 0.5, upkeep: 0.4, mat: 'wood', trade: 1 },
   stonewall:  { name: 'Stone Wall', cat: 'Culture', era: 3, size: 1, cost: { blocks: 2 }, time: 3, weight: 0.4, upkeep: 0, mat: 'stone', decor: true, happy: 0.2 },
   hillfort:   { name: 'Hill Fort', cat: 'Culture', era: 3, size: 2, cost: { blocks: 30, wood: 20 }, time: 60, culture: 6, happy: 2, weight: 3, upkeep: 0.8, mat: 'stone', sight: 8, slopeOk: true },
   // --- Classical era ---
@@ -109,8 +111,32 @@ export const BUILDINGS = {
   library:    { name: 'Library', cat: 'Culture', era: 4, size: 1, cost: { blocks: 16, wood: 8 }, time: 30, jobs: 2, culture: 4, research: 0.3, weight: 1.2, upkeep: 0.5, mat: 'stone' },
   baths:      { name: 'Bathhouse', cat: 'Services', era: 4, size: 2, cost: { blocks: 24, brick: 16, bronze: 4 }, time: 40, jobs: 3, needsAq: 3, health: 10, happy: 4, weight: 1.8, upkeep: 0.8, mat: 'stone' },
   theatre:    { name: 'Amphitheatre', cat: 'Culture', era: 4, size: 2, cost: { blocks: 40, wood: 10 }, time: 60, culture: 10, happy: 6, weight: 2, upkeep: 0.6, mat: 'stone', slopeOk: true },
-  mint:       { name: 'Mint', cat: 'Industry', era: 4, size: 1, cost: { blocks: 12, iron: 4 }, time: 24, jobs: 2, recipe: { in: { bronze: 1 }, out: { money: 30 }, perDay: 3 }, weight: 1, upkeep: 0.3, mat: 'stone' },
+  mint:       { name: 'Mint', cat: 'Industry', era: 4, size: 1, cost: { blocks: 12, iron: 4 }, time: 24, jobs: 2, recipe: { in: { bronze: 1 }, out: { money: 30 }, perDay: 3, keep: { bronze: 40 } }, weight: 1, upkeep: 0.3, mat: 'stone' },
   monument:   { name: 'Great Monument', cat: 'Culture', era: 4, size: 3, cost: { blocks: 200, bronze: 30, iron: 10 }, time: 240, culture: 40, happy: 8, weight: 4, upkeep: 1, mat: 'stone', ambition: 0.3, monument: true },
+  // --- Medieval era ---
+  castle:     { name: 'Castle', cat: 'Culture', era: 5, size: 2, cost: { blocks: 120, wood: 40, iron: 10 }, time: 160, terrain: [2], terrace: true, culture: 12, happy: 3, sight: 9, weight: 4, upkeep: 2, mat: 'stone', ambition: 0.2 },
+  stonebridge:{ name: 'Stone Bridge', cat: 'Services', era: 5, size: 1, cost: { blocks: 24 }, time: 30, weight: 1, upkeep: 0, mat: 'stone', onWater: true },
+  watermill:  { name: 'Watermill', cat: 'Food', era: 5, size: 1, cost: { blocks: 10, wood: 16, iron: 2 }, time: 24, jobs: 2, foodMult: 0.15, nearWater: true, weight: 0.8, upkeep: 0.2, mat: 'wood' },
+  windmill:   { name: 'Windmill', cat: 'Food', era: 5, size: 1, cost: { blocks: 6, wood: 20, cloth: 4 }, time: 24, jobs: 1, foodMult: 0.12, weight: 0.8, upkeep: 0.2, mat: 'wood', slopeOk: true },
+  guildhall:  { name: 'Guild Hall', cat: 'Industry', era: 5, size: 1, cost: { blocks: 24, wood: 12, cloth: 6 }, time: 40, jobs: 3, guild: 0.2, culture: 2, weight: 1.4, upkeep: 0.6, mat: 'stone', tech: 'guilds' },
+  timberhouse:{ name: 'Timber-Frame House', cat: 'Housing', era: 5, size: 1, cost: { wood: 18, blocks: 4, brick: 6 }, time: 24, cap: 12, weight: 1.2, upkeep: 0.2, mat: 'wood' },
+  church:     { name: 'Parish Church', cat: 'Culture', era: 5, size: 2, cost: { blocks: 60, wood: 20, bronze: 4 }, time: 80, culture: 6, happy: 4, weight: 2.4, upkeep: 0.6, mat: 'stone' },
+  monastery:  { name: 'Monastery', cat: 'Culture', era: 5, size: 2, cost: { blocks: 50, wood: 20 }, time: 70, jobs: 4, food: 8, culture: 5, research: 0.2, weight: 2, upkeep: 0.5, mat: 'stone' },
+  inn:        { name: 'Inn', cat: 'Services', era: 5, size: 1, cost: { wood: 20, blocks: 6 }, time: 20, jobs: 2, shop: 70, happy: 3, weight: 0.9, upkeep: 0.3, mat: 'wood' },
+  townwall:   { name: 'Town Wall', cat: 'Culture', era: 5, size: 1, cost: { blocks: 4 }, time: 6, weight: 0.6, upkeep: 0, mat: 'stone', decor: true, happy: 0.3 },
+  gatehouse:  { name: 'Gatehouse', cat: 'Culture', era: 5, size: 1, cost: { blocks: 16, wood: 6 }, time: 20, weight: 1, upkeep: 0.1, mat: 'stone', culture: 1, happy: 1 },
+  markethall: { name: 'Market Hall', cat: 'Services', era: 5, size: 1, cost: { blocks: 20, wood: 16 }, time: 30, jobs: 4, shop: 150, sells: { cloth: 1.6, pots: 0.7, wine: 3, tools: 2.5 }, weight: 1.2, upkeep: 0.5, mat: 'stone' },
+  shipyard:   { name: 'Shipyard', cat: 'Industry', era: 5, size: 2, cost: { wood: 60, iron: 6, cloth: 10 }, time: 60, jobs: 4, nearWater: true, weight: 0.8, upkeep: 0.6, mat: 'wood', enables: 'ships', tech: 'navigation' },
+  // --- Renaissance era ---
+  townhouse:  { name: 'Townhouse', cat: 'Housing', era: 6, size: 1, cost: { brick: 20, blocks: 8, wood: 10 }, time: 30, cap: 16, weight: 1.6, upkeep: 0.3, mat: 'brick' },
+  palazzo:    { name: 'Palazzo', cat: 'Housing', era: 6, size: 2, cost: { blocks: 60, brick: 30, wood: 20 }, time: 70, cap: 14, happy: 3, weight: 2.4, upkeep: 0.6, mat: 'stone' },
+  university: { name: 'University', cat: 'Culture', era: 6, size: 2, cost: { blocks: 80, brick: 30, wood: 20 }, time: 90, jobs: 6, research: 0.5, culture: 8, weight: 2.4, upkeep: 1.2, mat: 'stone' },
+  printing:   { name: 'Printing Press', cat: 'Industry', era: 6, size: 1, cost: { blocks: 12, wood: 12, iron: 6 }, time: 30, jobs: 3, research: 0.4, culture: 2, weight: 1, upkeep: 0.4, mat: 'stone', tech: 'printing' },
+  bank:       { name: 'Bank', cat: 'Services', era: 6, size: 1, cost: { blocks: 30, bronze: 10 }, time: 40, jobs: 3, bank: 0.002, weight: 1.6, upkeep: 0.4, mat: 'stone', tech: 'banking' },
+  observatory:{ name: 'Observatory', cat: 'Culture', era: 6, size: 1, cost: { blocks: 24, bronze: 6, cloth: 4 }, time: 40, jobs: 1, research: 0.2, culture: 3, sight: 11, weight: 1.2, upkeep: 0.3, mat: 'stone', slopeOk: true },
+  harbour:    { name: 'Harbour', cat: 'Services', era: 6, size: 2, cost: { blocks: 50, wood: 40 }, time: 70, jobs: 6, nearWater: true, trade: 2, shop: 60, weight: 1.5, upkeep: 0.8, mat: 'stone' },
+  clocktower: { name: 'Clock Tower', cat: 'Culture', era: 6, size: 1, cost: { blocks: 20, bronze: 8 }, time: 40, culture: 3, happy: 2, weight: 1.5, upkeep: 0.2, mat: 'stone' },
+  cathedral:  { name: 'Cathedral', cat: 'Culture', era: 6, size: 3, cost: { blocks: 300, brick: 80, bronze: 20, cloth: 20 }, time: 360, culture: 50, happy: 10, weight: 5, upkeep: 2, mat: 'stone', ambition: 0.3, monument: true },
   // --- services & trade ---
   stall:      { name: 'Trading Spot', cat: 'Services', era: 1, size: 1, cost: { wood: 6 }, time: 6, jobs: 2, shop: 25, weight: 0.3, upkeep: 0, mat: 'wood' },
   store:      { name: 'General Store', cat: 'Services', era: 2, size: 1, cost: { money: 80, brick: 12, wood: 4 }, time: 24, jobs: 4, shop: 70, weight: 1, upkeep: 1, mat: 'brick' },
@@ -146,6 +172,10 @@ export const TECHS = {
   currency: { name: 'Coinage', era: 3, cost: 180, req: [] },
   engineering: { name: 'Engineering', era: 4, cost: 260, req: [] },
   philosophy: { name: 'Philosophy', era: 4, cost: 300, req: [] },
+  guilds:   { name: 'Guilds', era: 5, cost: 380, req: [] },
+  navigation: { name: 'Navigation', era: 5, cost: 420, req: [] },
+  printing: { name: 'Printing', era: 6, cost: 520, req: [] },
+  banking:  { name: 'Banking', era: 6, cost: 520, req: [] },
 };
 
 // Terrain levelling. Bronze: cut a terrace into a steep (mountain) tile so it can be built on. Later eras: full levelling / cutting into mountains (design).
@@ -159,7 +189,7 @@ export const SAPLING = { cost: { money: 3 }, stages: [48, 96], grownAt: 144 };
 export const DISMANTLE = { timeMult: 0.6, refund: 0.5, bulldozerEra: 'Industrial' };
 
 // Next-era milestones (shown as a plain status line): population, finished buildings, culture points, techs
-export const ERA_REQ = { 1: { pop: 30, buildings: 15, culture: 100, techs: ['pottery', 'smelting'] }, 2: { pop: 70, buildings: 35, culture: 600, techs: ['writing', 'ironworking'], made: { bronze: 20, tools: 10 } }, 3: { pop: 120, buildings: 55, culture: 2000, techs: ['masonry', 'currency'], made: { iron: 30, blocks: 40 } } };
+export const ERA_REQ = { 1: { pop: 30, buildings: 15, culture: 100, techs: ['pottery', 'smelting'] }, 2: { pop: 70, buildings: 35, culture: 600, techs: ['writing', 'ironworking'], made: { bronze: 20, tools: 10 } }, 3: { pop: 120, buildings: 55, culture: 2000, techs: ['masonry', 'currency'], made: { iron: 30, blocks: 40 } }, 4: { pop: 200, buildings: 80, culture: 5000, techs: ['engineering', 'philosophy'], made: { wine: 60 }, built: ['monument'] }, 5: { pop: 320, buildings: 110, culture: 12000, techs: ['guilds', 'navigation'], made: { cloth: 200 }, built: ['castle'] } };
 // Bronze tools: while the town has tools, gathering, extraction and building go faster; tools wear out with use
 export const TOOLS = { boost: 0.25, ironBoost: 0.4, wearPerWorkerDay: 0.01 };
 // horses: scouts ride (faster); with a cart maker, villagers haul with carts (bigger loads)

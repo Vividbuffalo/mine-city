@@ -404,6 +404,7 @@ export class Renderer {
   // ---------- units (scouts etc.): small animated figures, interpolated between sim ticks ----------
   makeUnitModel(kind) {
     if (kind === 'villager') return this.makeVillagerModel();
+    if (kind === 'ship') return this.makeShipModel();
     const g = new THREE.Group(), M = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.8, flatShading: true });
     const body = new THREE.Group(); g.add(body); g.userData.body = body;
     const legs = [-1, 1].map(s => { const l = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.11, 0.04), M(0x5a4632)); l.geometry.translate(0, -0.055, 0); l.position.set(s * 0.028, 0.11, 0); body.add(l); return l; });
@@ -415,6 +416,21 @@ export class Renderer {
     const staff = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.34, 4), M(0x9c6b3e)); staff.position.set(0.07, 0.17, 0.02); body.add(staff);
     g.traverse(o => { if (o.isMesh) o.castShadow = true; });
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.11, 0.15, 24), new THREE.MeshBasicMaterial({ color: 0xfff1a8, transparent: true, opacity: 0.9, depthWrite: false })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.012; ring.visible = false; g.add(ring); g.userData.ring = ring;
+    g.scale.setScalar(1.6); return g;
+  }
+  // ship: a small square-rigged trading vessel
+  makeShipModel() {
+    const g = new THREE.Group(), M = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.8, flatShading: true });
+    const body = new THREE.Group(); g.add(body); g.userData.body = body; g.userData.legs = [new THREE.Object3D(), new THREE.Object3D()];
+    const hull = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.05, 0.42, 6, 1, false, 0, Math.PI), M(0x6b4a2a)); hull.rotation.set(Math.PI / 2, 0, Math.PI / 2); hull.position.y = 0.06; body.add(hull);
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.015, 0.4), M(0xa77a48)); deck.position.y = 0.065; body.add(deck);
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.01, 0.42, 5), M(0x5e3d22)); mast.position.y = 0.27; body.add(mast);
+    const sail = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.18, 0.01), M(0xf1e7d2)); sail.position.set(0, 0.3, 0.012); body.add(sail);
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.04, 0.012), M(0xa9472f)); stripe.position.set(0, 0.3, 0.013); body.add(stripe);
+    const flag = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.03, 0.005), M(0xa9472f)); flag.position.set(0.03, 0.49, 0); body.add(flag);
+    for (const z of [-0.17, 0.17]) { const c = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.05, 0.06), M(0x7a5434)); c.position.set(0, 0.09, z); body.add(c); }
+    g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.22, 0.27, 24), new THREE.MeshBasicMaterial({ color: 0xfff1a8, transparent: true, opacity: 0.9, depthWrite: false })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.012; ring.visible = false; g.add(ring); g.userData.ring = ring;
     g.scale.setScalar(1.6); return g;
   }
   // villager: hide tunic, bare head with hair, a hafted stone tool that swings while working, a load bundle on the back

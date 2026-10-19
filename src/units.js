@@ -12,6 +12,7 @@ export const UNIT_TYPES = {
     water: { ford: 3, shallow: 4.5, deep: Infinity, canoe: 6 } /* wading cost by river class; deep needs a raft/boat/bridge */,
     drown: { ford: 0.002, shallow: 0.008 } /* chance per water tile crossed, no warning */, steepCost: 3.2 },
   villager: { name: 'Villager', era: 1, speed: 3, sight: 2, cost: {}, max: 99, move: { 0: 1, 1: 1.6, 2: 2.2 }, water: { ford: 3, shallow: 5, deep: Infinity, canoe: 6 }, drown: { ford: 0.001, shallow: 0.004 }, steepCost: 4, quiet: true },
+  ship: { name: 'Ship', era: 5, speed: 3.5, sight: 5, cost: { money: 120, wood: 30 }, max: 3, needs: 'ships', move: { 0: Infinity, 1: Infinity, 2: Infinity }, water: { ford: 1.4, shallow: 1, deep: 1 }, steepCost: Infinity },
   // future rows: horse rider (speed ~6, sight 4), boat (water only), wagon party, plane (ignores terrain), satellite (orbit sweep)
 };
 const UNKNOWN_COST = 1.3; // planning cost through unexplored ground (the unit doesn't know what's there)
