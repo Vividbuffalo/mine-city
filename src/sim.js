@@ -1,5 +1,5 @@
 // EARTH simulation. Pure data + rules, no rendering. All mutations go through applyCommand().
-import { SURVEY, START_ERAS, RESEARCH, techHours, BUILDINGS, TECHS, ERAS, ERA_REQ, BLOCKS, SAVE_VERSION, HOURS_PER_DAY, techCost, EARTHWORKS, SURFACE_DEPTH, SAPLING, DISMANTLE, VILLAGER, DECAY, CONDITION_STAGES, TOOLS, RESOURCES, TRADE, DEPOSITS } from './data.js';
+import { WEALTH, FARM_KINDS, UPGRADES, UPGRADE_COST, SURVEY, START_ERAS, RESEARCH, techHours, BUILDINGS, TECHS, ERAS, ERA_REQ, BLOCKS, SAVE_VERSION, HOURS_PER_DAY, techCost, EARTHWORKS, SURFACE_DEPTH, SAPLING, DISMANTLE, VILLAGER, DECAY, CONDITION_STAGES, TOOLS, RESOURCES, TRADE, DEPOSITS } from './data.js';
 import { tickRail, railF } from './rail.js';
 import { makeTowns, tickTowns, TOWN_KINDS } from './towns.js';
 export { TOWN_KINDS };
@@ -123,6 +123,16 @@ export function classifyWater(world, seed) {
 
 // ---------- Start-era town ----------
 // a settled town for a later start era: earlier techs researched, era stock, villagers and finished buildings placed in rings round the camp
+// planned streets for later-era starts: a main street through the start (east-west), side streets every few tiles.
+// Bronze/Iron towns wander (organic), later eras run straight (grid). Streets stop at water, steep ground and buildings.
+function planStreets(state, x, y, era) {
+  const out = [], grid = era >= 4, L = 8 + era * 2, gap = grid ? 5 : 4, side = 4 + Math.min(4, era);
+  const lay = (tx, ty, main) => { const t = tile(state, tx, ty); if (!t || t.t === T.WATER || isSteep(t) || t.occ) return false; if (!t.road) { t.road = 1; t.trees = 0; out.push(t); } if (main) t.main = 1; return true; };
+  const my = y + 2; let wob = 0;
+  for (const dir of [1, -1]) { wob = 0; for (let i = 0; i <= L; i++) { if (!grid && i % 3 === 2) wob = Math.max(-1, Math.min(1, wob + (rand(state) < 0.5 ? -1 : 1))); if (!lay(x + dir * i, my + wob, true)) break;
+      if (i && i % gap === 0) for (const sd of [1, -1]) { let sw = 0; for (let j = 1; j <= side; j++) { if (!grid && j % 3 === 0) sw = Math.max(-1, Math.min(1, sw + (rand(state) < 0.5 ? -1 : 1))); if (!lay(x + dir * i + sw, my + wob + sd * j, false)) break; } } } }
+  state.dirty.roads = true; return out;
+}
 function startTown(state, era) {
   for (const id in TECHS) if (TECHS[id].era < era) state.research.done.push(id);
   const res = {}, build = [];
@@ -130,14 +140,31 @@ function startTown(state, era) {
   Object.assign(state.res, res);
   const keep = { ...state.res }; for (const k in state.res) state.res[k] = 1e7; // place for free, then restore the era stock
   const { x, y } = state.start; reveal(state, x, y, 9 + era * 2);
-  for (const k of build) { if (!BUILDINGS[k]) continue; let done = false;
-    for (let r = 2; r < 18 && !done; r++) for (let dy = -r; dy <= r && !done; dy++) for (let dx = -r; dx <= r && !done; dx++) { if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
-      const tx = x + dx, ty = y + dy; if (checkPlacement(state, k, tx, ty)) continue; if ((tx + ty) % 2 && BUILDINGS[k].cat === 'Housing') continue; // leave lanes between homes
-      { const d = BUILDINGS[k]; if (d.extract && !d.extract.includes('wood')) { const R = d.radius || 2, md = Math.min(d.maxDepth ?? 99, ERAS[era].maxDepth); let has = false;
-        for (let yy = ty - R; yy <= ty + R && !has; yy++) for (let xx = tx - R; xx <= tx + R; xx++) { const t = tile(state, xx, yy); if (t && t.dep && t.dep.amt > 0 && d.extract.includes(t.dep.r) && t.dep.depth <= md) { has = true; break; } }
-        if (!has) continue; } } // mines and pits only where there is something to dig
-      const q = COMMANDS.place(state, { kind: k, x: tx, y: ty, rot: 0 }); if (!q.ok) continue; const b = state.buildings[q.id]; b.levelLeft = 0; finishBuilding(state, b); b.cond = 100; done = true; } }
+  const roads = planStreets(state, x, y, era);
+  // where each kind goes: civic/religious at the centre on the main street; homes front any street; workshops and shops
+  // along the main street; farms, pits and mines out on the edge (pits only on a real deposit)
+  const role = (k) => { const d = BUILDINGS[k]; if (d.extract || FARM_KINDS.includes(k) || d.terrain) return 'edge'; if (d.cat === 'Housing') return 'home'; if (d.cat === 'Culture' || ['library', 'forum', 'temple', 'shrine', 'scholar', 'guildhall', 'mint', 'bank', 'university'].includes(k)) return 'civic'; return 'main'; };
+  const fronts = (tx, ty, k) => { const n = BUILDINGS[k].size || 1; for (let i = -1; i <= n; i++) for (const [ax, ay] of [[tx + i, ty - 1], [tx + i, ty + n], [tx - 1, ty + i], [tx + n, ty + i]]) { const t = tile(state, ax, ay); if (t && t.road) return t.main ? 2 : 1; } return 0; };
+  const order = ['civic', 'main', 'home', 'edge']; const list = build.filter(k => BUILDINGS[k]).sort((p, q) => order.indexOf(role(p)) - order.indexOf(role(q)));
+  const missing = [];
+  for (const k of list) { const ro = role(k), d = BUILDINGS[k]; let best = null, bs = 1e9;
+    for (let dy = -26; dy <= 26; dy++) for (let dx = -26; dx <= 26; dx++) { const tx = x + dx, ty = y + dy, dist = Math.hypot(dx, dy);
+      if (ro !== 'edge' && dist > 22) continue; if (checkPlacement(state, k, tx, ty)) continue;
+      let sc = dist; const f = ro === 'edge' ? 0 : fronts(tx, ty, k);
+      if (ro === 'home') { sc += (f ? 0 : 14) + (rand(state) - 0.5) * 2; }
+      else if (ro === 'civic') { sc = dist * 2 - (f === 2 ? 3 : 0) + (f ? 0 : 20); }
+      else if (ro === 'main') { sc += f === 2 ? 0 : f ? 6 : 16; }
+      else { sc = Math.abs(dist - 9) + (dist < 7 ? 8 : 0);
+        if (d.extract && !d.extract.includes('wood')) { const R = d.radius || 2, md = Math.min(d.maxDepth ?? 99, ERAS[era].maxDepth); let has = false;
+          for (let yy = ty - R; yy <= ty + R && !has; yy++) for (let xx = tx - R; xx <= tx + R; xx++) { const t = tile(state, xx, yy); if (t && t.dep && t.dep.amt > 0 && d.extract.includes(t.dep.r) && t.dep.depth <= md) { has = true; break; } }
+          if (!has) continue; } }
+      if (sc < bs) { bs = sc; best = [tx, ty]; } }
+    if (!best) { const fb = { irrfield: 'field', fountain: 'stonewell', aqueduct: null }[k]; if (fb) list.push(fb); else missing.push(k); continue; } // no water / aqueduct nearby: the plain version
+    const q = COMMANDS.place(state, { kind: k, x: best[0], y: best[1], rot: 0 }); if (!q.ok) { missing.push(k); continue; } const b = state.buildings[q.id]; b.levelLeft = 0; finishBuilding(state, b); b.cond = 100; }
   state.res = keep;
+  // the starting chain must work: a pit or mine that found no deposit nearby is replaced by stock of what it would dig
+  for (const k of missing) { const d = BUILDINGS[k]; if (d.extract) for (const r of [].concat(d.extract)) if (r !== 'wood') state.res[r] = (state.res[r] || 0) + 60; }
+  for (const t of roads) delete t.main;
   for (const b of Object.values(state.buildings)) { const c = capOf(b); if (c) b.residents = Math.ceil(c * 0.8); }
   const cur = (state.units || []).filter(u => u.kind === 'villager').length, want = (START_ERAS[era] || {}).villagers || 3;
   for (let i = cur; i < want; i++) spawnVillager(state, x + (i % 3) - 1, y + 2);
@@ -237,7 +264,7 @@ function roadNeighbors(state, tiles) {
   return out;
 }
 export function roadAccess(state, b) { return roadNeighbors(state, b.tiles).length > 0; }
-function canAfford(state, cost) {
+export function canAfford(state, cost) {
   for (const k in cost) { if (k === 'money' && state.flags.unlimitedMoney) continue; if ((state.res[k] || 0) < cost[k]) return false; }
   return true;
 }
@@ -343,6 +370,7 @@ function createBuilding(state, kind, tiles, extra = {}) {
   return b;
 }
 function removeBuilding(state, b) {
+  for (const c of Object.values(state.buildings)) if (c.parent === b.id && c !== b) removeBuilding(state, c); // farm outbuildings go with their farm
   for (const [tx, ty] of b.tiles) { const t = tile(state, tx, ty); if (t.occ === b.id) t.occ = 0; }
   // mines abandoned -> workings abandoned
   for (const c of Object.values(state.world.chunks)) for (const t of c.tiles) if (t.work && t.work.mine === b.id) { t.work.abandoned = true; }
@@ -353,8 +381,8 @@ function removeBuilding(state, b) {
 }
 
 const COMMANDS = {
-  place(state, { kind, x, y, rot }) {
-    const err = checkPlacement(state, kind, x, y);
+  place(state, { kind, x, y, rot, parent }) {
+    const err = checkPlacement(state, kind, x, y) || attachErr(state, kind, x, y, parent);
     if (err) return { ok: false, err };
     pay(state, BUILDINGS[kind].cost);
     const tiles = footprint(kind, x, y);
@@ -366,10 +394,25 @@ const COMMANDS = {
     if (BUILDINGS[kind].ditch) for (const [tx, ty] of tiles) tile(state, tx, ty).ditchP = 1;
     if (BUILDINGS[kind].rail && !rot) { const rl = (a, c) => { const n = tile(state, x + a, y + c); return n && (n.railP || n.stationP); }; rot = (rl(0, 1) || rl(0, -1)) && !(rl(1, 0) || rl(-1, 0)) ? 1 : 0; }
     if (BUILDINGS[kind].onWater && !rot) { const land = (a, c) => { const n = tile(state, x + a, y + c); return n && (n.t !== T.WATER || n.bridge || (n.occ && state.buildings[n.occ] && BUILDINGS[state.buildings[n.occ].kind].onWater)); }; rot = (land(1, 0) || land(-1, 0)) ? 0 : 1; }
-    const b = createBuilding(state, kind, tiles, { rot: rot || 0 });
+    const b = createBuilding(state, kind, tiles, { rot: rot || 0, ...(BUILDINGS[kind].attach ? { parent } : {}) });
     if (lvl) { b.levelLeft = LEVEL_HOURS * tiles.length; b.levelTotal = b.levelLeft; }
     { let mt = 0; for (const [k, v] of Object.entries(BUILDINGS[kind].cost || {})) if (k !== 'money') mt += v; b.mt = mt; b.mg = 0; } // materials still to be carried to the site
     return { ok: true, id: b.id };
+  },
+  // rebuild a finished building in place as its next-era version (homes keep their residents meanwhile)
+  upgrade(state, { id }) {
+    const b = state.buildings[id]; if (!b || !b.done || b.ruin) return { ok: false, err: 'Not ready' };
+    const to = UPGRADES[b.kind], d = to && BUILDINGS[to]; if (!d) return { ok: false, err: 'No upgrade' };
+    if (d.era > state.era) return { ok: false, err: ERAS[d.era].name + ' era' };
+    const cost = upgradeCost(b.kind); if (!canAfford(state, cost)) return { ok: false, err: 'Not enough ' + Object.keys(cost).find(k => (state.res[k] || 0) < cost[k]) };
+    for (const [tx, ty] of b.tiles) tile(state, tx, ty).occ = 0;
+    const err = checkPlacement(state, to, b.x, b.y);
+    if (err) { for (const [tx, ty] of b.tiles) tile(state, tx, ty).occ = b.id; return { ok: false, err: err === 'Occupied' ? 'Needs more room' : err }; }
+    pay(state, cost); const tiles = footprint(to, b.x, b.y);
+    for (const [tx, ty] of tiles) { const t = tile(state, tx, ty); t.occ = b.id; if (t.trees) { t.trees = 0; state.dirty.trees = true; } }
+    Object.assign(b, { upFrom: b.kind, kind: to, tiles, done: false, progress: 0, cond: 100 }); { let mt = 0; for (const [k, v] of Object.entries(cost)) if (k !== 'money') mt += v; b.mt = mt; b.mg = 0; }
+    let cx = 0, cy = 0; for (const [tx, ty] of tiles) { cx += tx; cy += ty; } b.cx = Math.round(cx / tiles.length); b.cy = Math.round(cy / tiles.length);
+    state.dirty.buildings = true; return { ok: true };
   },
   road(state, { x, y }) {
     const t = tile(state, x, y);
@@ -431,6 +474,7 @@ const COMMANDS = {
       if (b.dis) return { ok: false, err: 'Already being dismantled' };
       b.dis = { from: b.done ? 1 : b.progress, at: state.tick, dozer: state.era >= 7 && state.research.done.includes('machinery') }; if (b.done) { b.done = false; b.progress = 1; }
       b.residents = 0; b.workers = 0;
+      for (const c of Object.values(state.buildings)) if (c.parent === b.id && !c.dis) { c.dis = { from: c.done ? 1 : c.progress, at: state.tick, dozer: b.dis.dozer }; if (c.done) { c.done = false; c.progress = 1; } }
 
       state.dirty.buildings = true; return { ok: true, id: b.id };
     }
@@ -623,14 +667,24 @@ function completeResearch(state) {
 }
 
 // ---------- Simulation tick (1 tick = 1 game hour) ----------
-export function capOf(b) { const c = b.kind === 'custom' ? b.cap || 0 : BUILDINGS[b.kind].cap || 0; return (b.cond ?? 100) < 25 ? Math.floor(c / 2) : c; }
+// outbuildings must touch the farm's footprint (edge or corner), on their own tiles
+function attachErr(state, kind, x, y, parent) {
+  const d = BUILDINGS[kind]; if (!d.attach) return null; const p = state.buildings[parent];
+  if (!p || !FARM_KINDS.includes(p.kind) || p.ruin) return 'Needs a farm';
+  const own = new Set(p.tiles.map(([a, c]) => a + ',' + c)); for (const [tx, ty] of footprint(kind, x, y)) for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (own.has((tx + dx) + ',' + (ty + dy))) return null;
+  return 'Must touch the farm';
+}
+export function attachmentsOf(state, b) { return Object.values(state.buildings).filter(c => c.parent === b.id); }
+export function farmBoost(state, b) { let m = 0; for (const c of Object.values(state.buildings)) if (c.parent === b.id && c.done && !c.ruin) m += BUILDINGS[c.kind].farmBoost || 0; return m; }
+export function upgradeCost(kind) { const to = UPGRADES[kind], c = {}; if (!to) return null; for (const [k, v] of Object.entries(BUILDINGS[to].cost || {})) c[k] = Math.max(1, Math.round(v * UPGRADE_COST)); return c; }
+export function capOf(b) { const c = b.kind === 'custom' ? b.cap || 0 : !b.done && b.upFrom ? BUILDINGS[b.upFrom].cap || 0 : b.unlived ? 0 : BUILDINGS[b.kind].cap || 0; return (b.cond ?? 100) < 25 ? Math.floor(c / 2) : c; }
 function jobsOf(b) { return b.kind === 'custom' ? b.jobs || 0 : BUILDINGS[b.kind].jobs || 0; }
 function buildTime(b) { return b.kind === 'custom' ? b.time : BUILDINGS[b.kind].time; }
 export function weightOf(b) { return b.kind === 'custom' ? b.weight : BUILDINGS[b.kind].weight; }
 export function stageOf(b) { if (b.done) return 3; return b.progress < 0.25 ? 0 : b.progress < 0.55 ? 1 : 2; }
 
 function finishBuilding(state, b) {
-  b.done = true; b.progress = 1; state.dirty.buildings = true; b.cond = 100; b.age = 0;
+  b.done = true; b.progress = 1; state.dirty.buildings = true; b.cond = 100; b.age = 0; b.upFrom = null;
   const dd = BUILDINGS[b.kind]; if (dd && dd.enables) { state.flags[dd.enables] = true; if (dd.enables === 'canoe') addLog(state, 'Dugout canoes are ready: people can now cross deep water.'); }
   reveal(state, b.cx ?? b.x, b.cy ?? b.y, dd && dd.sight ? dd.sight : 4);
   if (dd && dd.onWater) { for (const [x, y] of b.tiles) tile(state, x, y).bridge = 1; state.dirty.roads = true; }
@@ -717,7 +771,7 @@ function runBuilding(state, b, hours) {
   const d = BUILDINGS[b.kind]; let e = eff(state, b) * condMult(b) * (roadAccess(state, b) ? 1.15 : 1) * toolsF(state);
   if (d.water && !waterNear(state, b.tiles, d.water, true)) e *= 0.35; // a dry irrigated field yields little
   if (d.food) {
-    const add = d.food / 24 * e * hours * (1 + foodBonus(state)) * (b.kind === 'hunter' ? 0.3 * Math.min(1, 0.25 + preyNear(state, b.x, b.y) / 4) : 1); // lodge base: snares and small game; the big game comes from hunts (animals.js)
+    const add = d.food / 24 * e * hours * (1 + foodBonus(state)) * (1 + farmBoost(state, b)) * (b.kind === 'hunter' ? 0.3 * Math.min(1, 0.25 + preyNear(state, b.x, b.y) / 4) : 1); // lodge base: snares and small game; the big game comes from hunts (animals.js)
     state.res.food += add; prog(state, b, add / 4, 'food'); // progress bar pops every 4 food
   }
   if (d.extract) {
@@ -940,7 +994,12 @@ function dailyTick(state) {
   tickTowns(state);
   if ((state.res.tools || 0) > 0) state.res.tools = Math.max(0, state.res.tools - employed * TOOLS.wearPerWorkerDay);
   const shopIncome = Math.min(pop, shopCap) * 0.35;
-  const income = employed * 0.8 + (pop - employed) * 0.1 + shopIncome;
+  // wealthy households: need a content town and goods to spare; they use goods and pay tax
+  let wealthTax = 0;
+  for (const b of Object.values(state.buildings)) { const d = BUILDINGS[b.kind]; if (!d || !d.wealth || d.wealth < 2 || !b.done || b.ruin) continue; const w = WEALTH[d.wealth];
+    const goods = (state.res.cloth || 0) + (state.res.wine || 0) + (state.res.pots || 0), ok = state.happiness >= w.happy && goods >= w.goods; b.unlived = !ok; if (!ok) b.residents = 0;
+    if (ok && b.residents) { let need = w.use * b.residents; for (const g of ['wine', 'cloth', 'pots']) { const t = Math.min(need, state.res[g] || 0); state.res[g] = (state.res[g] || 0) - t; need -= t; } wealthTax += (d.tax || 0) * b.residents; } }
+  const income = employed * 0.8 + (pop - employed) * 0.1 + shopIncome + wealthTax;
   state.lastIncome = income; state.lastUpkeep = upkeep;
   state.res.money += income - upkeep;
   // happiness (numbers only)

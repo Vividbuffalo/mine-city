@@ -109,7 +109,9 @@ kbd{display:inline-block;border:1px solid var(--line);border-bottom-width:2px;bo
 #selbox{position:fixed;border:1.5px solid #fff1a8;background:rgba(255,241,168,.15);z-index:3;pointer-events:none;border-radius:2px}
 #tip{position:fixed;z-index:60;background:rgba(20,32,44,.92);color:#fff;padding:6px 10px;border-radius:9px;font-size:12px;max-width:240px;pointer-events:none}
 /* build grid with thumbnails */
-#bm-items{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:5px}
+#bm-items{display:block}
+.bm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:5px}
+.bm-era{margin-top:8px}.bm-era summary{cursor:pointer;font-weight:600;font-size:12px;padding:5px 4px;border-top:1px solid rgba(0,0,0,.08);color:#555}.bm-era summary small{opacity:.6;margin-left:4px}.bm-era .bm-grid{margin-top:4px}
 .bitem{display:flex;flex-direction:column;align-items:center;text-align:center;padding:4px 3px 5px;margin:0;width:auto;position:relative}
 .bitem img{width:64px;height:64px;display:block}
 .bitem b{font-size:11.5px;line-height:1.15}
@@ -121,7 +123,7 @@ kbd{display:inline-block;border:1px solid var(--line);border-bottom-width:2px;bo
 @media (max-width: 720px) and (orientation: portrait) {
   #placing{bottom:calc(66px + var(--safe-b))}
   #legend{left:0;right:0;width:auto;bottom:calc(60px + var(--safe-b));border-radius:14px 14px 0 0;max-height:50vh}
-  #bm-items{grid-template-columns:repeat(auto-fill,minmax(76px,1fr))}
+  .bm-grid{grid-template-columns:repeat(auto-fill,minmax(76px,1fr))}
   .bitem img{width:52px;height:52px}
 }
 @media (max-height: 520px) and (orientation: landscape) { #placing{bottom:6px} #legend{top:44px;bottom:4px;right:4px;width:min(320px,45vw);max-height:none} }

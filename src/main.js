@@ -5,7 +5,7 @@
 import { Renderer, QUALITY } from './render.js';
 import * as S from './sim.js';
 import { SCOUT } from './units.js';
-import { ALLOW_ERA_SELECT, BUILDINGS, CATEGORIES, TECHS, ERAS, CUSTOM_FUNCS, DEPOSITS, techCost, techHours, SAPLING, DISMANTLE, GATHER, VILLAGER, ERA3_NOTE } from './data.js';
+import { FARM_KINDS, UPGRADES, ALLOW_ERA_SELECT, BUILDINGS, CATEGORIES, TECHS, ERAS, CUSTOM_FUNCS, DEPOSITS, techCost, techHours, SAPLING, DISMANTLE, GATHER, VILLAGER, ERA3_NOTE } from './data.js';
 
 const $ = (id) => document.getElementById(id);
 const SPEEDS = [0, 1, 2, 5, 10, 25, 50];
@@ -120,10 +120,16 @@ function renderBuildMenu() {
   let html = '';
   if (ui.cat === 'Tools') html = Object.entries(TOOL_ITEMS).map(([k, it]) => { const lk = it.lock ? it.lock() : ''; return `<button class="bitem ${lk ? 'locked' : ''}" data-tool-item="${k}" title="${it.name}${lk ? ' (locked: ' + lk + ')' : ''}"><img src="${thumb(k === 'bulldozer' ? 'level' : k)}" alt=""><b>${it.name}</b><small>${lk ? '🔒 ' + lk : it.cost}</small></button>`; }).join('');
   else {
-    const items = Object.entries(BUILDINGS).filter(([k, d]) => d.cat === ui.cat && !d.hidden && d.era <= state.era + 1);
-    html = items.map(([k, d]) => { const lk = lockReason(k); return `<button class="bitem ${ui.kind === k ? 'on' : ''} ${lk ? 'locked' : ''}" data-k="${k}" title="${d.name}: ${bdetail(k)}"><img src="${thumb(k)}" alt=""><b>${d.name}</b><small>${lk ? '🔒 ' + lk : S.costStr(d.cost)}</small></button>`; }).join('') || '<small>Nothing in this category yet.</small>';
+    const items = Object.entries(BUILDINGS).filter(([k, d]) => d.cat === ui.cat && !d.hidden && !d.attach && d.era <= state.era + 1);
+    const btn = ([k, d]) => { const lk = lockReason(k); return `<button class="bitem ${ui.kind === k ? 'on' : ''} ${lk ? 'locked' : ''}" data-k="${k}" title="${d.name}: ${bdetail(k)}"><img src="${thumb(k)}" alt=""><b>${d.name}</b><small>${lk ? '🔒 ' + lk : S.costStr(d.cost)}</small></button>`; };
+    // current era (and the next era's locked preview) on top; each older era folds away, closed by default
+    ui.eraOpen = ui.eraOpen || {};
+    const now = items.filter(([, d]) => d.era >= state.era), old = [];
+    for (let e = state.era - 1; e >= 1; e--) { const l = items.filter(([, d]) => d.era === e); if (l.length) old.push(`<details class="bm-era" data-era="${e}" ${ui.eraOpen[e] ? 'open' : ''}><summary>${ERAS[e].name} <small>${l.length}</small></summary><div class="bm-grid">${l.map(btn).join('')}</div></details>`); }
+    html = (now.length ? `<div class="bm-grid">${now.map(btn).join('')}</div>` : '') + old.join('') || '<small>Nothing in this category yet.</small>';
   }
   $('bm-items').innerHTML = html;
+  $('bm-items').querySelectorAll('details.bm-era').forEach(el => el.ontoggle = () => { ui.eraOpen[el.dataset.era] = el.open; });
   $('bm-items').querySelectorAll('[data-k]').forEach(b => b.onclick = () => { const k = b.dataset.k, lk = lockReason(k); if (lk) return toast(`${BUILDINGS[k].name}: locked (${lk})`, true); ui.kind = k; showPlacing(); });
   $('bm-items').querySelectorAll('[data-tool-item]').forEach(b => b.onclick = () => { const it = TOOL_ITEMS[b.dataset.toolItem], lk = it.lock ? it.lock() : ''; if (lk || !it.tool) return toast(`${it.name}: locked (${lk})`, true); $('buildmenu').classList.add('hidden'); setTool(it.tool); });
   $('bm-res').innerHTML = resHTML(state.era >= 2 ? ['wood', 'clay', 'stone', 'brick', 'copper', 'bronze', 'tools'] : ['wood', 'clay', 'stone', 'brick', 'copper', 'bronze']);
@@ -254,7 +260,7 @@ function tapAt(cx, cy, e) {
   const t = ui.tool;
   if (t === 'road') { roadTap(p); }
   else if (t === 'dismantle' || t === 'plant') paintAt(cx, cy, true);
-  else if (t === 'build' && ui.kind) { cmd({ type: 'place', kind: ui.kind, x: p.x, y: p.y, rot: ui.rot }); }
+  else if (t === 'build' && ui.kind) { const att = BUILDINGS[ui.kind].attach; const r = cmd({ type: 'place', kind: ui.kind, x: p.x, y: p.y, rot: ui.rot, parent: att ? ui.attachTo : undefined }); if (att && r.ok) { const f = ui.attachTo; ui.attachTo = null; setTool('select'); select(f); } }
   else if (t === 'survey') cmd({ type: 'survey', x: p.x, y: p.y });
   else if (t === 'level') cmd({ type: 'level', x: p.x, y: p.y });
   else if (t === 'devcollapse') { const tt = S.tile(state, p.x, p.y); if (tt.occ) { cmd({ type: 'dev', action: 'collapse', id: tt.occ }); select(tt.occ); } setTool('select'); }
@@ -403,6 +409,11 @@ function renderInfo() {
       if (b.done && (d.extract || d.recipe) && d.extract !== 'wood') h += row('Status', b.workers && !b.info ? 'Working' : b.info === 'Depleted' ? '<span class="no">Depleted</span>' : '<span class="no">Idle</span>');
       if (d.extract === 'wood' && b.done) { renderer.setReach({ x: b.x, y: b.y, r: d.radius }); const on = ui.tool === 'marktrees' && ui.markB === b.id; btns.push(`<button data-act="mark" data-m="mark" class="${on && ui.markMode !== 'protect' ? 'on' : ''}">Mark trees</button>`, `<button data-act="mark" data-m="protect" class="${on && ui.markMode === 'protect' ? 'on' : ''}">Protect trees</button>`); if (on) btns.push(`<button data-act="mark" data-m="done">Done</button>`); }
       if (d.extract && b.done && DEV) btns.push(`<button data-skip="mine" data-id="${b.id}">Run 1 day ⏭</button>`);
+      { const to = UPGRADES[b.kind]; if (to && b.done && !b.ruin && BUILDINGS[to].era <= state.era + 1) { const c = S.upgradeCost(b.kind), lk = BUILDINGS[to].era > state.era; btns.push(`<button data-act="upgrade" ${lk || !S.canAfford(state, c) ? 'disabled' : ''}>⬆ ${BUILDINGS[to].name} · ${lk ? ERAS[BUILDINGS[to].era].name + ' era' : S.costStr(c)}</button>`); } }
+      if (!b.done && b.upFrom) h += row('Upgrading from', BUILDINGS[b.upFrom].name);
+      if (FARM_KINDS.includes(b.kind) && b.done) { const at = S.attachmentsOf(state, b); h += row('Outbuildings', at.length ? at.map(c => BUILDINGS[c.kind].name + (c.done ? '' : ' (building)')).join(', ') : 'None'); const bo = S.farmBoost(state, b); if (bo) h += row('Output', '+' + Math.round(bo * 100) + '%');
+        for (const k of ['farmshed', 'barn', 'silo', 'stable']) { const dd = BUILDINGS[k]; if (dd.era > state.era) continue; if (at.some(c => c.kind === k || UPGRADES[k] && at.some(c2 => c2.kind === UPGRADES[k]) || (k === 'farmshed' && at.some(c2 => c2.kind === 'barn' || c2.kind === 'bigbarn')))) continue; btns.push(`<button data-act="attach" data-k="${k}">+ ${dd.name} · ${S.costStr(dd.cost)}</button>`); } }
+      if (b.parent && state.buildings[b.parent]) h += row('Part of', BUILDINGS[state.buildings[b.parent].kind].name);
       btns.push(`<button data-act="dismantle">🪓 Dismantle</button>`);
       if (DEV) btns.push(`<button data-dev="collapse" data-id="${b.id}">Dev: collapse</button>`);
     }
@@ -437,6 +448,8 @@ function renderInfo() {
     if (a === 'hire') { const r = cmd({ type: 'hireUnit', kind: 'scout' }); if (r.ok) { setUnits([r.id]); showUnits(); } }
     else if (a === 'stop') for (const id of ui.units) cmd({ type: 'stopUnit', id });
     else if (a === 'mark') { const m = b.dataset.m; if (m === 'done') setTool('select'); else { const id = ui.sel; setTool('marktrees'); ui.markB = id; ui.markMode = m; ui.sel = id; } renderInfo(); }
+    else if (a === 'attach') { ui.attachTo = ui.sel; ui.kind = b.dataset.k; setTool('build'); showPlacing(); }
+    else if (a === 'upgrade') { cmd({ type: 'upgrade', id: ui.sel }); renderInfo(); }
     else if (a === 'release') { cmd({ type: 'releaseClaim', id: +b.dataset.id }); closeInfo(); }
     else if (a === 'canoe') { cmd({ type: 'boardCanoe', id: ui.units[0] }); renderInfo(); }
     else if (a === 'cleanup') { cmd({ type: 'cleanUp', id: ui.sel }); renderInfo(); }

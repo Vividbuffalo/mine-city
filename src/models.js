@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from '../vendor/addons/utils/BufferGeometryUtils.js';
 import { GLTFLoader } from '../vendor/addons/loaders/GLTFLoader.js';
-import { BLOCKS } from './data.js';
+import { BLOCKS, BUILDINGS } from './data.js';
 
 // ---------- palette ----------
 const P = {
@@ -87,6 +87,83 @@ class Kit {
 // ---------- model definitions ----------
 // dims: w,d (footprint), h (wall height), roof type, wall material (for construction stages)
 export const MODELS = {
+
+  // ---- v3.7 farm outbuildings ----
+  farmshed: { dims: { w: 0.6, d: 0.5, h: 0.18, roof: 'gable', wall: 'wood' }, finished(k) {
+    k.box(0.34, 0.16, 0.26, 'wood', 0, 0, 0); k.roof(0.34, 0.26, 0.1, 'thatch', 0.16, 'wood', 0, 0); k.door('front', 0.34, 0.26, 0.1, 0.13); k.box(0.02, 0.1, 0.12, 'woodLight', 0.22, 0, 0.1, 0.3); k.pile(3, 0.04, 0xd9b36a, -0.2, 0.18);
+  } },
+  barn: { dims: { w: 1.6, d: 1.4, h: 0.4, roof: 'gable', wall: 'wood' }, finished(k) {
+    const c = [0xa23b2a, 0x8a5a3a, 0x9c6b3e][(k.seed || 0) % 3];
+    k.box(1.0, 0.4, 0.7, c, 0, 0, -0.1); k.roof(1.0, 0.7, 0.32, 'shingle', 0.4, c, 0, -0.1); k.box(0.3, 0.34, 0.02, 'white', 0, 0, 0.26); k.box(0.26, 0.3, 0.025, 'woodDark', 0, 0, 0.265);
+    for (const s of [-1, 1]) k.box(0.02, 0.34, 0.03, 'white', s * 0.14, 0, 0.27); k.box(0.1, 0.1, 0.02, 'woodDark', 0, 0.48, 0.26); k.pile(6, 0.12, 0xd9b36a, 0.55, 0.45); k.logPile(-0.5, 0.45, 2, 0.3, 0);
+  } },
+  bigbarn: { dims: { w: 1.6, d: 1.6, h: 0.5, roof: 'gable', wall: 'stone' }, finished(k) {
+    k.box(1.3, 0.5, 0.9, 'stone', 0, 0, -0.1); k.roof(1.3, 0.9, 0.42, 'roof2', 0.5, 'stone', 0, -0.1); for (const x of [-0.35, 0.35]) { k.box(0.24, 0.36, 0.03, 'woodDark', x, 0, 0.36); } k.windows('front', 1.3, 0.9, 0.62, 1, 0.08, 0.1);
+    for (let i = 0; i < 4; i++) k.box(0.06, 0.5, 0.06, 'stoneDark', -0.62 + i * 0.41, 0, 0.36); k.pile(6, 0.12, 0xd9b36a, 0.6, 0.6);
+  } },
+  silo: { dims: { w: 0.6, d: 0.6, h: 0.7, roof: 'cone', wall: 'stone' }, finished(k) {
+    k.cyl(0.18, 0.2, 0.62, 14, 'stone', 0, 0, 0); for (let i = 1; i < 4; i++) k.cyl(0.205, 0.205, 0.015, 14, 'stoneDark', 0, i * 0.15, 0); k.cone(0.22, 0.16, 14, 'roof', 0, 0.62, 0); k.box(0.06, 0.12, 0.02, 'woodDark', 0, 0, 0.2);
+  } },
+  stable: { dims: { w: 1.6, d: 1.4, h: 0.3, roof: 'gable', wall: 'wood' }, finished(k) {
+    k.box(1.1, 0.28, 0.5, 'wood', 0, 0, -0.3); k.roof(1.1, 0.5, 0.18, 'thatch', 0.28, 'wood', 0, -0.3); for (let i = 0; i < 4; i++) k.box(0.18, 0.18, 0.02, 'woodDark', -0.39 + i * 0.26, 0.04, -0.04);
+    k.fence([[-0.7, 0.05], [-0.7, 0.65], [0.7, 0.65], [0.7, 0.05]], 0.12); for (const [x, z, r] of [[-0.3, 0.35, 0.4], [0.3, 0.4, -0.6]]) { k.box(0.24, 0.1, 0.08, 0x6b4a2a, x, 0.08, z, r); k.box(0.06, 0.08, 0.06, 0x6b4a2a, x + Math.cos(r) * 0.14, 0.14, z - Math.sin(r) * 0.14); for (const dx of [-0.08, 0.08]) k.box(0.02, 0.08, 0.02, 0x4a3320, x + dx, 0, z); }
+  } },
+  // ---- v3.7 housing by wealth (several looks each; picked by building id) ----
+  cottage: { dims: { w: 0.6, d: 0.5, h: 0.22, roof: 'gable', wall: 'stone' }, finished(k) {
+    const v = (k.seed || 0) % 3, wall = ['stone', 'plaster', 0xd9c7a0][v], roof = ['thatch', 'shingle', 'roof'][v];
+    k.box(0.4, 0.2, 0.28, wall, -0.04, 0, -0.06); k.roof(0.4, 0.28, 0.14, roof, 0.2, wall, -0.04, -0.06); k.door('front', 0.4, 0.16, 0.08, 0.13, -0.1); k.windows('front', 0.4, 0.16, 0.12, 1, 0.06, 0.06, 0.08); k.chimney(0.1, -0.12, 0.2, 0.12, 'stoneDark');
+    k.fence([[-0.27, 0.24], [0.27, 0.24]], 0.07); for (let i = 0; i < 4; i++) k.add(new THREE.IcosahedronGeometry(0.03, 0), mat([0xd94b6a, 0xf2c14e, 0x9b7fb8][i % 3]), -0.2 + i * 0.13, 0.03, 0.2);
+  } },
+  courtyardhouse: { dims: { w: 1.6, d: 1.6, h: 0.3, roof: 'gable', wall: 'plaster' }, finished(k) {
+    const v = (k.seed || 0) % 3, wall = ['plaster', 0xe8d5b0, 0xd9b38c][v];
+    for (const [x, z, w, d, ry] of [[0, -0.55, 1.4, 0.36, 0], [0, 0.55, 1.4, 0.36, 0], [-0.55, 0, 0.36, 0.74, 0], [0.55, 0, 0.36, 0.74, 0]]) { k.box(w, 0.3, d, wall, x, 0, z); k.box(w + 0.06, 0.04, d + 0.06, 'roof', x, 0.3, z); }
+    k.roof(1.4, 0.36, 0.14, 'roof', 0.34, wall, 0, -0.55); k.box(0.72, 0.01, 0.72, 'quoin', 0, 0, 0); k.cyl(0.08, 0.1, 0.05, 10, 'stone', 0, 0.01, 0); k.cyl(0.06, 0.06, 0.012, 10, 'water', 0, 0.05, 0);
+    k.add(new THREE.IcosahedronGeometry(0.1, 0), mat(0x4f8a3c), 0.22, 0.12, 0.2); k.door('front', 1.4, 1.46, 0.12, 0.2, 0); k.windows('front', 1.4, 1.46, 0.18, 4, 0.06, 0.08);
+  } },
+  hillvilla: { dims: { w: 1.6, d: 1.6, h: 0.4, roof: 'gable', wall: 'plaster' }, finished(k) {
+    const v = (k.seed || 0) % 2;
+    k.box(1.4, 0.12, 1.4, 'stone', 0, 0, 0); k.box(1.0, 0.32, 0.6, 'white', -0.1, 0.12, -0.3); k.roof(1.0, 0.6, 0.18, 'roof', 0.44, 'white', -0.1, -0.3); k.box(0.4, 0.5, 0.4, 'white', 0.45, 0.12, -0.35); k.box(0.46, 0.05, 0.46, 'roof', 0.45, 0.62, -0.35);
+    for (let i = 0; i < 5; i++) k.cyl(0.025, 0.03, 0.26, 8, 'white', -0.5 + i * 0.2, 0.12, 0.06); k.box(1.04, 0.04, 0.12, 'white', -0.1, 0.38, 0.06); k.windows('front', 1.0, 0.6, 0.3, 3, 0.07, 0.1, -0.1);
+    k.box(1.3, 0.02, 0.5, v ? 'quoin' : 'stone', 0, 0.12, 0.42); for (const x of [-0.5, 0.5]) k.cone(0.05, 0.3, 8, 0x2f6a33, x, 0.14, 0.55); k.cyl(0.14, 0.14, 0.02, 12, 'water', 0.25, 0.13, 0.42);
+  } },
+  manor: { dims: { w: 1.6, d: 1.6, h: 0.5, roof: 'gable', wall: 'stone' }, finished(k) {
+    const v = (k.seed || 0) % 3, wall = ['stone', 0xc9b48a, 'brick'][v], roof = ['shingle', 'roof2', 'stoneDark'][v];
+    k.box(1.2, 0.46, 0.5, wall, 0, 0, -0.3); k.roof(1.2, 0.5, 0.26, roof, 0.46, wall, 0, -0.3); for (const x of [-0.5, 0.5]) { k.box(0.3, 0.5, 0.5, wall, x, 0, 0.1); k.roof(0.3, 0.5, 0.18, roof, 0.5, wall, x, 0.1, Math.PI / 2); }
+    k.windows('front', 1.2, 0.2, 0.32, 4, 0.07, 0.1); k.windows('front', 1.2, 0.2, 0.14, 2, 0.07, 0.1); k.door('front', 1.2, 0.2, 0.12, 0.2, 0); for (const x of [-0.3, 0.3]) k.chimney(x, -0.4, 0.46, 0.2, wall === 'brick' ? 'brickDark' : 'stoneDark');
+    k.box(0.5, 0.01, 0.6, 'quoin', 0, 0, 0.5); for (const x of [-0.5, 0.5]) for (const z of [0.5, 0.7]) k.cone(0.05, 0.22, 8, 0x2f6a33, x, 0, z);
+  } },
+  mansion: { dims: { w: 1.6, d: 1.6, h: 0.6, roof: 'flat', wall: 'brick' }, finished(k) {
+    const v = (k.seed || 0) % 3, wall = ['brick', 'plaster', 0xe0cfa8][v];
+    k.box(1.3, 0.56, 0.7, wall, 0, 0, -0.2); k.box(1.36, 0.05, 0.76, 'quoin', 0, 0.56, -0.2); k.roof(1.2, 0.6, 0.2, 'stoneDark', 0.61, wall, 0, -0.2); for (let f = 0; f < 2; f++) k.windows('front', 1.3, 0.3, 0.16 + f * 0.24, 6, 0.06, 0.12);
+    k.box(0.4, 0.04, 0.2, 'quoin', 0, 0.3, 0.24); for (const x of [-0.16, 0.16]) k.cyl(0.025, 0.03, 0.3, 8, 'white', x, 0, 0.3); k.door('front', 1.3, 0.3, 0.12, 0.22, 0); for (const x of [-0.5, 0.5]) k.chimney(x, -0.35, 0.61, 0.18, 'brickDark');
+    k.box(1.0, 0.01, 0.4, 0x5d9b4a, 0, 0, 0.55); k.add(new THREE.TorusGeometry(0.16, 0.03, 4, 16), mat('quoin'), 0, 0.01, 0.55, Math.PI / 2); k.cyl(0.05, 0.06, 0.08, 10, 'stone', 0, 0, 0.55);
+  } },
+  estate: { dims: { w: 2.6, d: 2.6, h: 0.6, roof: 'gable', wall: 'stone' }, finished(k) {
+    const v = (k.seed || 0) % 2;
+    for (const [x, z, w, d] of [[0, -1.25, 2.5, 0.08], [0, 1.25, 2.5, 0.08], [-1.25, 0, 0.08, 2.5], [1.25, 0, 0.08, 2.5]]) k.box(w, 0.16, d, 'stone', x, 0, z); k.box(0.3, 0.02, 0.1, 'woodDark', 0, 0, 1.26);
+    for (const x of [-0.18, 0.18]) k.box(0.1, 0.26, 0.1, 'stoneDark', x, 0, 1.25);
+    k.box(1.6, 0.5, 0.6, v ? 'plaster' : 'stone', 0, 0, -0.7); k.roof(1.6, 0.6, 0.26, 'roof', 0.5, v ? 'plaster' : 'stone', 0, -0.7); k.windows('front', 1.6, 0.6, 0.32, 6, 0.06, 0.1); k.door('front', 1.6, 0.6, 0.12, 0.2, 0);
+    k.box(0.36, 0.7, 0.36, v ? 'plaster' : 'stone', 0.9, 0, -0.75); k.cone(0.27, 0.3, 4, 'roof', 0.9, 0.7, -0.75, Math.PI / 4);
+    k.box(2.2, 0.01, 1.4, 0x5d9b4a, 0, 0, 0.4); k.box(0.2, 0.012, 1.4, 'quoin', 0, 0, 0.4); k.box(2.2, 0.012, 0.16, 'quoin', 0, 0, 0.4);
+    k.cyl(0.22, 0.26, 0.08, 14, 'stone', 0, 0.01, 0.4); k.cyl(0.18, 0.18, 0.012, 14, 'water', 0, 0.08, 0.4); k.cyl(0.03, 0.04, 0.22, 8, 'stone', 0, 0.08, 0.4);
+    for (const [x, z] of [[-0.8, 0.0], [0.8, 0.0], [-0.8, 0.85], [0.8, 0.85]]) { k.box(0.4, 0.06, 0.4, 0x3f7a3a, x, 0, z); k.cone(0.06, 0.3, 8, 0x2f6a33, x, 0.06, z); }
+  } },
+  // the showpiece: a white-stone palace on a stepped terrace, red roofs, colonnades, towers and a central dome (after Isaac's reference image)
+  palace: { dims: { w: 3.6, d: 3.6, h: 1.0, roof: 'flat', wall: 'stone' }, finished(k) {
+    k.box(3.5, 0.14, 3.5, 'stoneDark', 0, 0, 0); k.box(3.0, 0.14, 3.0, 'stone', 0, 0.14, -0.1); for (let i = 0; i < 5; i++) k.box(0.8, 0.028, 0.08, 'white', 0, i * 0.056, 1.5 + i * -0.05 + 0.1);
+    const B = 0.28;
+    k.box(2.2, 0.5, 1.2, 'white', 0, B, -0.6); k.box(2.26, 0.05, 1.26, 'quoin', 0, B + 0.5, -0.6); k.roof(2.0, 1.0, 0.36, 'roof', B + 0.55, 'white', 0, -0.6);
+    for (let f = 0; f < 2; f++) k.windows('front', 2.2, 0.2, B + 0.16 + f * 0.22, 8, 0.07, 0.12, 0); 
+    for (let i = 0; i < 8; i++) k.cyl(0.035, 0.04, 0.42, 10, 'white', -0.84 + i * 0.24, B, 0.12); k.box(2.0, 0.06, 0.28, 'white', 0, B + 0.42, 0.06); k.gable(0.9, 0.3, 0.16, 'white', 0, B + 0.48, 0.1);
+    k.cyl(0.36, 0.38, 0.3, 18, 'white', 0, B + 0.55, -0.6); k.add(new THREE.SphereGeometry(0.36, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), mat('roof'), 0, B + 0.85, -0.6); k.cyl(0.04, 0.06, 0.14, 8, 'gold', 0, B + 1.2, -0.6);
+    for (const s of [-1, 1]) { const x = s * 1.25;
+      k.box(0.5, 0.42, 1.6, 'white', x, B, -0.2); k.roof(1.6, 0.5, 0.2, 'roof', B + 0.42, 'white', x, -0.2, Math.PI / 2); k.windows(s < 0 ? 'left' : 'right', 0.5, 1.6, B + 0.2, 4, 0.06, 0.1, x);
+      k.box(0.46, 1.0, 0.46, 'white', x, B, 0.7); k.box(0.52, 0.06, 0.52, 'quoin', x, B + 1.0, 0.7); k.cone(0.34, 0.42, 4, 'roof', x, B + 1.06, 0.7, Math.PI / 4); k.windows('front', 0.46, 0.46, B + 0.7, 1, 0.07, 0.12, x);
+      k.box(0.03, 0.18, 0.03, 'black', x, B + 1.48, 0.7); k.add(new THREE.PlaneGeometry(0.16, 0.1), mat('cloth', { side: THREE.DoubleSide }), x + 0.08, B + 1.6, 0.7); }
+    k.box(1.8, 0.012, 0.9, 0x5d9b4a, 0, 0.28, 0.95); k.box(0.24, 0.014, 0.9, 'quoin', 0, 0.28, 0.95); k.cyl(0.2, 0.24, 0.07, 14, 'white', 0, 0.28, 0.95); k.cyl(0.16, 0.16, 0.012, 14, 'water', 0, 0.35, 0.95); k.cyl(0.03, 0.04, 0.2, 8, 'white', 0, 0.35, 0.95);
+    for (const x of [-0.7, -0.4, 0.4, 0.7]) k.cone(0.06, 0.3, 8, 0x2f6a33, x, 0.28, 1.2);
+    for (const [x, z] of [[-1.7, -1.7], [1.7, -1.7], [-1.7, 1.7], [1.7, 1.7]]) k.cyl(0.08, 0.09, 0.3, 8, 'stone', x, 0, z);
+  } },
 
   // ---- milestone I models ----
   lodge: { dims: { w: 0.6, d: 0.5, h: 0.24, roof: 'gable', wall: 'wood' }, finished(k) {
@@ -1159,5 +1236,11 @@ export function buildModel(b, stage, baseOf, opts = {}) {
     kit = new Kit(); kit.seed = b.id || 0; def.finished(kit);
     if (opts.yard && YARD_KINDS.has(b.kind)) addYard(kit, b);
   }
-  return { group: mergeByMaterial(kit.g), emitters: kit.emitters };
+  const group = mergeByMaterial(kit.g), sc = b.ruin || b.kind === 'custom' ? 1 : modelScale(b.kind);
+  if (sc !== 1) { const d = BUILDINGS[b.kind]; group.scale.set(sc, d.flat || d.food ? 1 : sc, sc); for (const e of kit.emitters) { e.x *= sc; e.y *= sc; e.z *= sc; } }
+  return { group, emitters: kit.emitters };
 }
+// v3.7 realistic footprints: models were drawn for the tile count implied by dims.w; when a kind's footprint grows
+// (house = 1 tile; library 2, temple 3, castle 4 ...) the whole model scales uniformly, height included.
+export function modelBase(kind) { const m = MODELS[kind]; return m && m.dims ? Math.max(1, Math.round(m.dims.w + 0.4)) : 1; }
+export function modelScale(kind) { const d = BUILDINGS[kind]; return d ? (d.size || 1) / modelBase(kind) : 1; }
