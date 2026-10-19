@@ -31,8 +31,8 @@ export const QUALITY = {
   // grade = colour-grade strength (0 = off), art = painterly terrain/forest colouring, water2 = depth-tinted water with shore foam, tilt = tilt-shift blur
   potato: { name: 'Potato', hidden: true, pr: 0.75, shadows: 0, post: false, ao: false, grass: 0, rocks: 0, smoke: 0.25, msaa: false, bPx: 48, treePx: 56, grassPx: 999, terrPx: 40, near: 0.9, grassNear: 0, shadowDist: 0, haze: 0.3, warm: 0, grade: 0, art: false, water2: false, tilt: 0 },
   low:    { name: 'Low', pr: 1.5, shadows: 2048, post: false, ao: false, grass: 4, rocks: 3, smoke: 1, msaa: true, bPx: 18, treePx: 22, grassPx: 26, terrPx: 14, near: 1.7, grassNear: 1.3, shadowDist: 40, haze: 0.55, warm: 1, grade: 0, art: false, water2: false, tilt: 0, clouds: 0 },
-  medium: { name: 'Medium', pr: 1.75, shadows: 4096, post: true, ao: true, grass: 5, rocks: 3, smoke: 1.5, msaa: true, bPx: 16, treePx: 18, grassPx: 24, terrPx: 12, near: 2.0, grassNear: 1.6, shadowDist: 48, haze: 0.6, warm: 1, grade: 1, art: true, water2: true, tilt: 0, clouds: 1 },
-  high:   { name: 'High', pr: 2, shadows: 4096, post: true, ao: true, grass: 7, rocks: 4, smoke: 1.5, msaa: true, bPx: 14, treePx: 16, grassPx: 20, terrPx: 10, near: 2.4, grassNear: 2.0, shadowDist: 60, haze: 0.65, warm: 1, grade: 1.25, art: true, water2: true, tilt: 1, clouds: 1.25 },
+  medium: { name: 'Medium', pr: 1.75, shadows: 4096, post: true, ao: true, grass: 5, rocks: 3, smoke: 1.5, msaa: true, bPx: 16, treePx: 18, grassPx: 24, terrPx: 12, near: 2.0, grassNear: 1.6, shadowDist: 48, haze: 0.6, warm: 1, grade: 1, art: true, water2: true, tilt: 0, clouds: 0 },
+  high:   { name: 'High', pr: 2, shadows: 4096, post: true, ao: true, grass: 7, rocks: 4, smoke: 1.5, msaa: true, bPx: 14, treePx: 16, grassPx: 20, terrPx: 10, near: 2.4, grassNear: 2.0, shadowDist: 60, haze: 0.65, warm: 1, grade: 1.25, art: true, water2: true, tilt: 1, clouds: 0 },
 };
 export const QUALITY_ORDER = ['potato', 'low', 'medium', 'high'];
 // painterly colour grade: saturation, warm highlights / cool shadows, soft vignette, optional tilt-shift; NaN-safe
@@ -192,6 +192,7 @@ export class Renderer {
     const R = 4, N = SIZE * R + 1, pos = new Float32Array(N * N * 3), col = new Float32Array(N * N * 3);
     const C = { snow: new THREE.Color(0xf2f4f6), rockHi: new THREE.Color(0x626166), dry: new THREE.Color(0xb3b866), terr: new THREE.Color(0x8f9a55), lush: new THREE.Color(0x5f9a45), grass: new THREE.Color(0x7fb35e), grass2: new THREE.Color(0x9bc46a), forest: new THREE.Color(0x5d8f48), hill: new THREE.Color(0x8d8a6c), rock: new THREE.Color(0x76736b), sand: new THREE.Color(0xd8c99a), bed: new THREE.Color(0x6f6a52), gold: new THREE.Color(0xc4ad55), olive: new THREE.Color(0x76883c), bank: new THREE.Color(0x4f8a3a), dark: new THREE.Color(0x3a4550), clay: new THREE.Color(0xb48a5e), cu: new THREE.Color(0x5fa88a) };
     const tmp = new THREE.Color(), acc = new THREE.Color();
+    const PIT_SOIL = new THREE.Color(0x4a3d30);
     const tileCol = (x, y, out) => {
       x = Math.max(0, Math.min(SIZE - 1, x)); y = Math.max(0, Math.min(SIZE - 1, y));
       const t = tile(state, x, y);
@@ -200,6 +201,7 @@ export class Renderer {
       if (t.t === T.HILL) out.copy(C.hill).lerp(C.rock, t.h > 1 ? 0.45 : 0.1); else if (t.t === T.FOREST) out.copy(C.forest); else out.copy(C.grass);
       if (t.dep && t.dep.r === 'clay' && t.dep.depth <= 2) out.lerp(C.clay, 0.22);
       if (t.dep && t.dep.r === 'copper' && t.dep.depth <= 5 && t.t === T.HILL) out.lerp(C.cu, 0.2);
+      if (t.pit) out.lerp(PIT_SOIL, Math.min(0.62, 0.22 + t.pit / 40)); // worked ground: disturbed dark soil, stays after the pit closes
       return out;
     };
     const CR = CH * R, need = (i, j) => { if (i % 4 === 0 && j % 4 === 0) return true; const a0 = Math.min(NCH - 1, Math.floor(i / CR)), a1 = Math.max(0, Math.floor((i - 1) / CR)), b0 = Math.min(NCH - 1, Math.floor(j / CR)), b1 = Math.max(0, Math.floor((j - 1) / CR)); return this.seen[b0 * NCH + a0] || this.seen[b0 * NCH + a1] || this.seen[b1 * NCH + a0] || this.seen[b1 * NCH + a1]; };
@@ -509,6 +511,7 @@ float cloudShade(vec2 w) { if (uCloud <= 0.0) return 1.0; vec2 p = w * 0.045 - v
     const pack = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.08, 0.04), M(0x8a6a3e)); pack.position.set(0, 0.18, -0.055); body.add(pack);
     const staff = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.34, 4), M(0x9c6b3e)); staff.position.set(0.07, 0.17, 0.02); body.add(staff);
     g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    const boat = this.makeCanoe(); boat.visible = false; g.add(boat); g.userData.boat = boat;
     const mount = this.makeHorse(0x8a6a4a); mount.scale.setScalar(1.15); mount.visible = false; g.add(mount); g.userData.mount = mount; // scouts ride once the town has horses
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.11, 0.15, 24), new THREE.MeshBasicMaterial({ color: 0xfff1a8, transparent: true, opacity: 0.9, depthWrite: false })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.012; ring.visible = false; g.add(ring); g.userData.ring = ring;
     g.scale.setScalar(1.6); return g;
@@ -543,6 +546,22 @@ float cloudShade(vec2 w) { if (uCloud <= 0.0) return 1.0; vec2 p = w * 0.045 - v
     g.scale.setScalar(1.6); return g;
   }
   // small draught horse (used for villager carts and mounted scouts)
+  // a dugout canoe: a hollowed log with a paddle
+  makeCanoe() {
+    const g = new THREE.Group(), M = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.8, flatShading: true });
+    const hull = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.36, 8, 1, false, 0, Math.PI), M(0x7a5232)); hull.rotation.set(Math.PI / 2, 0, Math.PI); hull.position.y = 0.045; hull.scale.set(1, 1, 0.8); g.add(hull);
+    for (const z of [-0.18, 0.18]) { const tip = new THREE.Mesh(new THREE.ConeGeometry(0.036, 0.06, 8, 1, false, 0, Math.PI), M(0x6a4528)); tip.rotation.set(z > 0 ? Math.PI / 2 : -Math.PI / 2, 0, Math.PI); tip.position.set(0, 0.045, z * 1.12); g.add(tip); }
+    const pad = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.012, 0.2), M(0xb08a5a)); pad.position.set(0.05, 0.07, 0.02); pad.rotation.x = 0.4; g.add(pad);
+    g.traverse(o => { if (o.isMesh) o.castShadow = true; }); return g;
+  }
+  // canoes the Canoe Maker has built float at its landing
+  syncCanoes(state) {
+    this.canoeVis = this.canoeVis || new Map(); const seen = new Set();
+    for (const b of Object.values(state.buildings)) { const d = BUILDINGS[b.kind]; if (!d || !d.canoes || !b.done || b.ruin || !(b.canoesN > 0)) continue; const w = this.waterSpot(state, b); if (!w) continue;
+      for (let i = 0; i < b.canoesN; i++) { const k = b.id + ':' + i; seen.add(k); let m = this.canoeVis.get(k); if (!m) { m = this.makeCanoe(); m.scale.setScalar(1.4); this.scene.add(m); this.canoeVis.set(k, m); }
+        const ox = (i - 1) * 0.16; m.position.set(w[2] + 0.5 + ox, WATER_Y + Math.sin(this.clock * 1.8 + i * 1.7) * 0.012, w[3] + 0.5 + (i % 2) * 0.1); m.rotation.y = 0.3 + i * 0.2; m.rotation.z = Math.sin(this.clock * 1.4 + i) * 0.05; } }
+    for (const [k, m] of this.canoeVis) if (!seen.has(k)) { this.scene.remove(m); this.canoeVis.delete(k); }
+  }
   makeHorse(c = 0x6b4a32) {
     const g = new THREE.Group(), M = (k) => new THREE.MeshStandardMaterial({ color: k, roughness: 0.85, flatShading: true });
     const torso = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.17), M(c)); torso.position.y = 0.11; g.add(torso);
@@ -588,7 +607,8 @@ float cloudShade(vec2 w) { if (uCloud <= 0.0) return 1.0; vec2 p = w * 0.045 - v
       if (moving) { v.root.rotation.y = Math.atan2(u.x - u.px, u.y - u.py); v.phase += dt * 9; } else v.phase *= 0.9;
       const sw = Math.sin(v.phase) * (moving ? 0.6 : 0); v.root.userData.legs[0].rotation.x = sw; v.root.userData.legs[1].rotation.x = -sw; v.root.userData.body.position.y = moving ? Math.abs(Math.sin(v.phase)) * 0.012 : 0;
       const ud = v.root.userData;
-      if (ud.mount) { const ride = !!(state.flags && state.flags.horses); ud.mount.visible = ride; if (ride) { ud.body.position.y += 0.1; ud.legs.forEach(l => l.rotation.x = 0); ud.mount.userData.legs.forEach((l, i) => l.rotation.x = moving ? Math.sin(v.phase * 1.4 + (i % 2 ? Math.PI : 0) + (i > 1 ? Math.PI / 2 : 0)) * 0.7 : 0); } }
+      if (ud.boat) { const inC = !!u.canoe, tt = tile(state, Math.round(x), Math.round(y)), onW = inC && tt && tt.t === T.WATER; ud.boat.visible = inC; if (inC) { ud.boat.position.set(0, onW ? 0.0 : 0.21, 0); ud.boat.rotation.z = onW ? Math.sin(this.clock * 2 + u.id) * 0.06 : 0; if (onW) { v.root.position.y = WATER_Y + Math.sin(this.clock * 2.2 + u.id) * 0.008; ud.legs.forEach(l => l.rotation.x = -1.2); } } }
+      if (ud.mount && u.canoe) ud.mount.visible = false; else if (ud.mount) { const ride = !!(state.flags && state.flags.horses); ud.mount.visible = ride; if (ride) { ud.body.position.y += 0.1; ud.legs.forEach(l => l.rotation.x = 0); ud.mount.userData.legs.forEach((l, i) => l.rotation.x = moving ? Math.sin(v.phase * 1.4 + (i % 2 ? Math.PI : 0) + (i > 1 ? Math.PI / 2 : 0)) * 0.7 : 0); } }
       if (ud.tool) { // villager work animation + carried load
         const work = !moving && (u.vstate === 'working' || u.vstate === 'building');
         if (work) { v.wph = (v.wph || 0) + dt * 7; const j = u.job; if (j) { const tx = j.type === 'build' ? (state.buildings[j.id] || u).x : j.x, ty = j.type === 'build' ? (state.buildings[j.id] || u).y : j.y; if (tx !== u.x || ty !== u.y) v.root.rotation.y = Math.atan2(tx - u.x, ty - u.y); } }
@@ -1009,6 +1029,34 @@ float cloudShade(vec2 w) { if (uCloud <= 0.0) return 1.0; vec2 p = w * 0.045 - v
     g.userData.body = body; g.userData.head = head; g.scale.setScalar(1.5); return g;
   }
   // neighbouring towns: their houses in their own style, a banner in the town colour; only where explored
+  // woodcutter: reach outline (square, as worked) and small stakes on marked (orange) / protected (blue) trees
+  setReach(r) {
+    const key = r ? `${r.x},${r.y},${r.r}` : ''; if (key === this.reachKey) return; this.reachKey = key;
+    if (this.reachLine) { this.scene.remove(this.reachLine); this.reachLine.geometry.dispose(); this.reachLine = null; } if (!r) return;
+    const x0 = r.x - r.r, x1 = r.x + r.r + 1, y0 = r.y - r.r, y1 = r.y + r.r + 1, pts = [];
+    const H = (x, y) => this.heightAt(Math.min(SIZE - 0.01, Math.max(0, x)), Math.min(SIZE - 0.01, Math.max(0, y))) + 0.04;
+    for (const [ax, ay, bx, by] of [[x0, y0, x1, y0], [x1, y0, x1, y1], [x1, y1, x0, y1], [x0, y1, x0, y0]]) for (let i = 0; i <= 16; i++) { const f = i / 16, x = ax + (bx - ax) * f, y = ay + (by - ay) * f; pts.push(new THREE.Vector3(x, H(x, y), y)); }
+    this.reachLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xfff1a8, transparent: true, opacity: 0.8, depthTest: false })); this.reachLine.renderOrder = 9; this.scene.add(this.reachLine);
+  }
+  syncMarks(state) {
+    if (this.markMesh) { this.scene.remove(this.markMesh); this.markMesh.dispose(); this.markMesh = null; }
+    const L = []; if (state.treeMarks || this.markMesh) for (let y = 0; y < SIZE; y++) for (let x = 0; x < SIZE; x++) { const t = tile(state, x, y); if (t && t.tm && t.trees) L.push([x, y, t.tm]); }
+    if (!L.length) return; const m = new THREE.InstancedMesh(new THREE.BoxGeometry(0.035, 0.16, 0.035), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 }), L.length), mx = new THREE.Matrix4(), col = new THREE.Color();
+    L.forEach(([x, y, v], i) => { mx.makeTranslation(x + 0.22, this.heightAt(x + 0.22, y + 0.8) + 0.08, y + 0.8); m.setMatrixAt(i, mx); m.setColorAt(i, col.setHex(v === 1 ? 0xe8892b : 0x4a8fd9)); });
+    this.markMesh = m; this.scene.add(m);
+  }
+  // survey claims: a low post-and-rail fence round each claim, with corner stakes
+  syncClaims(state) {
+    if (this.claimGroup) { this.scene.remove(this.claimGroup); this.claimGroup.traverse(o => { if (o.isMesh) o.geometry.dispose(); }); }
+    const g = new THREE.Group(), post = new THREE.MeshStandardMaterial({ color: 0x6a4a2c, roughness: 0.9, flatShading: true }), rail = new THREE.MeshStandardMaterial({ color: 0xc9a46a, roughness: 0.9 }), flag = new THREE.MeshStandardMaterial({ color: 0xd9533e, roughness: 0.7, side: THREE.DoubleSide });
+    for (const c of state.claims || []) { const x0 = c.x - c.r, x1 = c.x + c.r + 1, y0 = c.y - c.r, y1 = c.y + c.r + 1;
+      const pts = []; for (let x = x0; x <= x1; x++) { pts.push([x, y0]); pts.push([x, y1]); } for (let y = y0 + 1; y < y1; y++) { pts.push([x0, y]); pts.push([x1, y]); }
+      const pg = new THREE.BoxGeometry(0.05, 0.22, 0.05), im = new THREE.InstancedMesh(pg, post, pts.length), m = new THREE.Matrix4();
+      pts.forEach(([x, y], i) => { const h = this.heightAt(Math.min(SIZE - 0.01, Math.max(0, x)), Math.min(SIZE - 0.01, Math.max(0, y))); m.makeTranslation(x, Math.max(h, WATER_Y) + 0.11, y); im.setMatrixAt(i, m); }); im.castShadow = true; g.add(im);
+      for (const [ax, ay, bx, by] of [[x0, y0, x1, y0], [x0, y1, x1, y1], [x0, y0, x0, y1], [x1, y0, x1, y1]]) { const len = Math.hypot(bx - ax, by - ay); const mx = (ax + bx) / 2, my = (ay + by) / 2; const r = new THREE.Mesh(new THREE.BoxGeometry(ax === bx ? 0.025 : len, 0.025, ax === bx ? len : 0.025), rail); r.position.set(mx, this.heightAt(Math.min(SIZE - 0.01, Math.max(0, mx)), Math.min(SIZE - 0.01, Math.max(0, my))) + 0.16, my); g.add(r); }
+      for (const [x, y] of [[x0, y0], [x1, y0], [x0, y1], [x1, y1]]) { const f = new THREE.Mesh(new THREE.PlaneGeometry(0.14, 0.09), flag); f.position.set(x + 0.07, this.heightAt(Math.min(SIZE - 0.01, Math.max(0, x)), Math.min(SIZE - 0.01, Math.max(0, y))) + 0.3, y); g.add(f); const st = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.36, 0.03), post); st.position.set(x, this.heightAt(Math.min(SIZE - 0.01, Math.max(0, x)), Math.min(SIZE - 0.01, Math.max(0, y))) + 0.18, y); g.add(st); } }
+    this.claimGroup = g; this.scene.add(g);
+  }
   syncTowns(state) {
     if (!state.towns) return;
     this.townVis = this.townVis || new Map(); const seen = new Set();
@@ -1168,6 +1216,14 @@ float cloudShade(vec2 w) { if (uCloud <= 0.0) return 1.0; vec2 p = w * 0.045 - v
     const ring = new THREE.Mesh(new THREE.RingGeometry(s * 0.5, s * 0.56, 4, 1, Math.PI / 4), new THREE.MeshBasicMaterial({ color: g.ok ? 0x4ade80 : 0xef4444, transparent: true, opacity: 0.9, depthWrite: false })); ring.rotation.x = -Math.PI / 2; ring.scale.setScalar(Math.SQRT2);
     if (!g.block) { ring.position.set(g.x + s / 2, this.topXY(g.x, g.y) + 0.02, g.y + s / 2); grp.add(ring); }
   }
+  // the building whose actual geometry is under the pointer (visible stage only), or null
+  pickBuilding(clientX, clientY) {
+    const rect = this.r.domElement.getBoundingClientRect();
+    this.raycaster.setFromCamera(new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1), this.cam);
+    const hits = this.raycaster.intersectObject(this.groups.buildings, true);
+    for (const h of hits) { let o = h.object, vis = true; while (o && o.userData.bid === undefined) { if (!o.visible) vis = false; o = o.parent; } if (o && vis && o.visible) return o.userData.bid; }
+    return null;
+  }
   pick(clientX, clientY) {
     if (!this.terrainMesh) return null;
     const rect = this.r.domElement.getBoundingClientRect();
@@ -1187,8 +1243,9 @@ float cloudShade(vec2 w) { if (uCloud <= 0.0) return 1.0; vec2 p = w * 0.045 - v
   }
   // screen-space unit picking (units are small; pick within a finger-sized radius) and box selection
   unitScreen(id) { const v = this.uvis.get(id); if (!v) return null; const p = v.root.position.clone(); p.y += 0.15; p.project(this.cam); const r = this.canvas.getBoundingClientRect(); return { x: r.left + (p.x + 1) / 2 * r.width, y: r.top + (1 - p.y) / 2 * r.height }; }
-  unitAtScreen(cx, cy, rad = 24) { let best = null, bd = rad; for (const id of this.uvis.keys()) { const p = this.unitScreen(id); if (!p) continue; const d = Math.hypot(p.x - cx, p.y - cy); if (d < bd) { bd = d; best = id; } } return best; }
-  unitsInRect(x0, y0, x1, y1) { const out = []; for (const id of this.uvis.keys()) { const p = this.unitScreen(id); if (p && p.x >= Math.min(x0, x1) && p.x <= Math.max(x0, x1) && p.y >= Math.min(y0, y1) && p.y <= Math.max(y0, y1)) out.push(id); } return out; }
+  unitAtScreen(cx, cy, rad = 24) { let best = null, bd = rad; const vil = this.villagerIds(); for (const id of this.uvis.keys()) { if (vil.has(id)) continue; const p = this.unitScreen(id); if (!p) continue; const d = Math.hypot(p.x - cx, p.y - cy); if (d < bd) { bd = d; best = id; } } return best; }
+  villagerIds() { return new Set(((this.state && this.state.units) || []).filter(u => u.kind === 'villager').map(u => u.id)); } // villagers work on their own and can't be selected
+  unitsInRect(x0, y0, x1, y1) { const out = []; const vil = this.villagerIds(); for (const id of this.uvis.keys()) { if (vil.has(id)) continue; const p = this.unitScreen(id); if (p && p.x >= Math.min(x0, x1) && p.x <= Math.max(x0, x1) && p.y >= Math.min(y0, y1) && p.y <= Math.max(y0, y1)) out.push(id); } return out; }
   rotate(dir) { this.angleTarget = Math.round(this.angleTarget / (Math.PI / 2)) * Math.PI / 2 + dir * Math.PI / 2; }
   // free rotation (touch twist); snapRotation() eases to the nearest quarter turn afterwards
   twist(rad) { this.angleTarget += rad; this.angle += rad; }
@@ -1291,9 +1348,11 @@ float cloudShade(vec2 w) { if (uCloud <= 0.0) return 1.0; vec2 p = w * 0.045 - v
     if (this.earthKey !== undefined && this.earthKey !== this.earthStageKey(state)) this.buildEarth(state);
     if (d.all && this.townVis) { for (const g of this.townVis.values()) this.groups.towns.remove(g); this.townVis.clear(); }
     if (d.all || d.towns || d.fog) this.syncTowns(state);
+    if (d.all || d.claims || d.terrain) this.syncClaims(state);
+    if (d.all || d.marks || d.trees) this.syncMarks(state);
     state.dirty = {};
     this.syncFelling(state, dt);
-    this.syncBuildings(state, dt, speed); this.syncVehicles(state, frac, dt); this.syncTrains(state, frac, dt); this.syncUnits(state, frac, dt); this.syncAnimals(state, frac, dt); this.syncWorkers(state, dt); this.updateParticles(dt);
+    this.syncBuildings(state, dt, speed); this.syncVehicles(state, frac, dt); this.syncTrains(state, frac, dt); this.syncUnits(state, frac, dt); this.syncAnimals(state, frac, dt); this.syncWorkers(state, dt); this.syncCanoes(state); this.updateParticles(dt);
     this.waterMat.normalMap.offset.x = this.clock * 0.012; this.waterMat.normalMap.offset.y = this.clock * 0.007;
     // gentle day/night (stays readable); windows and lamps glow at dusk/night
     const hour = (state.tick % HOURS_PER_DAY) + frac, day = 0.5 - 0.5 * Math.cos((hour - 2) / 24 * Math.PI * 2);

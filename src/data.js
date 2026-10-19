@@ -1,5 +1,9 @@
 // Static game data: buildings, techs, eras, block materials. Pure data, no rendering.
-export const SAVE_VERSION = 1;
+// survey claim: a fenced square (radius r) staked out for prospecting; only pits and mines may be built inside it
+export const SURVEY = { r: 6, cost: { money: 15, wood: 12 }, hours: 18 };
+export const SAVE_VERSION = 2; // older saves are not loaded
+// public release: set false to hide the start-era selector and always start in the first era
+export const ALLOW_ERA_SELECT = true;
 export const HOURS_PER_DAY = 24;
 
 export const ERAS = {
@@ -57,7 +61,8 @@ export const BUILDINGS = {
   shaft:      { name: 'Deep Mine', cat: 'Gathering', era: 2, size: 1, cost: { money: 120, wood: 20, stone: 10 }, time: 30, jobs: 5, extract: ['copper', 'tin', 'stone', 'clay'], rate: 8, radius: 3, maxDepth: 30, shaft: true, needs: 'carpentry', weight: 1, upkeep: 1, mat: 'wood' },
   // --- crafts & industry ---
   kiln:       { name: 'Brick Kiln', cat: 'Industry', era: 1, size: 1, cost: { stone: 6, clay: 6, wood: 4 }, time: 12, jobs: 2, recipe: { in: { clay: 2, wood: 1 }, out: { brick: 2 }, perDay: 6 }, weight: 1.5, upkeep: 0, mat: 'daub' },
-  canoe:      { name: 'Canoe Maker', cat: 'Industry', era: 1, size: 1, cost: { wood: 20, stone: 4 }, time: 16, jobs: 2, weight: 0.4, upkeep: 0, mat: 'wood', nearWater: true, enables: 'canoe' },
+  scoutcamp:  { name: 'Scout Camp', cat: 'Services', era: 1, size: 1, cost: { wood: 12, food: 10 }, time: 8, jobs: 1, scouts: 2, weight: 0.3, upkeep: 0, mat: 'hide' },
+  canoe:      { name: 'Canoe Maker', cat: 'Industry', era: 1, size: 1, cost: { wood: 20, stone: 4 }, time: 16, jobs: 2, canoes: 3, weight: 0.4, upkeep: 0, mat: 'wood', nearWater: true, enables: 'canoe' },
   smelter:    { name: 'Smelter', cat: 'Industry', era: 2, size: 1, cost: { money: 100, brick: 15, stone: 10 }, time: 30, jobs: 3, recipe: { in: { copper: 3, tin: 1, wood: 2 }, out: { bronze: 2 }, perDay: 4 }, weight: 2, upkeep: 1, mat: 'brick' },
   carpentry:  { name: 'Carpenter', cat: 'Industry', era: 2, size: 1, cost: { money: 60, wood: 15 }, time: 16, jobs: 2, weight: 0.8, upkeep: 0.5, mat: 'wood' },
   // --- culture & decoration ---
@@ -151,6 +156,45 @@ export const BUILDINGS = {
   stall:      { name: 'Trading Spot', cat: 'Services', era: 1, size: 1, cost: { wood: 6 }, time: 6, jobs: 2, shop: 25, weight: 0.3, upkeep: 0, mat: 'wood' },
   store:      { name: 'General Store', cat: 'Services', era: 2, size: 1, cost: { money: 80, brick: 12, wood: 4 }, time: 24, jobs: 4, shop: 70, weight: 1, upkeep: 1, mat: 'brick' },
   well:       { name: 'Well', cat: 'Services', era: 1, size: 1, cost: { stone: 6 }, time: 6, radius: 5, waterSupply: true, weight: 0.5, upkeep: 0, mat: 'stone' },
+  lodge:      { name: "Builders' Lodge", cat: 'Services', era: 1, size: 1, cost: { wood: 14, stone: 4 }, time: 10, jobs: 2, cleanup: 1, weight: 0.5, upkeep: 0.2, mat: 'wood' },
+  masonsguild:{ name: "Masons' Guild", cat: 'Services', era: 4, size: 1, cost: { blocks: 20, wood: 10, tools: 4 }, time: 30, jobs: 4, cleanup: 2, weight: 1.2, upkeep: 0.6, mat: 'stone' },
+  worksdepot: { name: 'Public Works Depot', cat: 'Services', era: 7, size: 2, cost: { brick: 40, steel: 6, wood: 20 }, time: 40, jobs: 6, cleanup: 3, weight: 1.6, upkeep: 1, mat: 'brick' },
+
+  // ---- milestone I additions (plain names; decorative ones only add happiness / culture) ----
+  dryhut:     { name: 'Drying Hut', cat: 'Food', era: 1, size: 1, cost: { wood: 8 }, time: 6, jobs: 1, foodMult: 0.05, weight: 0.3, upkeep: 0, mat: 'wood' },
+  totem:      { name: 'Carved Post', cat: 'Culture', era: 1, size: 1, cost: { wood: 5 }, time: 4, culture: 0.5, happy: 0.5, weight: 0.1, upkeep: 0, mat: 'wood', decor: true },
+  logbench:   { name: 'Log Bench', cat: 'Culture', era: 1, size: 1, cost: { wood: 3 }, time: 2, happy: 0.4, weight: 0.05, upkeep: 0, mat: 'wood', decor: true, flat: true },
+  roundhouse: { name: 'Roundhouse', cat: 'Housing', era: 2, size: 1, cost: { wood: 14, clay: 6 }, time: 14, cap: 8, weight: 0.8, upkeep: 0.1, mat: 'daub' },
+  beehives:   { name: 'Beehives', cat: 'Food', era: 2, size: 1, cost: { wood: 6, pots: 2 }, time: 6, jobs: 1, foodMult: 0.06, weight: 0.2, upkeep: 0, mat: 'wood' },
+  orchard:    { name: 'Orchard', cat: 'Food', era: 2, size: 2, cost: { wood: 10 }, time: 16, jobs: 2, foodMult: 0.1, happy: 1, weight: 0.3, upkeep: 0, mat: 'wood', flat: true, plant: true },
+  obelisk:    { name: 'Standing Pillar', cat: 'Culture', era: 2, size: 1, cost: { stone: 12 }, time: 10, culture: 1.5, happy: 1, weight: 0.8, upkeep: 0, mat: 'stone', decor: true },
+  tannery:    { name: 'Tannery', cat: 'Industry', era: 3, size: 1, cost: { wood: 12, stone: 6 }, time: 14, jobs: 2, recipe: { in: { wool: 1 }, out: { cloth: 1 }, perDay: 3 }, weight: 0.6, upkeep: 0.2, mat: 'wood' },
+  toolmaker:  { name: 'Toolmaker', cat: 'Industry', era: 3, size: 1, cost: { wood: 10, stone: 8 }, time: 14, jobs: 2, recipe: { in: { iron: 1, wood: 1 }, out: { tools: 2 }, perDay: 3 }, weight: 0.7, upkeep: 0.2, mat: 'stone' },
+  farmstead:  { name: 'Farmstead', cat: 'Housing', era: 3, size: 1, cost: { wood: 16, stone: 10 }, time: 18, cap: 10, foodMult: 0.04, weight: 0.9, upkeep: 0.1, mat: 'stone' },
+  beacon:     { name: 'Beacon', cat: 'Services', era: 3, size: 1, cost: { wood: 10, stone: 8 }, time: 10, happy: 0.5, weight: 0.5, upkeep: 0, mat: 'stone' },
+  herbgarden: { name: 'Herb Garden', cat: 'Culture', era: 3, size: 1, cost: { wood: 4, stone: 2 }, time: 4, happy: 1, weight: 0.05, upkeep: 0, mat: 'wood', decor: true, flat: true, plant: true },
+  stonearch:  { name: 'Stone Arch', cat: 'Culture', era: 3, size: 1, cost: { stone: 16 }, time: 12, culture: 1, happy: 1.5, weight: 0.9, upkeep: 0, mat: 'stone', decor: true },
+  bakery:     { name: 'Bakery', cat: 'Food', era: 4, size: 1, cost: { blocks: 8, wood: 6 }, time: 14, jobs: 2, foodMult: 0.12, weight: 0.8, upkeep: 0.2, mat: 'stone' },
+  warehouse:  { name: 'Warehouse', cat: 'Services', era: 4, size: 2, cost: { blocks: 14, wood: 16 }, time: 20, jobs: 2, store: true, weight: 1, upkeep: 0.3, mat: 'stone' },
+  colonnade:  { name: 'Colonnade', cat: 'Culture', era: 4, size: 1, cost: { blocks: 12 }, time: 12, culture: 1.5, happy: 2, weight: 0.9, upkeep: 0, mat: 'stone', decor: true },
+  plaza:      { name: 'Paved Square', cat: 'Culture', era: 4, size: 2, cost: { blocks: 10 }, time: 10, happy: 2, weight: 0.4, upkeep: 0, mat: 'stone', decor: true, flat: true },
+  watchtower: { name: 'Watchtower', cat: 'Services', era: 5, size: 1, cost: { blocks: 12, wood: 8 }, time: 16, jobs: 1, happy: 0.5, weight: 1.2, upkeep: 0.1, mat: 'stone' },
+  brewery:    { name: 'Brewery', cat: 'Industry', era: 5, size: 1, cost: { wood: 16, blocks: 6 }, time: 18, jobs: 2, recipe: { in: { food: 3 }, out: { wine: 1 }, perDay: 3 }, weight: 0.9, upkeep: 0.2, mat: 'wood' },
+  almshouse:  { name: 'Almshouse', cat: 'Housing', era: 5, size: 1, cost: { blocks: 12, wood: 12 }, time: 22, cap: 12, happy: 1, weight: 1.1, upkeep: 0.3, mat: 'stone' },
+  marketcross:{ name: 'Market Cross', cat: 'Culture', era: 5, size: 1, cost: { blocks: 8 }, time: 8, culture: 1, happy: 1.5, weight: 0.6, upkeep: 0, mat: 'stone', decor: true },
+  dovecote:   { name: 'Dovecote', cat: 'Food', era: 5, size: 1, cost: { blocks: 6, wood: 4 }, time: 10, jobs: 1, foodMult: 0.05, weight: 0.6, upkeep: 0, mat: 'stone' },
+  glassworks: { name: 'Glassworks', cat: 'Industry', era: 6, size: 1, cost: { brick: 16, wood: 10 }, time: 22, jobs: 3, recipe: { in: { charcoal: 1, stone: 1 }, out: { pots: 2 }, perDay: 3 }, weight: 1, upkeep: 0.3, mat: 'brick' },
+  merchanthouse:{ name: "Merchant's House", cat: 'Housing', era: 6, size: 1, cost: { brick: 18, blocks: 8, wood: 8 }, time: 28, cap: 12, happy: 1, weight: 1.4, upkeep: 0.4, mat: 'brick' },
+  formalgarden:{ name: 'Formal Garden', cat: 'Culture', era: 6, size: 2, cost: { blocks: 6, wood: 6 }, time: 12, happy: 3, weight: 0.2, upkeep: 0.1, mat: 'stone', decor: true, flat: true, plant: true },
+  bandstand:  { name: 'Bandstand', cat: 'Culture', era: 6, size: 1, cost: { wood: 12, blocks: 4 }, time: 10, culture: 1, happy: 2, weight: 0.4, upkeep: 0.1, mat: 'wood', decor: true },
+  customhouse:{ name: 'Customs House', cat: 'Services', era: 6, size: 1, cost: { brick: 20, blocks: 10 }, time: 26, jobs: 3, shop: 60, weight: 1.4, upkeep: 0.4, mat: 'brick' },
+  gasworks:   { name: 'Gasworks', cat: 'Industry', era: 7, size: 2, cost: { brick: 30, iron: 10 }, time: 30, jobs: 4, recipe: { in: { coal: 2 }, out: { charcoal: 2 }, perDay: 4 }, weight: 2, upkeep: 0.6, mat: 'brick' },
+  brickworks: { name: 'Brickworks', cat: 'Industry', era: 7, size: 1, cost: { brick: 16, iron: 4 }, time: 22, jobs: 4, recipe: { in: { clay: 2, coal: 1 }, out: { brick: 4 }, perDay: 4 }, weight: 1.4, upkeep: 0.4, mat: 'brick' },
+  tenement:   { name: 'Tenement', cat: 'Housing', era: 7, size: 1, cost: { brick: 36, iron: 4, wood: 6 }, time: 30, cap: 28, weight: 2, upkeep: 0.4, mat: 'brick' },
+  park:       { name: 'Public Park', cat: 'Culture', era: 7, size: 2, cost: { iron: 4, wood: 8 }, time: 12, happy: 3.5, weight: 0.2, upkeep: 0.2, mat: 'wood', decor: true, flat: true, plant: true },
+  waterworks: { name: 'Pumping Station', cat: 'Services', era: 7, size: 1, cost: { brick: 24, iron: 8 }, time: 26, jobs: 2, radius: 10, waterSupply: true, weight: 1.6, upkeep: 0.5, mat: 'brick' },
+  clockpost:  { name: 'Street Clock', cat: 'Culture', era: 7, size: 1, cost: { iron: 4 }, time: 4, happy: 1, culture: 0.5, weight: 0.1, upkeep: 0, mat: 'stone', decor: true },
+  memorial:   { name: 'War Memorial', cat: 'Culture', era: 7, size: 1, cost: { blocks: 14, bronze: 4 }, time: 14, culture: 2, happy: 1, weight: 0.8, upkeep: 0, mat: 'stone', decor: true },
   rescue:     { name: 'Healer', cat: 'Services', era: 1, size: 1, cost: { wood: 12, stone: 2 }, time: 12, jobs: 4, crews: 2, weight: 0.6, upkeep: 0.5, mat: 'wood' },
   custom:     { name: 'Custom Build', cat: 'Custom', era: 1, size: 1, cost: {}, time: 4, weight: 1, upkeep: 0.2, hidden: true },
 };

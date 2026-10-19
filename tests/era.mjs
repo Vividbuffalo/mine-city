@@ -9,8 +9,8 @@ function tryPlace(k) { for (let r = 2; r < 14; r++) for (let dy = -r; dy <= r; d
 const vs = () => s.units.filter(u => u.kind === 'villager');
 for (let d = 1; d <= 60; d++) {
   for (let h = 0; h < 24; h++) {
-    if (pi < plan.length) { const q = afford(s, BUILDINGS[plan[pi]].cost) ? tryPlace(plan[pi]) : null; if (!q && h === 12) { plan.push(plan.splice(pi, 1)[0]); skips++; } if (skips > 200) pi = plan.length; if (q) { pi++; const idle = vs().filter(u => u.vstate === 'idle').map(u => u.id); if (idle.length) { const b = s.buildings[q.id]; c({ type: 'villagerTask', ids: idle.slice(0, 1), x: b.x, y: b.y }); } } }
-    for (const u of vs()) if (u.vstate === 'idle' && !u.path.length) { for (let r = 1; r < 10; r++) { let done = false; for (let dy = -r; dy <= r && !done; dy++) for (let dx = -r; dx <= r && !done; dx++) { const f = S.featureAt(s, u.x + dx, u.y + dy); if (f === (s.res.food < 30 ? 'food' : s.res.stone < 20 ? 'stone' : 'wood')) { c({ type: 'villagerTask', ids: [u.id], x: u.x + dx, y: u.y + dy }); done = true; } } if (done) break; } }
+    if (pi < plan.length) { const q = afford(s, BUILDINGS[plan[pi]].cost) ? tryPlace(plan[pi]) : null; if (!q && h === 12) { plan.push(plan.splice(pi, 1)[0]); skips++; } if (skips > 200) pi = plan.length; if (q) { pi++; const idle = vs().filter(u => u.vstate === 'idle').map(u => u.id); if (idle.length) { const b = s.buildings[q.id]; void ({ type: 'villagerTask', ids: idle.slice(0, 1), x: b.x, y: b.y }); } } }
+    for (const u of vs()) if (u.vstate === 'idle' && !u.path.length) { for (let r = 1; r < 10; r++) { let done = false; for (let dy = -r; dy <= r && !done; dy++) for (let dx = -r; dx <= r && !done; dx++) { const f = S.featureAt(s, u.x + dx, u.y + dy); if (f === (s.res.food < 30 ? 'food' : s.res.stone < 20 ? 'stone' : 'wood')) { void ({ type: 'villagerTask', ids: [u.id], x: u.x + dx, y: u.y + dy }); done = true; } } if (done) break; } }
     S.tick(s);
   }
   if (d % 2 === 0 && s.res.food > 30) c({ type: 'trainVillager' });

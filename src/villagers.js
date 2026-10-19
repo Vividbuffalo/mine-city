@@ -59,7 +59,7 @@ export const VILLAGER_COMMANDS = {
     if (res) { list.forEach((u, i) => { let tx = x, ty = y; if (i) { const alt = findNearby(state, res, x + (i % 2 ? 1 : -1), y + (i > 1 ? 1 : 0), 2); if (alt) [tx, ty] = alt; } if (u.carry && u.carry.res !== res) u.carry = null; u.job = { type: 'gather', res, x: tx, y: ty }; u.info = ''; go(state, u, tx, ty); }); return { ok: true, task: res }; }
     for (const u of list) { u.job = null; u.vstate = 'idle'; go(state, u, x, y); } return { ok: true, task: 'move' };
   },
-  trainVillager(state) {
+  trainVillager(state, opts = {}) {
     const camp = Object.values(state.buildings).find(b => b.kind === 'camp' && b.done && !b.ruin); if (!camp) return { ok: false, err: 'Needs a finished Gathering Camp' };
     const pop = popOf(state), n = villagers(state).length;
     if (n >= maxVillagers(state, pop)) return { ok: false, err: `Villagers: ${n} / ${maxVillagers(state, pop)}` };
@@ -68,7 +68,7 @@ export const VILLAGER_COMMANDS = {
     const home = Object.values(state.buildings).find(b => b.residents > 0); if (!home) return { ok: false, err: 'No free adult to train' };
     for (const k in cost) state.res[k] -= cost[k];
     home.residents--; state.unemployed--;
-    const u = spawnVillager(state, camp.x, camp.y); addLog(state, `A villager was trained at the camp.`); return { ok: true, id: u.id };
+    const u = spawnVillager(state, camp.x, camp.y); if (!opts.quiet) addLog(state, `A villager was trained at the camp.`); return { ok: true, id: u.id };
   },
 };
 function popOf(state) { let p = 0; for (const b of Object.values(state.buildings)) p += b.residents || 0; return p + villagers(state).length; }
@@ -77,7 +77,25 @@ export function spawnVillager(state, x, y) {
   state.units.push(u); state.dirty.units = true; return u;
 }
 
+// villagers run themselves: new building sites get builders (who also haul the materials), otherwise they gather whatever the town is shortest of.
+// The town trains new villagers on its own while there are free adults and food. (Players never command villagers.)
+export const AUTO = { builders: 3, need: { food: 120, wood: 150, stone: 100, clay: 80 }, reach: 14, trainEvery: 12, trainFood: 40 };
+function autoVillagers(state) {
+  if (state.manualVillagers) return; // tests that drive villagers themselves
+  const vs = villagers(state); if (!vs.length && !(state.tick % AUTO.trainEvery === 0)) return;
+  if (state.tick % AUTO.trainEvery === 0 && vs.length < maxVillagers(state, popOf(state)) && (state.res.food || 0) >= AUTO.trainFood && (state.unemployed || 0) >= 1) VILLAGER_COMMANDS.trainVillager(state, { quiet: true });
+  const sites = Object.values(state.buildings).filter(b => !b.done && !b.ruin && !b.dis && b.kind !== 'custom');
+  const onSite = (b) => vs.filter(u => u.job && u.job.type === 'build' && u.job.id === b.id).length;
+  for (const b of sites) { // pull free (or gathering, empty-handed) villagers onto sites that are short of builders
+    let need = AUTO.builders - onSite(b); if (need <= 0) continue;
+    const pool = vs.filter(u => !(u.job && u.job.type === 'build') && !(u.carry && u.carry.n > 0) && !u.fleeing).sort((p, q) => dist(p, b.x, b.y) - dist(q, b.x, b.y));
+    for (const u of pool) { if (need <= 0) break; VILLAGER_COMMANDS.villagerTask(state, { ids: [u.id], x: b.x, y: b.y }); need--; } }
+  const res = state.res, order = Object.keys(AUTO.need).sort((p, q) => (res[p] || 0) / AUTO.need[p] - (res[q] || 0) / AUTO.need[q]);
+  for (const u of vs) { if (u.job || (u.path && u.path.length) || u.fleeing) continue;
+    for (const r of order) { const f = findNearby(state, r, Math.round(u.x), Math.round(u.y), AUTO.reach); if (f) { VILLAGER_COMMANDS.villagerTask(state, { ids: [u.id], x: f[0], y: f[1] }); break; } } }
+}
 export function tickVillagers(state) {
+  autoVillagers(state);
   const bonus = gatherBonus(state);
   for (const u of state.units || []) {
     if (!isVillager(u)) continue;

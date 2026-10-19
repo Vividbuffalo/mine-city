@@ -1,4 +1,4 @@
-# EARTH — Game Design Document (draft v1.8)
+# EARTH — Game Design Document (draft v1.9)
 
 > Formerly "Mine City". Title screen line: "Welcome to Earth. Enjoy the journey."
 
@@ -785,3 +785,20 @@ Recipes can keep a reserve of an input (the Mint leaves 40 bronze for monuments)
   - Some techs need a related building to have been worked or built (Pottery needs a worked Clay Pit; Smelting needs a Kiln built; and so on).
   - The research button pulses and shows a dot while a tech can be started. The panel shows status rows only.
 - **Start era (New game):** Stone through Industrial; the default is Bronze and the last choice is remembered (`localStorage earth.startEra`). `START_ERAS` adds cumulative town lists and era stock; earlier techs are researched. Mines and pits are only placed where there is a deposit, and homes start 80% full.
+
+## Appendix Q — Milestone I as built (game v3.6)
+- **Build menu** stays open while placing; category tabs fixed, only the item list scrolls; full height on desktop, folds (▾) on phone (max 46 vh).
+- **Status panel** top right, one labelled row per stat (icon, name, value, bar, trend); folds on phone; never overlaps the build menu. Building/tile cards moved bottom right.
+- **Villagers are automatic** (villagers.js `AUTO`): builders go to sites first, the rest gather the scarcest resource; new villagers train on their own. No villager orders, no idle-villager button. Only scouts (and their canoes) take orders.
+- **Scouts** are trained only at a **Scout Camp** (button on its card); each camp holds 2. Supplies (96 h) run down away from camp; risk rises with distance and time out; idle scouts walk home after 12 h. Deep water is impassable on foot.
+- **Canoes**: a Canoe Maker builds one every 36 h (max 3), shown bobbing on the river. A scout can board one; canoes wear and can break, and a break in deep water can drown the scout.
+- **Rubble** never clears by itself. Clean Up on the rubble card sends a crew from a **Builders' Lodge** (Stone/Bronze), **Masons' Guild** (Classical) or **Public Works Depot** (Industrial); crews walk cross-country if there is no road. Crew count caps concurrent clean-ups; 16 h of work, small refund, plot rebuildable. With no crew building the button reads "No crew" and is disabled.
+- **Survey claim**: the Survey tool stakes a 13×13 fenced claim (money 15 + wood 12, 18 h). Only pits/mines may be built inside; the claim reveals deposits and can be removed from the tile card.
+- **Underground view**: legend of the deposit kinds the town knows of (unknown stays grey) and a hover/tap label (kind · amount · depth).
+- **Worked ground** turns dark and disturbed with spoil heaps where pits/mines have dug; the mark stays after the pit closes.
+- **Woodcutter**: its card shows the reach outline and Mark trees / Protect trees modes (tap or drag within reach; orange stake = cut first, blue = never cut).
+- **Picking**: building geometry is ray-cast first; a unit wins only within ~10 px of its screen position; repeat clicks on one spot cycle candidates.
+- **Clouds removed** on every quality tier (haze kept).
+- **34 new buildings** (~30%), each with its own model and thumbnail: Drying Hut, Carved Post, Log Bench, Roundhouse, Beehives, Orchard, Standing Pillar, Tannery, Toolmaker, Farmstead, Beacon, Herb Garden, Stone Arch, Bakery, Warehouse, Colonnade, Paved Square, Watchtower, Brewery, Almshouse, Market Cross, Dovecote, Glassworks, Merchant's House, Formal Garden, Bandstand, Customs House, Gasworks, Brickworks, Tenement, Public Park, Pumping Station, Street Clock, War Memorial (+ Builders' Lodge, Masons' Guild, Public Works Depot, Scout Camp).
+- **Saves**: `SAVE_VERSION = 2`; older saves are refused with "Old save not compatible - start new game" (no migration).
+- **Start era** defaults to Stone and is not remembered. `ALLOW_ERA_SELECT` in data.js (true for now) shows the era selector; set it to false for public release to hide it.

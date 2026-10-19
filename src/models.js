@@ -87,6 +87,157 @@ class Kit {
 // ---------- model definitions ----------
 // dims: w,d (footprint), h (wall height), roof type, wall material (for construction stages)
 export const MODELS = {
+
+  // ---- milestone I models ----
+  lodge: { dims: { w: 0.6, d: 0.5, h: 0.24, roof: 'gable', wall: 'wood' }, finished(k) {
+    k.box(0.44, 0.22, 0.32, 'wood', -0.04, 0, -0.06); k.roof(0.44, 0.32, 0.14, 'shingle', 0.22, 'wood', -0.04, -0.06); k.door('front', 0.44, 0.2, 0.1, 0.16, -0.08, 'woodDark');
+    k.logPile(0.22, 0.17, 3, 0.2, 0); for (const x of [-0.24, 0.0]) k.box(0.02, 0.2, 0.02, 'woodDark', x, 0, 0.18); k.box(0.26, 0.02, 0.02, 'woodDark', -0.12, 0.2, 0.18);
+    k.box(0.03, 0.12, 0.03, 'woodLight', -0.2, 0, 0.2, 0.3); k.box(0.1, 0.02, 0.02, 'iron', -0.2, 0.12, 0.2); k.pile(5, 0.05, 'stoneDark', 0.24, -0.16);
+  } },
+  masonsguild: { dims: { w: 0.62, d: 0.56, h: 0.32, roof: 'gable', wall: 'stone' }, finished(k) {
+    k.box(0.48, 0.3, 0.36, 'stone', 0, 0, -0.06); k.roof(0.48, 0.36, 0.16, 'roof', 0.3, 'stone', 0, -0.06); k.door('front', 0.48, 0.24, 0.11, 0.18, 0, 'woodDark'); k.windows('front', 0.48, 0.24, 0.17, 2, 0.07, 0.08);
+    for (let i = 0; i < 3; i++) k.box(0.1, 0.07, 0.1, i % 2 ? 'stoneDark' : 'stone', -0.2 + i * 0.12, 0, 0.22); k.box(0.12, 0.06, 0.08, 'stone', -0.14, 0.07, 0.22);
+    k.box(0.02, 0.3, 0.02, 'woodDark', 0.24, 0, 0.2); k.box(0.12, 0.02, 0.02, 'woodDark', 0.19, 0.3, 0.2); k.box(0.006, 0.12, 0.006, 'black', 0.14, 0.18, 0.2);
+  } },
+  worksdepot: { dims: { w: 1.6, d: 1.4, h: 0.4, roof: 'flat', wall: 'brick' }, finished(k) {
+    k.box(1.0, 0.4, 0.7, 'brick', -0.2, 0, -0.3); k.box(1.04, 0.05, 0.74, 'stoneDark', -0.2, 0.4, -0.3); k.windows('front', 1.0, 0.1, 0.26, 4, 0.1, 0.12, -0.2);
+    for (const x of [-0.5, -0.1]) { k.box(0.26, 0.26, 0.02, 'green', x, 0, 0.06); } k.chimney(0.2, -0.5, 0.4, 0.22, 'brick', false);
+    k.box(0.36, 0.14, 0.2, 'green', 0.42, 0, 0.36); k.box(0.16, 0.12, 0.18, 'green', 0.24, 0, 0.36); for (const x of [0.3, 0.54]) k.cyl(0.05, 0.05, 0.03, 10, 'black', x, 0, 0.47, Math.PI / 2);
+    k.pile(9, 0.12, 'stoneDark', -0.5, 0.45); k.logPile(0.0, 0.48, 3, 0.3, 0); k.fence([[-0.75, 0.65], [0.75, 0.65], [0.75, -0.65]], 0.12);
+  } },
+  scoutcamp: { dims: { w: 0.6, d: 0.6, h: 0.22, roof: 'none', wall: 'hide' }, finished(k) {
+    k.cone(0.16, 0.28, 7, 0xb08a5c, -0.12, 0, -0.1); k.cone(0.13, 0.24, 7, 0x9a7650, 0.16, 0, -0.14); for (const [x, z] of [[-0.12, -0.1], [0.16, -0.14]]) k.box(0.01, 0.06, 0.01, 'woodDark', x, 0.26, z);
+    k.cyl(0.07, 0.08, 0.02, 8, 'stoneDark', 0.02, 0, 0.16); k.box(0.03, 0.03, 0.03, GLOW(0xff8a2a, 1.4), 0.02, 0.02, 0.16); k.emitters.push({ x: 0.02, y: 0.06, z: 0.16, type: 'hut' });
+    k.box(0.02, 0.4, 0.02, 'woodDark', 0.24, 0, 0.18); k.add(new THREE.PlaneGeometry(0.12, 0.08), mat('cloth', { side: THREE.DoubleSide }), 0.3, 0.36, 0.18);
+    for (let i = 0; i < 3; i++) k.box(0.02, 0.18, 0.02, 'woodLight', -0.24 + i * 0.03, 0, 0.18, 0, 0.2 - i * 0.1);
+  } },
+  dryhut: { dims: { w: 0.5, d: 0.5, h: 0.2, roof: 'gable', wall: 'wood' }, finished(k) {
+    for (const [x, z] of [[-0.18, -0.16], [0.18, -0.16], [-0.18, 0.16], [0.18, 0.16]]) k.box(0.025, 0.2, 0.025, 'woodDark', x, 0, z); k.roof(0.4, 0.36, 0.12, 'thatch', 0.2, 'thatch2', 0, 0);
+    for (let i = 0; i < 4; i++) k.box(0.02, 0.1, 0.05, 0xa04a30, -0.12 + i * 0.08, 0.08, 0); k.box(0.38, 0.01, 0.01, 'woodDark', 0, 0.18, 0); k.cyl(0.05, 0.06, 0.02, 8, 'stoneDark', 0, 0, 0.0);
+  } },
+  totem: { dims: { w: 0.3, d: 0.3, h: 0.5, roof: 'none', wall: 'wood' }, finished(k) {
+    k.cyl(0.05, 0.06, 0.5, 8, 'wood', 0, 0, 0); for (let i = 0; i < 3; i++) k.box(0.11, 0.05, 0.11, i % 2 ? 'woodDark' : 0xa04a30, 0, 0.12 + i * 0.13, 0, i * 0.4); k.box(0.24, 0.03, 0.04, 'woodDark', 0, 0.44, 0); k.pile(4, 0.08, 'stone', 0, 0);
+  } },
+  logbench: { dims: { w: 0.4, d: 0.3, h: 0.08, roof: 'none', wall: 'wood' }, finished(k) {
+    k.log(0.34, 0.04, 'wood', 0, 0.06, 0.06); k.log(0.34, 0.04, 'woodDark', 0, 0.06, -0.08); k.cyl(0.04, 0.04, 0.06, 8, 'woodDark', 0.14, 0, -0.01);
+  } },
+  roundhouse: { dims: { w: 0.6, d: 0.6, h: 0.2, roof: 'cone', wall: 'daub' }, finished(k) {
+    k.cyl(0.26, 0.26, 0.18, 14, 0xc9b08a, 0, 0, 0); k.cone(0.34, 0.26, 14, 'thatch', 0, 0.18, 0); k.door('front', 0.52, 0.52, 0.09, 0.14, 0, 'woodDark'); k.emitters.push({ x: 0, y: 0.44, z: 0, type: 'hut' });
+  } },
+  beehives: { dims: { w: 0.5, d: 0.5, h: 0.12, roof: 'none', wall: 'wood' }, finished(k) {
+    for (const [x, z] of [[-0.14, -0.1], [0.04, -0.12], [0.18, 0.04], [-0.1, 0.12]]) { k.box(0.06, 0.04, 0.06, 'woodDark', x, 0, z); k.cyl(0.035, 0.05, 0.07, 9, 0xd9b36a, x, 0.04, z); k.cone(0.04, 0.03, 9, 0xc49a52, x, 0.11, z); }
+    k.fence([[-0.24, -0.24], [0.24, -0.24], [0.24, 0.24]], 0.08);
+  } },
+  orchard: { dims: { w: 1.6, d: 1.6, h: 0.1, roof: 'none', wall: 'wood' }, finished(k) {
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) { const x = -0.48 + i * 0.48, z = -0.48 + j * 0.48; k.cyl(0.02, 0.025, 0.14, 6, 'woodDark', x, 0, z); k.add(new THREE.IcosahedronGeometry(0.13, 0), mat(0x5a8f3a), x, 0.22, z); for (let a = 0; a < 3; a++) k.add(new THREE.SphereGeometry(0.018, 6, 4), mat(0xc0392b), x + Math.cos(a * 2.1) * 0.1, 0.2, z + Math.sin(a * 2.1) * 0.1); }
+    k.fence([[-0.75, -0.75], [0.75, -0.75], [0.75, 0.75], [-0.75, 0.75], [-0.75, -0.75]], 0.1);
+  } },
+  obelisk: { dims: { w: 0.3, d: 0.3, h: 0.6, roof: 'none', wall: 'stone' }, finished(k) {
+    k.box(0.2, 0.05, 0.2, 'stoneDark', 0, 0, 0); k.box(0.1, 0.5, 0.1, 'stone', 0, 0.05, 0); k.cone(0.075, 0.08, 4, 'stone', 0, 0.55, 0, Math.PI / 4);
+  } },
+  tannery: { dims: { w: 0.6, d: 0.5, h: 0.22, roof: 'gable', wall: 'wood' }, finished(k) {
+    k.box(0.36, 0.22, 0.28, 'wood', -0.1, 0, -0.08); k.roof(0.36, 0.28, 0.12, 'shingle', 0.22, 'wood', -0.1, -0.08); k.door('front', 0.36, 0.2, 0.09, 0.15, -0.1, 'woodDark');
+    for (const [x, z] of [[0.18, 0.0], [0.18, 0.16], [0.02, 0.18]]) { k.cyl(0.06, 0.06, 0.06, 10, 'woodDark', x, 0, z); k.cyl(0.05, 0.05, 0.005, 10, 0x6b4a2a, x, 0.058, z); }
+    for (let i = 0; i < 2; i++) k.box(0.1, 0.12, 0.005, 0xb08a5c, 0.2, 0.08, -0.14 + i * 0.06);
+  } },
+  toolmaker: { dims: { w: 0.56, d: 0.5, h: 0.24, roof: 'gable', wall: 'stone' }, finished(k) {
+    k.box(0.4, 0.24, 0.3, 'stone', -0.04, 0, -0.08); k.roof(0.4, 0.3, 0.13, 'shingle', 0.24, 'stone', -0.04, -0.08); k.door('front', 0.4, 0.22, 0.09, 0.15, 0.06, 'woodDark'); k.chimney(-0.16, -0.12, 0.24, 0.14, 'stoneDark');
+    k.box(0.12, 0.02, 0.08, 'woodLight', -0.12, 0.08, 0.16); for (const x of [-0.17, -0.07]) k.box(0.015, 0.08, 0.015, 'woodDark', x, 0, 0.16); k.box(0.06, 0.05, 0.04, 'iron', 0.18, 0, 0.16); k.box(0.04, 0.01, 0.12, 'iron', -0.12, 0.1, 0.16);
+  } },
+  farmstead: { dims: { w: 0.6, d: 0.56, h: 0.26, roof: 'gable', wall: 'stone' }, finished(k) {
+    k.box(0.4, 0.24, 0.26, 'stone', -0.06, 0, -0.1); k.roof(0.4, 0.26, 0.14, 'thatch', 0.24, 'stone', -0.06, -0.1); k.door('front', 0.4, 0.16, 0.09, 0.15, -0.1, 'woodDark'); k.windows('front', 0.4, 0.16, 0.15, 1, 0.07, 0.07, 0.06); k.chimney(0.08, -0.16, 0.24, 0.12, 'stoneDark');
+    k.box(0.2, 0.14, 0.14, 'wood', 0.18, 0, 0.14); k.gable(0.2, 0.14, 0.07, 'thatch2', 0.18, 0.14, 0.14); k.fence([[-0.28, 0.26], [0.06, 0.26]], 0.08); k.pile(3, 0.04, 0xd9b36a, -0.2, 0.18);
+  } },
+  beacon: { dims: { w: 0.4, d: 0.4, h: 0.5, roof: 'none', wall: 'stone' }, finished(k) {
+    k.cyl(0.12, 0.15, 0.36, 9, 'stone', 0, 0, 0); k.cyl(0.14, 0.12, 0.05, 9, 'stoneDark', 0, 0.36, 0); k.logPile(0, 0, 2, 0.12, 0.6); k.box(0.12, 0.06, 0.12, GLOW(0xff7a1a, 2), 0, 0.41, 0); k.emitters.push({ x: 0, y: 0.5, z: 0, type: 'chimney' });
+  } },
+  herbgarden: { dims: { w: 0.5, d: 0.5, h: 0.05, roof: 'none', wall: 'wood' }, finished(k) {
+    for (let i = 0; i < 3; i++) { const z = -0.14 + i * 0.14; k.box(0.38, 0.04, 0.1, 'soil', 0, 0, z); for (let j = 0; j < 5; j++) k.add(new THREE.IcosahedronGeometry(0.025, 0), mat([0x6f9b4a, 0x8aa86b, 0x9b7fb8][i]), -0.15 + j * 0.075, 0.06, z); }
+    k.box(0.42, 0.03, 0.02, 'stone', 0, 0, 0.23); k.box(0.42, 0.03, 0.02, 'stone', 0, 0, -0.23);
+  } },
+  stonearch: { dims: { w: 0.5, d: 0.3, h: 0.45, roof: 'none', wall: 'stone' }, finished(k) {
+    for (const x of [-0.16, 0.16]) k.box(0.09, 0.34, 0.12, 'stone', x, 0, 0); k.add(new THREE.TorusGeometry(0.16, 0.045, 6, 10, Math.PI), mat('stone'), 0, 0.34, 0); k.box(0.44, 0.05, 0.13, 'stoneDark', 0, 0.48, 0);
+  } },
+  bakery: { dims: { w: 0.56, d: 0.5, h: 0.28, roof: 'gable', wall: 'stone' }, finished(k) {
+    k.box(0.4, 0.26, 0.3, 'plaster', -0.04, 0, -0.08); k.roof(0.4, 0.3, 0.14, 'roof', 0.26, 'plaster', -0.04, -0.08); k.door('front', 0.4, 0.22, 0.1, 0.16, -0.08, 'woodDark'); k.windows('front', 0.4, 0.22, 0.15, 1, 0.08, 0.08, 0.08);
+    k.cyl(0.08, 0.1, 0.1, 10, 'brick', 0.2, 0, 0.14); k.add(new THREE.SphereGeometry(0.09, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), mat('brick'), 0.2, 0.1, 0.14); k.box(0.04, 0.04, 0.02, GLOW(0xff8a2a, 1.6), 0.2, 0.03, 0.23); k.chimney(-0.14, -0.14, 0.26, 0.12);
+  } },
+  warehouse: { dims: { w: 1.5, d: 1.3, h: 0.4, roof: 'gable', wall: 'stone' }, finished(k) {
+    k.box(1.1, 0.38, 0.76, 'stone', 0, 0, -0.1); k.roof(1.1, 0.76, 0.22, 'roof', 0.38, 'stone', 0, -0.1); for (const x of [-0.3, 0.3]) k.box(0.22, 0.26, 0.02, 'woodDark', x, 0, 0.29);
+    for (let i = 0; i < 3; i++) k.box(0.1, 0.1, 0.1, i % 2 ? 'wood' : 'woodLight', -0.5 + i * 0.12, 0, 0.45); k.cyl(0.05, 0.05, 0.12, 9, 'woodDark', 0.5, 0, 0.45); k.cyl(0.05, 0.05, 0.12, 9, 'wood', 0.38, 0, 0.47);
+  } },
+  colonnade: { dims: { w: 0.6, d: 0.3, h: 0.4, roof: 'none', wall: 'stone' }, finished(k) {
+    k.box(0.56, 0.04, 0.22, 'stoneDark', 0, 0, 0); for (let i = 0; i < 4; i++) k.cyl(0.03, 0.035, 0.32, 10, 'white', -0.21 + i * 0.14, 0.04, 0); k.box(0.56, 0.05, 0.2, 'white', 0, 0.36, 0);
+  } },
+  plaza: { dims: { w: 1.6, d: 1.6, h: 0.04, roof: 'none', wall: 'stone' }, finished(k) {
+    for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) k.box(0.37, 0.025, 0.37, (i + j) % 2 ? 'stone' : 'quoin', -0.57 + i * 0.38, 0, -0.57 + j * 0.38);
+    k.cyl(0.08, 0.1, 0.06, 10, 'stoneDark', 0, 0.025, 0); k.cyl(0.03, 0.03, 0.18, 8, 'stone', 0, 0.08, 0); for (const [x, z] of [[-0.6, -0.6], [0.6, 0.6]]) { k.box(0.16, 0.03, 0.05, 'wood', x, 0.06, z); }
+  } },
+  watchtower: { dims: { w: 0.4, d: 0.4, h: 0.7, roof: 'cone', wall: 'stone' }, finished(k) {
+    k.box(0.24, 0.6, 0.24, 'stone', 0, 0, 0); for (const [x, z] of [[-0.1, -0.1], [0.1, -0.1], [-0.1, 0.1], [0.1, 0.1]]) k.box(0.06, 0.06, 0.06, 'stoneDark', x, 0.6, z); k.windows('front', 0.24, 0.24, 0.42, 1, 0.04, 0.08); k.door('front', 0.24, 0.24, 0.08, 0.14);
+  } },
+  brewery: { dims: { w: 0.6, d: 0.5, h: 0.3, roof: 'gable', wall: 'wood' }, finished(k) {
+    k.box(0.42, 0.28, 0.3, 'wood', -0.06, 0, -0.08); k.roof(0.42, 0.3, 0.14, 'shingle', 0.28, 'wood', -0.06, -0.08); k.door('front', 0.42, 0.22, 0.12, 0.17, -0.1, 'woodDark'); k.chimney(0.08, -0.14, 0.28, 0.14, 'brick');
+    for (let i = 0; i < 3; i++) k.cyl(0.045, 0.045, 0.1, 10, i % 2 ? 'woodDark' : 'wood', 0.2, 0, -0.1 + i * 0.11, Math.PI / 2);
+  } },
+  almshouse: { dims: { w: 0.62, d: 0.5, h: 0.26, roof: 'gable', wall: 'stone' }, finished(k) {
+    k.box(0.52, 0.24, 0.28, 'stone', 0, 0, -0.06); k.roof(0.52, 0.28, 0.13, 'roof2', 0.24, 'stone', 0, -0.06); for (const x of [-0.17, 0.0, 0.17]) { k.door('front', 0.52, 0.16, 0.07, 0.13, x, 'woodDark'); } k.windows('front', 0.52, 0.16, 0.17, 3, 0.05, 0.05);
+    for (const x of [-0.18, 0.18]) k.chimney(x, -0.1, 0.24, 0.1, 'stoneDark'); k.box(0.04, 0.06, 0.02, 'stone', 0, 0.32, 0.08);
+  } },
+  marketcross: { dims: { w: 0.3, d: 0.3, h: 0.5, roof: 'none', wall: 'stone' }, finished(k) {
+    for (let i = 0; i < 3; i++) k.box(0.26 - i * 0.06, 0.04, 0.26 - i * 0.06, 'stone', 0, i * 0.04, 0); k.box(0.05, 0.34, 0.05, 'stoneDark', 0, 0.12, 0); k.box(0.16, 0.04, 0.04, 'stoneDark', 0, 0.36, 0);
+  } },
+  dovecote: { dims: { w: 0.4, d: 0.4, h: 0.35, roof: 'cone', wall: 'stone' }, finished(k) {
+    k.cyl(0.13, 0.14, 0.3, 12, 'plaster', 0, 0, 0); k.cone(0.17, 0.14, 12, 'roof', 0, 0.3, 0); for (let i = 0; i < 6; i++) { const a = i * 1.05; k.box(0.02, 0.025, 0.01, 'black', Math.sin(a) * 0.135, 0.2 + (i % 2) * 0.05, Math.cos(a) * 0.135, a); }
+    k.cyl(0.02, 0.02, 0.06, 6, 'woodDark', 0, 0.44, 0);
+  } },
+  glassworks: { dims: { w: 0.6, d: 0.56, h: 0.3, roof: 'cone', wall: 'brick' }, finished(k) {
+    k.box(0.36, 0.24, 0.3, 'brick', 0.1, 0, -0.06); k.roof(0.36, 0.3, 0.12, 'roof', 0.24, 'brick', 0.1, -0.06); k.cyl(0.1, 0.16, 0.4, 10, 'brickDark', -0.16, 0, 0.0); k.box(0.05, 0.04, 0.02, GLOW(0xffb04a, 2), -0.16, 0.04, 0.15); k.emitters.push({ x: -0.16, y: 0.42, z: 0, type: 'chimney' });
+    for (let i = 0; i < 3; i++) k.cyl(0.015, 0.02, 0.05, 8, mat(0x8fd1c7, { transparent: true, opacity: 0.7 }), 0.12 + i * 0.05, 0, 0.18);
+  } },
+  merchanthouse: { dims: { w: 0.56, d: 0.5, h: 0.42, roof: 'gable', wall: 'brick' }, finished(k) {
+    k.box(0.4, 0.4, 0.34, 'plaster', 0, 0, -0.04); k.box(0.42, 0.04, 0.36, 'woodDark', 0, 0.2, -0.04); k.roof(0.4, 0.34, 0.18, 'roof', 0.4, 'plaster', 0, -0.04); k.windows('front', 0.4, 0.3, 0.3, 3, 0.07, 0.1); k.windows('front', 0.4, 0.3, 0.12, 2, 0.08, 0.09, 0.08); k.door('front', 0.4, 0.3, 0.09, 0.16, -0.12); k.chimney(0.14, -0.1, 0.4, 0.12);
+  } },
+  formalgarden: { dims: { w: 1.6, d: 1.6, h: 0.05, roof: 'none', wall: 'stone' }, finished(k) {
+    k.box(1.4, 0.01, 0.12, 'quoin', 0, 0, 0); k.box(0.12, 0.01, 1.4, 'quoin', 0, 0, 0);
+    for (const [x, z] of [[-0.38, -0.38], [0.38, -0.38], [-0.38, 0.38], [0.38, 0.38]]) { k.box(0.5, 0.06, 0.5, 0x3f7a3a, x, 0, z); k.box(0.4, 0.065, 0.4, 0x5d9b4a, x, 0, z); k.cone(0.05, 0.22, 8, 0x2f6a33, x, 0.06, z); }
+    k.cyl(0.1, 0.12, 0.06, 12, 'stone', 0, 0, 0); k.cyl(0.02, 0.03, 0.14, 8, 'stone', 0, 0.06, 0);
+  } },
+  bandstand: { dims: { w: 0.5, d: 0.5, h: 0.3, roof: 'cone', wall: 'wood' }, finished(k) {
+    k.cyl(0.22, 0.23, 0.06, 8, 'stone', 0, 0, 0); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; k.box(0.015, 0.22, 0.015, 'white', Math.cos(a) * 0.19, 0.06, Math.sin(a) * 0.19); } k.cone(0.26, 0.12, 8, 'green', 0, 0.28, 0);
+  } },
+  customhouse: { dims: { w: 0.6, d: 0.5, h: 0.4, roof: 'flat', wall: 'brick' }, finished(k) {
+    k.box(0.5, 0.36, 0.34, 'brick', 0, 0, -0.06); k.box(0.54, 0.05, 0.38, 'quoin', 0, 0.36, -0.06); k.box(0.18, 0.08, 0.06, 'quoin', 0, 0.41, 0.1); k.windows('front', 0.5, 0.22, 0.26, 4, 0.06, 0.08); k.windows('front', 0.5, 0.22, 0.1, 2, 0.07, 0.08, 0); k.door('front', 0.5, 0.22, 0.09, 0.16);
+    k.box(0.01, 0.2, 0.01, 'black', 0.2, 0.41, 0.0); k.add(new THREE.PlaneGeometry(0.08, 0.05), mat('cloth', { side: THREE.DoubleSide }), 0.245, 0.58, 0.0);
+  } },
+  gasworks: { dims: { w: 1.6, d: 1.6, h: 0.4, roof: 'flat', wall: 'brick' }, finished(k) {
+    k.cyl(0.36, 0.36, 0.34, 18, 0x6b7a6e, -0.28, 0, -0.2); k.cyl(0.37, 0.37, 0.02, 18, 'iron', -0.28, 0.34, -0.2); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; k.box(0.025, 0.42, 0.025, 'iron', -0.28 + Math.cos(a) * 0.38, 0, -0.2 + Math.sin(a) * 0.38); }
+    k.box(0.5, 0.26, 0.34, 'brick', 0.4, 0, 0.36); k.roof(0.5, 0.34, 0.1, 'stoneDark', 0.26, 'brick', 0.4, 0.36); k.chimney(0.56, 0.24, 0.26, 0.4, 'brickDark'); k.pile(8, 0.12, 'charcoal', -0.5, 0.5);
+  } },
+  brickworks: { dims: { w: 0.6, d: 0.56, h: 0.3, roof: 'flat', wall: 'brick' }, finished(k) {
+    k.box(0.36, 0.2, 0.3, 'brickDark', -0.08, 0, -0.1); k.box(0.38, 0.03, 0.32, 'stoneDark', -0.08, 0.2, -0.1); k.chimney(0.2, -0.16, 0, 0.58, 'brick'); k.box(0.05, 0.04, 0.02, GLOW(0xff7a1a, 1.6), -0.08, 0.04, 0.06);
+    k.bricks(0.12, 0.18, 3); k.bricks(-0.12, 0.2, 2);
+  } },
+  tenement: { dims: { w: 0.56, d: 0.56, h: 0.7, roof: 'flat', wall: 'brick' }, finished(k) {
+    k.box(0.46, 0.66, 0.42, 'brickDark', 0, 0, 0); k.box(0.48, 0.04, 0.44, 'stoneDark', 0, 0.66, 0); for (let f = 0; f < 4; f++) k.windows('front', 0.46, 0.42, 0.14 + f * 0.15, 3, 0.06, 0.08);
+    k.door('front', 0.46, 0.42, 0.08, 0.12); for (const x of [-0.14, 0.14]) k.chimney(x, -0.12, 0.66, 0.1, 'brick'); for (let f = 1; f < 4; f++) k.box(0.2, 0.01, 0.04, 'iron', 0.1, 0.06 + f * 0.15, 0.23);
+  } },
+  park: { dims: { w: 1.6, d: 1.6, h: 0.05, roof: 'none', wall: 'wood' }, finished(k) {
+    k.add(new THREE.TorusGeometry(0.42, 0.04, 4, 24), mat('quoin'), 0, 0.01, 0, Math.PI / 2); for (const [x, z, s] of [[-0.55, -0.5, 1], [0.55, -0.45, 0.8], [-0.5, 0.55, 0.9], [0.6, 0.55, 1.1]]) { k.cyl(0.025, 0.03, 0.18 * s, 6, 'woodDark', x, 0, z); k.add(new THREE.IcosahedronGeometry(0.16 * s, 1), mat(0x4f8a3c), x, 0.28 * s, z); }
+    k.cyl(0.12, 0.12, 0.02, 14, 'water', 0, 0, 0); for (const [x, z, r] of [[0.0, 0.5, 0], [0.0, -0.5, 0]]) { k.box(0.16, 0.03, 0.05, 'wood', x, 0.05, z, r); k.box(0.02, 0.05, 0.05, 'iron', x - 0.07, 0, z); k.box(0.02, 0.05, 0.05, 'iron', x + 0.07, 0, z); }
+    k.box(0.02, 0.24, 0.02, 'black', 0.3, 0, 0.3); k.box(0.05, 0.05, 0.05, GLOW(0xffd27a, 1), 0.3, 0.24, 0.3);
+  } },
+  waterworks: { dims: { w: 0.56, d: 0.5, h: 0.36, roof: 'gable', wall: 'brick' }, finished(k) {
+    k.box(0.4, 0.32, 0.3, 'brick', -0.04, 0, -0.06); k.roof(0.4, 0.3, 0.14, 'stoneDark', 0.32, 'brick', -0.04, -0.06); k.windows('front', 0.4, 0.24, 0.2, 2, 0.06, 0.12, -0.04); k.door('front', 0.4, 0.24, 0.08, 0.15, -0.04);
+    k.chimney(0.22, -0.14, 0, 0.62, 'brickDark'); k.cyl(0.03, 0.03, 0.2, 8, 'iron', 0.2, 0.06, 0.16, 0, Math.PI / 2); k.cyl(0.06, 0.06, 0.1, 10, 'iron', 0.2, 0, 0.16);
+  } },
+  clockpost: { dims: { w: 0.2, d: 0.2, h: 0.5, roof: 'none', wall: 'stone' }, finished(k) {
+    k.cyl(0.04, 0.05, 0.03, 8, 'iron', 0, 0, 0); k.cyl(0.015, 0.02, 0.4, 8, 'green', 0, 0.03, 0); k.cyl(0.06, 0.06, 0.03, 14, 'green', 0, 0.48, 0, Math.PI / 2); k.cyl(0.05, 0.05, 0.032, 14, 'white', 0, 0.48, 0, Math.PI / 2);
+  } },
+  memorial: { dims: { w: 0.4, d: 0.4, h: 0.5, roof: 'none', wall: 'stone' }, finished(k) {
+    k.box(0.32, 0.05, 0.32, 'stoneDark', 0, 0, 0); k.box(0.22, 0.12, 0.22, 'stone', 0, 0.05, 0); k.box(0.1, 0.3, 0.1, 'stone', 0, 0.17, 0); k.box(0.03, 0.12, 0.012, 'bronze', 0, 0.3, 0.056); k.box(0.08, 0.03, 0.012, 'bronze', 0, 0.38, 0.056);
+    for (const [x, z] of [[-0.14, 0.16], [0.14, 0.16]]) k.add(new THREE.IcosahedronGeometry(0.03, 0), mat(0xc0392b), x, 0.07, z);
+  } },
   // ---------- Stone & Clay era (poles, hides, bark, wattle, daub, bone, stone; no planks, no metal) ----------
   leanto: { dims: { w: 0.5, d: 0.4, h: 0.2, roof: 'none', wall: 'wood' }, finished(k) {
     for (let i = 0; i < 6; i++) k.add(new THREE.CylinderGeometry(0.012, 0.014, 0.42, 5), mat(i % 2 ? 'wood' : 'woodDark'), -0.2 + i * 0.08, 0.15, -0.02, -0.75, 0, 0);

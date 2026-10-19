@@ -151,7 +151,7 @@ kbd{display:inline-block;border:1px solid var(--line);border-bottom-width:2px;bo
 #st-goal{margin-top:4px;color:var(--sub);font-size:10.5px;line-height:1.3}
 #st-goal .ok{color:#1f8a4c}
 #status.collapsed #st-bars,#status.collapsed #st-goal{display:none}
-body.bm-open #status{display:none}
+
 #btn-idle{position:fixed;left:calc(var(--tb) + 26px);bottom:14px;z-index:4;border-radius:12px;padding:6px 11px;font-weight:600;background:var(--panel);box-shadow:var(--shadow)}
 /* floating progress bars over buildings */
 #pbars{position:fixed;inset:0;pointer-events:none;z-index:2;overflow:hidden}
@@ -187,3 +187,34 @@ body.intitle #status,body.intitle #btn-idle,body.intitle #pbars{display:none!imp
 .tech.ready{outline:2px solid #f2c14e;border-radius:6px}
 .tech .chk{display:flex;flex-wrap:wrap;gap:2px 8px;font-size:11px;margin-top:2px}
 .tech .chk .no{color:#a0522d}
+
+/* build menu: full height, header and category tabs stay put, only the item list scrolls; foldable */
+#buildmenu{display:flex;flex-direction:column;overflow:hidden;bottom:14px;max-height:none}
+#buildmenu.hidden{display:none}
+#buildmenu .sh-head,#bm-cats{flex:none}
+#bm-items{flex:1 1 auto;overflow-y:auto;min-height:0;align-content:start;padding-right:2px}
+#buildmenu.folded #bm-cats,#buildmenu.folded #bm-items{display:none}
+#buildmenu.folded{bottom:auto}
+#bm-fold{margin-left:auto}
+@media (max-width: 720px) and (orientation: portrait) { #buildmenu{bottom:calc(60px + var(--safe-b));max-height:46vh} #buildmenu.folded{max-height:none} }
+
+/* status panel: top right, one row per stat (icon, name, bar, value, 15 s change), all rows visible; info card sits below it */
+#status{left:auto;right:8px;top:54px;width:262px;max-height:calc(100vh - 70px);overflow:auto}
+#st-bars{grid-template-columns:1fr;gap:3px}
+.sb{grid-template-columns:16px 66px 1fr 54px 30px}
+.sb .nm{font-size:11px;color:var(--ink);white-space:nowrap}
+.sb b{text-align:right}
+#info{top:auto;bottom:14px;right:8px}
+body.st-tall #info{max-height:calc(100vh - 440px)}
+@media (max-width: 720px) and (orientation: portrait) {
+  #status{left:auto;right:6px;top:46px;width:min(250px,64vw)}
+  .sb{grid-template-columns:14px 58px 1fr 46px 26px}
+  #info{bottom:calc(60px + var(--safe-b))}
+}
+@media (max-height: 520px) and (orientation: landscape) { #status{left:auto;right:6px;top:40px;width:240px} }
+
+/* underground: deposit legend and hover/tap label (known deposits only) */
+#ulegend{position:fixed;left:calc(var(--tb) + 26px);bottom:14px;z-index:5;display:flex;flex-wrap:wrap;gap:4px 10px;max-width:420px;padding:6px 10px;border-radius:10px;background:rgba(20,18,16,.78);color:#eee;font-size:11px;pointer-events:none}
+#ulegend span{display:flex;align-items:center;gap:4px}#ulegend i{width:11px;height:11px;border-radius:3px;display:inline-block;border:1px solid rgba(255,255,255,.4)}
+#utip{position:fixed;z-index:40;padding:3px 7px;border-radius:6px;background:rgba(20,18,16,.85);color:#fff;font-size:11px;pointer-events:none;white-space:nowrap}
+@media (max-width: 720px) and (orientation: portrait) { #ulegend{left:6px;right:6px;bottom:calc(66px + var(--safe-b))} }

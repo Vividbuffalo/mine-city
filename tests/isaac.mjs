@@ -2,6 +2,7 @@
 // Run: node tests/isaac.mjs   (from the repo root, with ../game/src next to it)
 import * as S from '../src/sim.js';
 const s = S.newGame({ seed: 42 }), c = (x) => S.applyCommand(s, x), { x, y } = s.start;
+s.manualVillagers = true; // this test drives villagers itself
 const placed = [];
 // Isaac's case: woodcutter next to trees + many huts, no roads at all
 let wc = null; for (let r = 2; r < 10 && !wc; r++) for (let dy = -r; dy <= r && !wc; dy++) for (let dx = -r; dx <= r; dx++) { if (S.checkPlacement(s, 'woodcutter', x + dx, y + dy)) continue; let n = 0; for (let a = -3; a <= 3; a++) for (let b = -3; b <= 3; b++) { const t = S.tile(s, x + dx + a, y + dy + b); if (t) n += t.trees; } if (n > 20) { wc = c({ type: 'place', kind: 'woodcutter', x: x + dx, y: y + dy }); break; } }

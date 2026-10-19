@@ -4,7 +4,8 @@
 // dismantle / plant tools, era-gated survey + underground view, box unit selection, controls legend.
 import { Renderer, QUALITY } from './render.js';
 import * as S from './sim.js';
-import { BUILDINGS, CATEGORIES, TECHS, ERAS, CUSTOM_FUNCS, DEPOSITS, techCost, techHours, SAPLING, DISMANTLE, GATHER, VILLAGER, ERA3_NOTE } from './data.js';
+import { SCOUT } from './units.js';
+import { ALLOW_ERA_SELECT, BUILDINGS, CATEGORIES, TECHS, ERAS, CUSTOM_FUNCS, DEPOSITS, techCost, techHours, SAPLING, DISMANTLE, GATHER, VILLAGER, ERA3_NOTE } from './data.js';
 
 const $ = (id) => document.getElementById(id);
 const SPEEDS = [0, 1, 2, 5, 10, 25, 50];
@@ -55,12 +56,13 @@ function closeSheets(except) {
   if (except !== 'legend') setLegend(false, false);
   if (except !== 'menu') $('menu').classList.add('hidden');
 }
-const closeInfo = () => { ui.sel = null; ui.selTile = null; ui.unitCard = false; ui.popCard = false; $('info').classList.add('hidden'); };
+const closeInfo = () => { if (ui.tool !== 'marktrees') renderer.setReach(null); ui.sel = null; ui.selTile = null; ui.unitCard = false; ui.popCard = false; $('info').classList.add('hidden'); };
 const closePanel = () => { ui.panel = null; $('panel').classList.add('hidden'); };
 
 // ---------- tools ----------
 function setTool(t) {
   if (t === 'bulldoze') t = 'dismantle';
+  if (t !== 'marktrees' && ui.tool === 'marktrees') { ui.markB = null; renderer.setReach(null); }
   ui.tool = t; if (t !== 'build') { ui.kind = null; $('placing').classList.add('hidden'); }
   ui.roadA = null;
   document.querySelectorAll('#toolbar button[data-tool]').forEach(b => b.classList.toggle('on', b.dataset.tool === t));
@@ -73,7 +75,19 @@ function setTool(t) {
 function disarm() { if (ui.tool !== 'select') setTool('select'); }
 document.querySelectorAll('#toolbar button[data-tool]').forEach(b => b.onclick = () => { if (b.dataset.tool === ui.tool && ui.tool !== 'select') { disarm(); $('buildmenu').classList.add('hidden'); } else setTool(b.dataset.tool); });
 $('btn-under').onclick = () => toggleUnder();
-function toggleUnder(on = !ui.under) { if (on && !unlocked.under()) return toast('Underground view unlocks in the Bronze era', true); ui.under = on; renderer.setUnderground(on); $('btn-under').classList.toggle('on', on); }
+function toggleUnder(on = !ui.under) { if (on && !unlocked.under()) return toast('Underground view unlocks in the Bronze era', true); ui.under = on; renderer.setUnderground(on); $('btn-under').classList.toggle('on', on); renderUnderLegend(); if (!on) $('utip').classList.add('hidden'); }
+// underground legend: colour swatches for deposit kinds the town actually knows about (surveyed or visible); unknown ground stays grey and unlabelled
+function renderUnderLegend() {
+  const el = $('ulegend'); if (!ui.under) { el.classList.add('hidden'); return; }
+  const known = new Set(), N = state.world.size || 64; for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const t = S.tile(state, x, y); if (t && t.dep && t.dep.amt > 0 && S.knownDeposit(t)) known.add(t.dep.r); }
+  el.innerHTML = [...known].map(k => `<span><i style="background:#${DEPOSITS[k].color.toString(16).padStart(6, '0')}"></i>${DEPOSITS[k].name}</span>`).join('') + '<span><i style="background:#6b6560"></i>Unknown</span>';
+  el.classList.remove('hidden');
+}
+function underTip(cx, cy) {
+  const el = $('utip'); if (!ui.under) return el.classList.add('hidden'); const p = renderer.pick(cx, cy), t = p && S.tile(state, p.x, p.y);
+  if (!t || !t.dep || !S.knownDeposit(t)) return el.classList.add('hidden');
+  el.textContent = `${DEPOSITS[t.dep.r].name} · ${t.dep.amt} · ${t.dep.depth} m`; el.style.left = (cx + 14) + 'px'; el.style.top = (cy + 10) + 'px'; el.classList.remove('hidden');
+}
 function setUnits(ids) { ui.units = ids.filter(id => (state.units || []).some(u => u.id === id)); renderer.selUnits = new Set(ui.units); renderer.selUnit = ui.units[0] ?? null; }
 
 // long-press on toolbar buttons shows the full tooltip
@@ -125,11 +139,12 @@ function bdetail(k) {
 }
 // armed build tool: the sheet collapses to a small chip so the map stays usable
 function showPlacing() {
-  $('buildmenu').classList.add('hidden'); const d = BUILDINGS[ui.kind];
+  const d = BUILDINGS[ui.kind]; if (!$('buildmenu').classList.contains('hidden')) renderBuildMenu(); // the menu stays open: keep placing or pick another
   $('pl-img').src = thumb(ui.kind); $('pl-name').textContent = `${d.name} · ${S.costStr(d.cost)}`; $('pl-name').title = bdetail(ui.kind);
   $('placing').classList.remove('hidden');
 }
 $('pl-x').onclick = () => disarm();
+$('bm-fold').onclick = () => { $('buildmenu').classList.toggle('folded'); $('bm-fold').textContent = $('buildmenu').classList.contains('folded') ? '▴' : '▾'; };
 $('pl-rot').onclick = () => { ui.rot = (ui.rot + 1) % 4; updateGhost(); };
 $('pl-menu').onclick = () => { $('placing').classList.add('hidden'); ui.kind = null; closeSheets('build'); $('buildmenu').classList.remove('hidden'); renderBuildMenu(); };
 $('bm-close').onclick = () => { $('buildmenu').classList.add('hidden'); if (!ui.kind) setTool('select'); };
@@ -159,12 +174,13 @@ cv.addEventListener('pointerdown', e => {
   if (mouse && (e.button === 2 || e.button === 1)) { gesture = { kind: 'pan', right: e.button === 2 }; return; }
   gesture = { kind: 'pending', mouse };
   // touch: hold still ~0.45 s, then drag = box select
+  if (!mouse && ui.tool === 'marktrees') { gesture.kind = 'paint'; gesture.last = null; paintAt(e.clientX, e.clientY, true); }
   if (!mouse && ui.tool === 'select') gesture.lp = setTimeout(() => { if (gesture && gesture.kind === 'pending') { gesture.kind = 'box'; if (navigator.vibrate) navigator.vibrate(15); } }, 450);
   // mouse painting tools act immediately on press
   if (mouse && e.button === 0 && ui.tool === 'road' && !unitClick(e.clientX, e.clientY)) { const q = renderer.pick(e.clientX, e.clientY); if (q) { gesture.kind = 'road'; ui.roadPath = [[q.x, q.y]]; roadPreview(); } }
-  else if (mouse && e.button === 0 && ['dismantle', 'plant'].includes(ui.tool) && !unitClick(e.clientX, e.clientY)) { gesture.kind = 'paint'; gesture.last = null; paintAt(e.clientX, e.clientY, true); }
+  else if (mouse && e.button === 0 && ['dismantle', 'plant', 'marktrees'].includes(ui.tool) && (ui.tool === 'marktrees' || !unitClick(e.clientX, e.clientY))) { gesture.kind = 'paint'; gesture.last = null; paintAt(e.clientX, e.clientY, true); }
 });
-cv.addEventListener('pointermove', e => {
+cv.addEventListener('pointermove', e => { if (ui.under) underTip(e.clientX, e.clientY);
   const p = ptrs.get(e.pointerId);
   if (!p) { if (e.pointerType === 'mouse') hoverAt(e.clientX, e.clientY); return; }
   const now = performance.now(), dt = Math.min(0.05, (now - lastMoveT) / 1000) || 0.016; lastMoveT = now;
@@ -217,14 +233,21 @@ function orderSelected(p) {
 }
 // a unit under the pointer always wins (any tool), selects it and disarms the tool
 function unitClick(cx, cy) {
-  const rad = Math.max(24, 0.2 * renderer.pxPerUnit(renderer.target)); // generous screen-space radius, grows when zoomed in
-  let id = renderer.unitAtScreen(cx, cy, rad); if (id == null) return false;
-  // over a building (e.g. the camp), only a unit right under the pointer wins, so the building can still be selected
-  const p = renderer.pick(cx, cy), bt = p && S.tile(state, p.x, p.y); if (bt && bt.occ) { id = renderer.unitAtScreen(cx, cy, Math.max(10, rad * 0.3)); if (id == null) return false; }
+  // picking priority: a building's own geometry (or its footprint) wins unless the pointer is right on a unit (~10 px);
+  // over open ground a unit wins within a generous radius. Clicking the same spot again cycles between the overlapping candidates.
+  const rad = Math.max(24, 0.2 * renderer.pxPerUnit(renderer.target));
+  const p = renderer.pick(cx, cy), bt = p && S.tile(state, p.x, p.y), bid = renderer.pickBuilding(cx, cy) ?? (bt && bt.occ ? bt.occ : null);
+  const near = renderer.unitAtScreen(cx, cy, 10), far = bid == null ? renderer.unitAtScreen(cx, cy, rad) : null;
+  const cands = []; if (near != null) cands.push(['u', near]); if (bid != null) cands.push(['b', bid]); if (far != null && far !== near) cands.push(['u', far]);
+  if (!cands.length) { ui.lastPick = null; return false; }
+  let k = 0; const lp = ui.lastPick; if (lp && Math.hypot(lp.x - cx, lp.y - cy) < 6 && cands.length > 1) k = (lp.k + 1) % cands.length;
+  ui.lastPick = { x: cx, y: cy, k }; const [kind, id] = cands[k];
+  if (kind === 'b') { if (ui.tool !== 'select') return false; setUnits([]); select(id); return true; }
   disarm(); setUnits([id]); showUnits(); return true;
 }
 function showUnits() { closeSheets('info'); ui.popCard = false; ui.unitCard = true; renderInfo(); }
 function tapAt(cx, cy, e) {
+  if (ui.under) underTip(cx, cy);
   if (unitClick(cx, cy)) return;
   const p = renderer.pick(cx, cy); if (!p) return;
   ui.hover = p;
@@ -277,6 +300,7 @@ function paintAt(cx, cy, first) {
   const p = renderer.pick(cx, cy); if (!p) return;
   if (gesture && gesture.last && gesture.last.x === p.x && gesture.last.y === p.y) return; if (gesture) gesture.last = p;
   const t = S.tile(state, p.x, p.y);
+  if (ui.tool === 'marktrees') { if (!t || !t.trees) return; const want = ui.markMode === 'protect' ? 2 : 1; if (first || !gesture || gesture.mval == null) { const v = (t.tm || 0) === want ? 0 : want; if (gesture) gesture.mval = v; } S.applyCommand(state, { type: 'markTree', x: p.x, y: p.y, v: gesture && gesture.mval != null ? gesture.mval : want, bid: ui.markB }); return; }
   if (ui.tool === 'dismantle') { const r = first ? cmd({ type: 'dismantle', x: p.x, y: p.y }) : S.applyCommand(state, { type: 'dismantle', x: p.x, y: p.y }); if (r.ok && r.id) select(r.id); }
   else if (ui.tool === 'plant') { if (first) cmd({ type: 'plant', x: p.x, y: p.y }); else S.applyCommand(state, { type: 'plant', x: p.x, y: p.y }); }
 }
@@ -316,7 +340,7 @@ window.addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
 window.addEventListener('blur', () => keys.clear());
 
 // ---------- info card (bottom sheet on phones) ----------
-function select(id) { ui.popCard = false; if (ui.units.length) ui.lastUnits = ui.units.slice(); closeSheets('info'); setUnits([]); ui.sel = id; ui.selTile = null; ui.unitCard = false; renderInfo(); }
+function select(id) { if (ui.tool !== 'marktrees') renderer.setReach(null); ui.popCard = false; if (ui.units.length) ui.lastUnits = ui.units.slice(); closeSheets('info'); setUnits([]); ui.sel = id; ui.selTile = null; ui.unitCard = false; renderInfo(); }
 function selectTile(x, y) { closeSheets('info'); ui.popCard = false; ui.sel = null; ui.selTile = { x, y }; ui.unitCard = false; renderInfo(); }
 function setHTML(el, h) { if (el._h === h) return false; el._h = h; el.innerHTML = h; return true; }
 const row = (k, v) => `<div class="row"><span>${k}</span><b>${v}</b></div>`;
@@ -332,12 +356,14 @@ function renderInfo() {
     h = head(sel.length > 1 ? `${sel.length} ${allV ? 'villagers' : 'units'} selected` : u ? `${nm(u)} #${u.id}` : 'Units');
     if (u && sel.length === 1) {
       if (u.kind === 'villager') h += row('Status', vStatus(u)) + (u.carry && u.carry.n > 0.5 ? row('Carrying', `${Math.floor(u.carry.n)} / ${VILLAGER.load} ${u.carry.res}`) : '');
-      else h += row('Status', u.state === 'moving' ? `Travelling to ${u.dest[0]}, ${u.dest[1]}` : u.state === 'arrived' ? 'Arrived' : u.state === 'blocked' ? 'Stopped' : 'Waiting') + row('Walked', `${u.dist.toFixed(1)} tiles`);
+      else { h += row('Status', u.state === 'moving' ? `Travelling to ${u.dest[0]}, ${u.dest[1]}` : u.state === 'arrived' ? 'Arrived' : u.state === 'blocked' ? 'Stopped' : 'Waiting') + row('Walked', `${u.dist.toFixed(1)} tiles`);
+        if (u.kind === 'scout') { const sp = Math.round(u.supplies ?? SCOUT.supplies); h += row('Supplies', `${sp} / ${SCOUT.supplies} h`) + `<div class="bar cond"><i style="width:${Math.round(sp / SCOUT.supplies * 100)}%"></i></div>`; if (u.canoe) h += row('Canoe', `${Math.round(u.canoe.hp)}%`);
+          const nb = S.canoeMakerNear(state, u, 3, !u.canoe); if (u.canoe) btns.push(`<button data-act="canoe">Leave canoe</button>`); else if (nb) btns.push(`<button data-act="canoe">Board canoe</button>`); } }
     } else if (sel.length > 1) { const c = {}; for (const x of sel) { const k = x.kind === 'villager' ? vStatus(x).split(':')[0] : (x.state === 'moving' ? 'Travelling' : 'Waiting'); c[k] = (c[k] || 0) + 1; } h += Object.entries(c).map(([k, n]) => row(k, n)).join(''); }
-    const nv = units.filter(x => x.kind === 'villager').length, ns = units.filter(x => x.kind === 'scout').length;
-    h += row('Villagers', `${nv} / ${S.maxVillagers(state, S.popTotal(state))}`) + row('Scouts', `${ns} / 3`);
-    btns.push(`<button data-act="hire">Hire scout (25)</button>`); if (state.flags.ships) btns.push(`<button data-act="hireShip">Build ship (120, 30 wood)</button>`); if (u) btns.push(`<button data-act="stop">Stop</button>`);
-    for (const x of units) btns.push(`<button data-unit="${x.id}" class="${ui.units.includes(x.id) ? 'on' : ''}">${x.kind === 'villager' ? '🧑‍🌾' : '🚶'}${x.id}</button>`);
+    const ns = units.filter(x => x.kind === 'scout').length, ncap = Object.values(state.buildings).filter(b => b.kind === 'scoutcamp' && b.done && !b.ruin).length * BUILDINGS.scoutcamp.scouts;
+    h += row('Scouts', `${ns} / ${ncap}`);
+    if (state.flags.ships) btns.push(`<button data-act="hireShip">Build ship (120, 30 wood)</button>`); if (u) btns.push(`<button data-act="stop">Stop</button>`);
+    for (const x of units) if (x.kind !== 'villager') btns.push(`<button data-unit="${x.id}" class="${ui.units.includes(x.id) ? 'on' : ''}">${x.kind === 'ship' ? '⛵' : '🧭'}${x.id}</button>`);
   } else if (ui.sel) {
     const b = state.buildings[ui.sel]; if (!b) return closeInfo();
     const d = BUILDINGS[b.kind]; const name = b.kind === 'custom' ? `Legacy custom building` : d.name;
@@ -350,7 +376,7 @@ function renderInfo() {
     }
     if (b.ruin) {
       const inc = state.incidents.find(i => i.bid === b.id); h += row('Status', 'Collapsed');
-      if (inc) { const crew = state.crews.find(c => c.id === inc.crew); const step = inc.stage === 'rescue' ? (crew ? (crew.state === 'out' ? 'Rescue crew on the way' : 'Rescue in progress') : 'Waiting for rescue crew') : (crew ? (crew.state === 'out' ? 'Cleanup crew on the way' : 'Clearing rubble') : 'Waiting for cleanup crew'); h += row('Step', step) + row('Dead / trapped / saved', `${inc.dead} / ${inc.trapped} / ${inc.saved}`); btns.push(`<button data-skip="incident" data-id="${inc.id}">Skip step ⏭</button>`); }
+      if (inc) { const crew = state.crews.find(c => c.id === inc.crew); const step = inc.stage === 'rescue' ? (crew ? (crew.state === 'out' ? 'Rescue crew on the way' : 'Rescue in progress') : 'Waiting for rescue crew') : (crew ? (crew.state === 'out' ? 'Cleanup crew on the way' : 'Clearing rubble') : inc.ordered ? 'Waiting for cleanup crew' : 'Rubble'); h += row('Step', step) + row('Dead / trapped / saved', `${inc.dead} / ${inc.trapped} / ${inc.saved}`); if (inc.stage === 'cleanup' && !inc.ordered) { const nc = S.cleanupCrews(state); btns.push(`<button data-act="cleanup" ${nc ? '' : 'disabled'}>${nc ? 'Clean Up' : 'No crew'}</button>`); } btns.push(`<button data-skip="incident" data-id="${inc.id}">Skip step ⏭</button>`); }
     } else if (b.dis) {
       h += row('Status', 'Being dismantled') + row('Stage', STAGE_NAMES[S.stageOf(b)]) + `<div class="bar"><i style="width:${Math.round((1 - b.progress) * 100)}%"></i></div>` + row('Recovers', `~${Math.round(DISMANTLE.refund * 100)}% of materials`);
       btns.push(`<button data-skip="dismantle">Skip ⏭</button>`);
@@ -361,7 +387,9 @@ function renderInfo() {
       if (b.done && b.cond !== undefined) h += row('Condition', `${S.condName(b)} (${Math.round(b.cond)}%)`) + `<div class="bar cond"><i style="width:${Math.round(b.cond)}%;background:${condCol(b.cond)}"></i></div>`;
       if (b.done && d.culture) h += row('Culture', `+${d.culture}/day`);
       if (b.done && d.study) { const rr = state.research; if (rr.current && rr.place === b.id) h += row('📜 Studying', `${TECHS[rr.current].name} ${Math.floor(rr.progress / techHours(rr.current, state.culture) * 100)}%`) + row('📜 Scholars', `${b.scholars || 0} / ${Math.min(TECHS[rr.current].staff || 1, d.study)}`); else h += row('📜 Scholars', `0 / ${d.study}`); }
-      if (b.done && d.trains) { h += row('Villagers', `${S.villagers(state).length} / ${S.maxVillagers(state, S.popTotal(state))}`) + row('Train', `${S.costStr(VILLAGER.trainCost)} + a free adult`); btns.push(`<button data-act="train">Train villager</button>`); }
+      if (b.done && d.scouts) { const n = (state.units || []).filter(u => u.kind === 'scout' && u.home === b.id).length; h += row('🧭 Scouts', `${n} / ${d.scouts}`); btns.push(`<button data-act="hire" ${n < d.scouts ? '' : 'disabled'}>Train scout (25)</button>`); }
+      if (b.done && d.canoes) h += row('🛶 Canoes', `${b.canoesN || 0} / ${d.canoes}`);
+      if (b.done && d.trains) h += row('Villagers', `${S.villagers(state).length} / ${S.maxVillagers(state, S.popTotal(state))}`);
       if (!S.roadAccess(state, b)) h += row('Road access', '<span class="no">None</span>');
       if (d.extract === 'wood') { const tn = treesNear(b, d.radius); h += row('Trees in reach', tn.n + (tn.sp ? ` (+${tn.sp} growing)` : '')); if (b.done) h += row('Status', !b.workers || !tn.n ? '<span class="no">Idle</span>' : 'Felling trees'); }
       else if (b.kind === 'quarry' || b.kind === 'claypit') { const R = S.QUARRY_REACH, res = d.extract[0], maxD = Math.min(d.maxDepth || 99, ERAS[state.era].maxDepth); let left = 0; for (let y = b.y - R; y <= b.y + R; y++) for (let x = b.x - R; x <= b.x + R; x++) { if (Math.hypot(x - b.x, y - b.y) > R) continue; const t = S.tile(state, x, y); if (!t || (t.occ && t.occ !== b.id)) continue; if (t.dep && t.dep.r === res && t.dep.depth <= maxD && (S.knownDeposit(t) || t.vis)) left += t.dep.amt; else if (res === 'stone' && t.t === S.T.HILL && t.vis) left += t.rock ?? 20; }
@@ -371,6 +399,7 @@ function renderInfo() {
       if (d.food) h += row('Food', `${d.food}/day at full staff`);
       if (b.kind === 'rescue') { const cs = state.crews.filter(c => c.post === b.id); h += row('Crews', `${cs.length} (${cs.filter(c => c.state === 'idle').length} idle)`); }
       if (b.done && (d.extract || d.recipe) && d.extract !== 'wood') h += row('Status', b.workers && !b.info ? 'Working' : b.info === 'Depleted' ? '<span class="no">Depleted</span>' : '<span class="no">Idle</span>');
+      if (d.extract === 'wood' && b.done) { renderer.setReach({ x: b.x, y: b.y, r: d.radius }); const on = ui.tool === 'marktrees' && ui.markB === b.id; btns.push(`<button data-act="mark" data-m="mark" class="${on && ui.markMode !== 'protect' ? 'on' : ''}">Mark trees</button>`, `<button data-act="mark" data-m="protect" class="${on && ui.markMode === 'protect' ? 'on' : ''}">Protect trees</button>`); if (on) btns.push(`<button data-act="mark" data-m="done">Done</button>`); }
       if (d.extract && b.done && DEV) btns.push(`<button data-skip="mine" data-id="${b.id}">Run 1 day ⏭</button>`);
       btns.push(`<button data-act="dismantle">🪓 Dismantle</button>`);
       if (DEV) btns.push(`<button data-dev="collapse" data-id="${b.id}">Dev: collapse</button>`);
@@ -386,6 +415,7 @@ function renderInfo() {
       if (t.berryMax) h += row('Berry bushes', `${Math.floor(t.berry || 0)} / ${t.berryMax} ripe`);
       if (t.trees) h += row('Trees', t.trees); if (t.sp && t.sp.length) h += row('Saplings', t.sp.map(a => ['sapling', 'young', 'almost grown'][S.saplingStage(a)]).join(', ')); if (t.stumps) h += row('Stumps', t.stumps);
       if (t.road) h += row('Road', t.rx ? 'Being taken up' : 'Dirt'); else if (t.rp) h += row('Road', 'Planned');
+      if (t.claim) { h += row('Survey claim', `#${t.claim}`); btns.push(`<button data-act="release" data-id="${t.claim}">Remove claim</button>`); }
       if (S.knownDeposit(t)) h += row('Deposit', DEPOSITS[t.dep.r].name + (t.sv ? '' : ' (visible on the surface)')) + row('Amount · depth', `${t.dep.amt} · ${t.dep.depth} m`);
       else if (t.sv) h += row('Deposit', 'None found');
       else h += row('Underground', unlocked.survey() ? 'Not surveyed' : 'Unknown');
@@ -404,6 +434,10 @@ function renderInfo() {
     if (a === 'hireShip') { const r = cmd({ type: 'hireUnit', kind: 'ship' }); if (r.ok) setUnits([r.id]); else toast(r.err); }
     if (a === 'hire') { const r = cmd({ type: 'hireUnit', kind: 'scout' }); if (r.ok) { setUnits([r.id]); showUnits(); } }
     else if (a === 'stop') for (const id of ui.units) cmd({ type: 'stopUnit', id });
+    else if (a === 'mark') { const m = b.dataset.m; if (m === 'done') setTool('select'); else { const id = ui.sel; setTool('marktrees'); ui.markB = id; ui.markMode = m; ui.sel = id; } renderInfo(); }
+    else if (a === 'release') { cmd({ type: 'releaseClaim', id: +b.dataset.id }); closeInfo(); }
+    else if (a === 'canoe') { cmd({ type: 'boardCanoe', id: ui.units[0] }); renderInfo(); }
+    else if (a === 'cleanup') { cmd({ type: 'cleanUp', id: ui.sel }); renderInfo(); }
     else if (a === 'train') { cmd({ type: 'trainVillager' }); }
     else if (a === 'sendbuild') { const bb = state.buildings[ui.sel], vil = (state.units || []).filter(u => u.kind === 'villager' && (ui.lastUnits || []).includes(u.id)).map(u => u.id), ids = vil.length ? vil : S.villagers(state).filter(u => u.vstate === 'idle').map(u => u.id); if (!ids.length) toast('No idle villagers', true); else if (bb) { const r = cmd({ type: 'villagerTask', ids, x: bb.x, y: bb.y }); if (r.ok) toast(`${ids.length} villager${ids.length > 1 ? 's' : ''} sent to build`); } }
     else if (a === 'dismantle') { const bb = state.buildings[ui.sel]; if (bb) cmd({ type: 'dismantle', x: bb.x, y: bb.y }); }
@@ -471,11 +505,11 @@ function renderPanel() {
     on('d-sb1', () => startGame({ sandbox: true, era: 1 }));
     on('d-sb2', () => startGame({ sandbox: true, era: 2 }));
   } else if (p === 'newgame') {
-    body.innerHTML = `<div class="devrow">Seed <input id="ng-seed" type="number" value="${Math.floor(Math.random() * 1e6)}" style="width:110px"> Map <select id="ng-size"><option value="128">Large</option><option value="64">Small</option></select> Start era <select id="ng-era">${eraOpts(startEra())}</select></div>
+    body.innerHTML = `<div class="devrow">Seed <input id="ng-seed" type="number" value="${Math.floor(Math.random() * 1e6)}" style="width:110px"> Map <select id="ng-size"><option value="128">Large</option><option value="64">Small</option></select> <span class="${ALLOW_ERA_SELECT ? '' : 'hidden'}">Start era <select id="ng-era">${eraOpts(1)}</select></span></div>
       <div class="devrow"><button id="ng-n">Normal game</button><button id="ng-s1">Sandbox: Stone & Clay</button><button id="ng-s2">Sandbox: Bronze</button></div>`;
     const seed = () => +$('ng-seed').value || undefined, size = () => +$('ng-size').value;
     $('ng-era').onchange = () => { setStartEra(+$('ng-era').value); $('t-era').value = $('ng-era').value; };
-    $('ng-n').onclick = () => startGame({ seed: seed(), size: size(), era: +$('ng-era').value });
+    $('ng-n').onclick = () => startGame({ seed: seed(), size: size(), era: ALLOW_ERA_SELECT ? +$('ng-era').value : 1 });
     $('ng-s1').onclick = () => startGame({ seed: seed(), size: size(), sandbox: true, era: 1 });
     $('ng-s2').onclick = () => startGame({ seed: seed(), size: size(), sandbox: true, era: 2 });
   }
@@ -516,7 +550,7 @@ const doSave = () => { try { localStorage.setItem(SAVE_KEY, S.serialize(state));
 $('btn-save').onclick = () => { $('menu').classList.add('hidden'); doSave(); };
 $('btn-load').onclick = () => { $('menu').classList.add('hidden'); loadSave(); };
 function adopt(s, msg) { state = s; setUnits([]); renderer.setState(state); closeSheets(); setTool('select'); if (ui.under) toggleUnder(false); refreshUnlocks(); lastLogLen = state.log.length; toast(msg); exposeForTests(); }
-function loadSave() { const j = localStorage.getItem(SAVE_KEY) || localStorage.getItem(OLD_SAVE_KEY); if (!j) return toast('No save found', true); try { adopt(S.deserialize(j), 'Loaded'); } catch (e) { toast('Load failed: ' + e.message, true); } }
+function loadSave() { const j = localStorage.getItem(SAVE_KEY) || localStorage.getItem(OLD_SAVE_KEY); if (!j) return toast('No save found', true); try { adopt(S.deserialize(j), 'Loaded'); } catch (e) { toast(/Old save/.test(e.message) ? e.message : 'Load failed: ' + e.message, true); } }
 $('btn-export').onclick = () => { $('menu').classList.add('hidden'); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([S.serialize(state)], { type: 'application/json' })); a.download = `earth-day${Math.floor(state.tick / 24) + 1}.json`; a.click(); };
 $('btn-import').onclick = () => { $('menu').classList.add('hidden'); $('file-import').click(); };
 $('file-import').onchange = async (e) => { const f = e.target.files[0]; if (!f) return; try { adopt(S.deserialize(await f.text()), 'Imported'); } catch (err) { toast('Import failed: ' + err.message, true); } e.target.value = ''; };
@@ -589,12 +623,13 @@ $('st-goal').onclick = (e) => { if (e.target.closest('#st-res, .tech')) openPane
 $('st-pop').onclick = () => { closeSheets('info'); setUnits([]); ui.popCard = true; renderInfo(); };
 $('btn-idle').onclick = () => { const idle = S.villagers(state).filter(u => u.vstate === 'idle' && !(u.path && u.path.length)); if (!idle.length) return; ui.idleI = ((ui.idleI || 0) + 1) % idle.length; const u = idle[ui.idleI]; disarm(); setUnits([u.id]); showUnits(); renderer.target.set(u.x + 0.5, renderer.target.y, u.y + 0.5); };
 function statusHud(force) {
+  if (ui.under && !(rep.cycleN % 1)) renderUnderLegend();
   const st = $('status'); st.classList.toggle('collapsed', stCollapsed); $('st-tog').textContent = stCollapsed ? '▸' : '▾';
   const p = popInfo(), g = state.growth || { ok: true };
   setHTML($('st-pop'), `👥 <b>${p.pop}</b> <small>pop</small> · 🛖 ${p.res}/${p.cap} · ⚒ ${p.employed} · <span class="${p.free ? '' : 'dim'}">free ${p.free}</span> · 🧑‍🌾 ${p.vil}`);
-  const ib = $('btn-idle'); ib.classList.toggle('hidden', !p.idleV); ib.innerHTML = `🧑‍🌾 <b>${p.idleV}</b> idle`;
+  $('btn-idle').classList.add('hidden'); // no villager control
   const bars = $('st-bars');
-  if (!bars._els) { bars.innerHTML = STAT_DEFS.map(([k, ic, name]) => `<div class="sb" title="${name}"><span class="ic">${ic}</span><span class="bt"><i></i></span><b></b><em></em></div>`).join(''); bars._els = [...bars.children].map(el => ({ el, i: el.querySelector('i'), b: el.querySelector('b'), em: el.querySelector('em') })); }
+  if (!bars._els) { bars.innerHTML = STAT_DEFS.map(([k, ic, name]) => `<div class="sb"><span class="ic">${ic}</span><span class="nm">${name}</span><span class="bt"><i></i></span><b></b><em></em></div>`).join(''); bars._els = [...bars.children].map(el => ({ el, i: el.querySelector('i'), b: el.querySelector('b'), em: el.querySelector('em') })); }
   STAT_DEFS.forEach(([k, , , fn], n) => { const v = fn(), d = rep.delta[k] || 0, E = bars._els[n];
     const cls = 'sb ' + (v.low === 2 ? 'low' : v.low === 1 ? 'warn' : ''); if (E.el.className !== cls) E.el.className = cls;
     const w = Math.round(Math.max(0, Math.min(1, v.f)) * 100) + '%'; if (E.i.style.width !== w) E.i.style.width = w;
@@ -672,10 +707,10 @@ if (!(localStorage.getItem(SAVE_KEY) || localStorage.getItem(OLD_SAVE_KEY))) $('
 const mapSize = Number(params.get('size')) || 128; // large map by default; ?size=64 for the small one
 // start era for a new game: Bronze by default, the last choice is remembered
 const ERA_KEY = 'earth.startEra';
-function startEra() { const v = +(localStorage.getItem(ERA_KEY) || 2); return ERAS[v] ? v : 2; }
-function setStartEra(v) { try { localStorage.setItem(ERA_KEY, String(v)); } catch (e) { /* private mode */ } }
+void ERA_KEY; function startEra() { return ALLOW_ERA_SELECT && $('t-era') && ERAS[+$('t-era').value] ? +$('t-era').value : 1; } // defaults to the first era; not remembered
+function setStartEra() {}
 const eraOpts = (sel) => Object.entries(ERAS).map(([k, e]) => `<option value="${k}" ${+k === sel ? 'selected' : ''}>${e.name}</option>`).join('');
-$('t-era').innerHTML = eraOpts(startEra()); $('t-era').onchange = () => setStartEra(+$('t-era').value);
+$('t-era').innerHTML = eraOpts(1); if (!ALLOW_ERA_SELECT) $('t-era').parentElement.classList.add('hidden'); $('t-era').onchange = () => setStartEra(+$('t-era').value);
 $('t-play').onclick = () => startGame({ seed: Number(params.get('seed')) || undefined, size: mapSize, era: startEra() });
 $('t-sand').onclick = () => startGame({ sandbox: true, era: 1, size: mapSize });
 $('t-cont').onclick = () => { hideTitle(); loadSave(); };
