@@ -79,7 +79,7 @@ export const BUILDINGS = {
   sheep:      { name: 'Sheep Pasture', cat: 'Food', era: 2, size: 2, cost: { wood: 10 }, time: 10, jobs: 1, food: 5, weight: 0.2, upkeep: 0, terrain: [0], mat: 'wood', recipe: { in: {}, out: { wool: 3 }, perDay: 1 } },
   flax:       { name: 'Flax Field', cat: 'Food', era: 2, size: 1, cost: { wood: 3 }, time: 6, jobs: 1, weight: 0.1, upkeep: 0, terrain: [0], mat: 'wood', recipe: { in: {}, out: { flax: 3 }, perDay: 1 } },
   oven:       { name: 'Bread Oven', cat: 'Food', era: 2, size: 1, cost: { brick: 6, stone: 4 }, time: 10, jobs: 1, foodMult: 0.12, weight: 0.8, upkeep: 0, mat: 'brick' },
-  bronzesmith:{ name: 'Bronze Smith', cat: 'Industry', era: 2, size: 1, cost: { brick: 8, stone: 6, wood: 6 }, time: 16, jobs: 2, recipe: { in: { bronze: 1, wood: 1 }, out: { tools: 2 }, perDay: 4 }, weight: 1.2, upkeep: 0.3, mat: 'brick' },
+  bronzesmith:{ name: 'Bronze Smith', cat: 'Industry', era: 2, size: 1, cost: { brick: 8, stone: 6, wood: 6 }, time: 16, jobs: 2, recipe: { in: { bronze: 1, wood: 1 }, out: { tools: 2 }, perDay: 4, keep: { bronze: 30 } }, weight: 1.2, upkeep: 0.3, mat: 'brick' },
   potter:     { name: 'Potter', cat: 'Industry', era: 2, size: 1, cost: { brick: 4, wood: 6 }, time: 10, jobs: 2, recipe: { in: { clay: 2, wood: 1 }, out: { pots: 2 }, perDay: 4 }, weight: 0.6, upkeep: 0.1, mat: 'daub' },
   weaver:     { name: 'Weaver', cat: 'Industry', era: 2, size: 1, cost: { wood: 10, brick: 4 }, time: 12, jobs: 2, recipe: { in: { wool: 1, flax: 1 }, out: { cloth: 2 }, perDay: 4 }, weight: 0.6, upkeep: 0.2, mat: 'daub' },
   cartmaker:  { name: 'Cart Maker', cat: 'Industry', era: 2, size: 1, cost: { wood: 20, bronze: 4, tools: 2 }, time: 18, jobs: 2, weight: 0.8, upkeep: 0.3, mat: 'wood', enables: 'carts' },
@@ -202,13 +202,13 @@ export const SAPLING = { cost: { money: 3 }, stages: [48, 96], grownAt: 144 };
 export const DISMANTLE = { timeMult: 0.6, refund: 0.5, bulldozerEra: 'Industrial' };
 
 // Next-era milestones (shown as a plain status line): population, finished buildings, culture points, techs
-export const ERA_REQ = { 1: { pop: 30, buildings: 15, culture: 100, techs: ['pottery', 'smelting'] }, 2: { pop: 70, buildings: 35, culture: 600, techs: ['writing', 'ironworking'], made: { bronze: 20, tools: 10 } }, 3: { pop: 120, buildings: 55, culture: 2000, techs: ['masonry', 'currency'], made: { iron: 30, blocks: 40 } }, 4: { pop: 200, buildings: 80, culture: 5000, techs: ['engineering', 'philosophy'], made: { wine: 60 }, built: ['monument'] }, 5: { pop: 320, buildings: 110, culture: 12000, techs: ['guilds', 'navigation'], made: { cloth: 200 }, built: ['castle'] }, 6: { pop: 450, buildings: 140, culture: 25000, techs: ['printing', 'banking'], made: { cloth: 400 }, built: ['cathedral'] } };
+export const ERA_REQ = { 1: { pop: 30, buildings: 15, culture: 100, techs: ['pottery', 'smelting'] }, 2: { pop: 70, buildings: 35, culture: 600, techs: ['writing', 'ironworking'], made: { bronze: 20, tools: 10 } }, 3: { pop: 120, buildings: 55, culture: 2000, techs: ['masonry', 'currency'], made: { iron: 30, blocks: 40 } }, 4: { pop: 200, buildings: 80, culture: 4000, techs: ['engineering', 'philosophy'], made: { wine: 60 }, built: ['monument'] }, 5: { pop: 320, buildings: 110, culture: 6000, techs: ['guilds', 'navigation'], made: { cloth: 200 }, built: ['castle'] }, 6: { pop: 450, buildings: 140, culture: 10000, techs: ['printing', 'banking'], made: { cloth: 400 }, built: ['cathedral'] } };
 // Bronze tools: while the town has tools, gathering, extraction and building go faster; tools wear out with use
 export const TOOLS = { boost: 0.25, ironBoost: 0.4, wearPerWorkerDay: 0.01 };
 // horses: scouts ride (faster); with a cart maker, villagers haul with carts (bigger loads)
 export const HORSES = { scoutSpeed: 1.7, cartLoad: 2 };
 // neighbouring towns met through exploration; a trading post sends a caravan to each known town every few days
-export const TRADE = { everyDays: 3, perTrip: 8 };
+export const TRADE = { everyDays: 3, perTrip: 8, keep: 60 }; // towns only buy what you have beyond the keep stock
 
 // Block-build materials (0.5-tile blocks)
 export const BLOCKS = {

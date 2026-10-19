@@ -218,7 +218,9 @@ function orderSelected(p) {
 // a unit under the pointer always wins (any tool), selects it and disarms the tool
 function unitClick(cx, cy) {
   const rad = Math.max(24, 0.2 * renderer.pxPerUnit(renderer.target)); // generous screen-space radius, grows when zoomed in
-  const id = renderer.unitAtScreen(cx, cy, rad); if (id == null) return false;
+  let id = renderer.unitAtScreen(cx, cy, rad); if (id == null) return false;
+  // over a building (e.g. the camp), only a unit right under the pointer wins, so the building can still be selected
+  const p = renderer.pick(cx, cy), bt = p && S.tile(state, p.x, p.y); if (bt && bt.occ) { id = renderer.unitAtScreen(cx, cy, Math.max(10, rad * 0.3)); if (id == null) return false; }
   disarm(); setUnits([id]); showUnits(); return true;
 }
 function showUnits() { closeSheets('info'); ui.popCard = false; ui.unitCard = true; renderInfo(); }
@@ -395,7 +397,7 @@ function renderInfo() {
   el.querySelectorAll('[data-act]').forEach(b => b.onclick = () => {
     const a = b.dataset.act;
     if (a === 'hireShip') { const r = cmd({ type: 'hireUnit', kind: 'ship' }); if (r.ok) setUnits([r.id]); else toast(r.err); }
-    if (a === 'hire') { const r = cmd({ type: 'hireUnit', kind: 'scout' }); if (r.ok) { setUnits([r.id]); toast('Scout hired: tap the map to send it'); } }
+    if (a === 'hire') { const r = cmd({ type: 'hireUnit', kind: 'scout' }); if (r.ok) { setUnits([r.id]); showUnits(); } }
     else if (a === 'stop') for (const id of ui.units) cmd({ type: 'stopUnit', id });
     else if (a === 'train') { const r = cmd({ type: 'trainVillager' }); if (r.ok) toast('Villager trained'); }
     else if (a === 'sendbuild') { const bb = state.buildings[ui.sel], vil = (state.units || []).filter(u => u.kind === 'villager' && (ui.lastUnits || []).includes(u.id)).map(u => u.id), ids = vil.length ? vil : S.villagers(state).filter(u => u.vstate === 'idle').map(u => u.id); if (!ids.length) toast('No idle villagers', true); else if (bb) { const r = cmd({ type: 'villagerTask', ids, x: bb.x, y: bb.y }); if (r.ok) toast(`${ids.length} villager${ids.length > 1 ? 's' : ''} sent to build`); } }

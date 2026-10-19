@@ -95,7 +95,8 @@ function genWorld(seed) {
   addCoal(st, seed);
   classifyWater(world, seed);
   if (SIZE >= 96) { // large maps have a sea coast along the east edge (ships explore it); the river runs out into it
-    for (let y = 0; y < SIZE; y++) { const cx = SIZE - 12 + Math.round((noise(seed + 91, 0, y, 9) - 0.5) * 10);
+    let prev = null;
+    for (let y = 0; y < SIZE; y++) { let cx = SIZE - 12 + Math.round((noise(seed + 91, 0, y, 16) - 0.5) * 12); if (prev !== null) cx = Math.max(prev - 1, Math.min(prev + 1, cx)); prev = cx; // gentle curve: at most one tile per row
       for (let x = cx; x < SIZE; x++) { const t = tile(st, x, y); t.t = T.WATER; t.trees = 0; t.dep = null; t.h = 0; t.sea = 1; t.wd = x < cx + 2 ? 1 : 2; } }
   }
   addBerries(world, seed);
@@ -143,6 +144,18 @@ export function newGame(opts = {}) {
   let best = null;
   for (let y = sy - 12; y < sy + 12; y++) for (let x = sx - 12; x < sx + 12; x++) { const t = tile(state, x, y); if (t.t === T.GRASS && (!best || Math.hypot(x - sx, y - sy) < best.d)) best = { x, y, d: Math.hypot(x - sx, y - sy) }; }
   state.start = best ? { x: best.x, y: best.y } : { x: sx, y: sy };
+  // every map gets a small shallow copper and tin find within reach of the start (stream tin in river gravel, a copper stain on a hill),
+  // so the Bronze era never stalls waiting on a lucky deposit
+  for (const [res, pref] of [['tin', T.WATER], ['copper', T.HILL]]) {
+    let has = false, cand = null;
+    for (let y = state.start.y - 14; y <= state.start.y + 14; y++) for (let x = state.start.x - 14; x <= state.start.x + 14; x++) { const t = tile(state, x, y); if (!t) continue; const d = Math.hypot(x - state.start.x, y - state.start.y); if (d > 14) continue;
+      if (t.dep && t.dep.r === res && t.dep.depth <= (SURFACE_DEPTH[res] ?? 0) && d <= 12) has = true;
+      if (t.t === T.WATER || t.occ || (t.dep && t.dep.r !== 'stone') || d < 7) continue;
+      let near = false; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const n = tile(state, x + dx, y + dy); if (n && n.t === pref) near = true; }
+      const sc = (near ? 0 : 10) + Math.abs(d - 10) + hash2(seed + 97, x, y);
+      if (!cand || sc < cand.sc) cand = { x, y, sc }; }
+    if (!has && cand) tile(state, cand.x, cand.y).dep = { r: res, amt: 90, depth: 1, grade: 0.6 };
+  }
   reveal(state, state.start.x, state.start.y, 9);
   // founders: a gathering camp and a few villagers
   { const cx = state.start.x, cy = state.start.y - 1, t = tile(state, cx, cy);
@@ -447,6 +460,8 @@ const COMMANDS = {
   },
   advanceEra(state) {
     if (!eraReady(state).ready) return { ok: false, err: 'Requirements not met' };
+    (state.stats.eras = state.stats.eras || []).push({ era: state.era + 1, day: Math.floor(state.tick / HOURS_PER_DAY), cult: Math.round(state.cult || 0), pop: villagers(state).length });
+    state.cult = (state.cult || 0) * 0.25; // culture goals count mostly this era's culture (a quarter carries over)
     state.era += 1; addLog(state, `The ${ERAS[state.era].name} era has begun.`); state.dirty.all = true; return { ok: true };
   },
   // ---- block build ----
@@ -644,7 +659,7 @@ function runBuilding(state, b, hours) {
     while (b.acc >= 1) {
       const inp = d.recipe.in;
       if (!Object.keys(inp).every(k => state.res[k] >= inp[k] + ((d.recipe.keep || {})[k] || 0))) { b.acc = Math.min(b.acc, 1); b.info = 'Waiting for inputs'; return; }
-      if (Object.keys(d.recipe.out).every(k => k !== 'money' && (state.res[k] || 0) >= STOCK_CAP)) { b.acc = Math.min(b.acc, 1); return; } // store full: work pauses
+      if (state.mode !== 'sandbox' && Object.keys(d.recipe.out).every(k => k !== 'money' && (state.res[k] || 0) >= STOCK_CAP)) { b.acc = Math.min(b.acc, 1); return; } // store full: work pauses
       b.acc -= 1; b.info = '';
       for (const k in inp) state.res[k] -= inp[k];
       prog(state, b, 1, Object.keys(d.recipe.out)[0]); for (const k in d.recipe.out) { state.res[k] += d.recipe.out[k]; if (k === 'brick') state.stats.bricksMade += d.recipe.out[k]; if (k === 'bronze') state.stats.bronzeMade += d.recipe.out[k]; const m = state.stats.made = state.stats.made || {}; m[k] = (m[k] || 0) + d.recipe.out[k]; }
