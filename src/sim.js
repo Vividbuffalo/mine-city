@@ -1,10 +1,12 @@
 // EARTH simulation. Pure data + rules, no rendering. All mutations go through applyCommand().
-import { BUILDINGS, TECHS, ERAS, ERA_REQ, BLOCKS, SAVE_VERSION, HOURS_PER_DAY, techCost, EARTHWORKS, SURFACE_DEPTH, SAPLING, DISMANTLE } from './data.js';
+import { BUILDINGS, TECHS, ERAS, ERA_REQ, BLOCKS, SAVE_VERSION, HOURS_PER_DAY, techCost, EARTHWORKS, SURFACE_DEPTH, SAPLING, DISMANTLE, VILLAGER, DECAY, CONDITION_STAGES } from './data.js';
 // a deposit the player knows about: surveyed, or shallow enough to be seen on the surface once explored
 export const knownDeposit = (t) => !!(t && t.vis && t.dep && t.dep.amt > 0 && (t.sv || t.dep.depth <= (SURFACE_DEPTH[t.dep.r] ?? 0)));
 export const undergroundUnlocked = (state) => state.era >= 2;
 // Steep = mountain ground (high hill) not yet terraced. Only quarries can go on it until it is levelled.
 import { tickUnits, spawnUnit, orderMove, UNIT_TYPES } from './units.js';
+import { tickVillagers, VILLAGER_COMMANDS, spawnVillager, villagers, maxVillagers, buildersAt, featureAt } from './villagers.js';
+export { villagers, maxVillagers, featureAt };
 export const ROAD_RATE = 4; // road tiles completed per game hour (crude dirt tracks)
 export const isSteep = (t) => !!t && t.t === T.HILL && t.h >= 2 && !t.lv;
 
@@ -77,12 +79,17 @@ function genWorld(seed) {
       tl.dep = g > 0.8 ? { r: 'tin', amt: 50 + Math.floor(r * 80), depth: 12 + Math.floor(r * 15), grade: g } : { r: 'copper', amt: 80 + Math.floor(r * 150), depth: 9 + Math.floor(r * 18), grade: g };
     }
   }
-  classifyWater(world, seed);
+  classifyWater(world, seed); addBerries(world, seed);
   return world;
 }
 // River depth classes (t.wd): 0 = shallow ford (gravel bar, marked by stones), 1 = shallow reach (wadeable, slow, risky),
 // 2 = deep channel (impassable on foot: needs a raft/canoe, boat or bridge). Lakes and ocean (later maps) are always 2.
 export const WATER_CLASS = ['ford', 'shallow', 'deep'];
+// berry bushes: on grassland near forest edges (hazel, bramble, sloe...)
+export function addBerries(world, seed) {
+  const tl = (x, y) => (x < 0 || y < 0 || x >= SIZE || y >= SIZE) ? null : world.chunks[Math.floor(x / CHUNK) + ',' + Math.floor(y / CHUNK)].tiles[(y % CHUNK) * CHUNK + (x % CHUNK)];
+  for (let y = 0; y < SIZE; y++) for (let x = 0; x < SIZE; x++) { const t = tl(x, y); if (t.t !== T.GRASS || t.berryMax !== undefined) continue; let f = 0; for (const [a, c] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = tl(x + a, y + c); if (n && n.t === T.FOREST) f++; } t.berryMax = 0; if (hash2(seed + 81, x, y) < (f ? 0.32 : 0.035)) { t.berryMax = 30; t.berry = 30; } }
+}
 export function classifyWater(world, seed) {
   const tl = (x, y) => world.chunks[Math.floor(x / CHUNK) + ',' + Math.floor(y / CHUNK)].tiles[(y % CHUNK) * CHUNK + (x % CHUNK)];
   const fords = new Set(); for (let k = 0; k < 4; k++) { const y = 4 + k * 16 + Math.floor(hash2(seed + 71, k, 3) * 9); fords.add(y); fords.add(y + 1); }
@@ -102,7 +109,7 @@ export function newGame(opts = {}) {
     location: { galaxy: 0, system: 0, planet: 'earth', region: { id: 'r0', lat: 33.45, lon: -112.07 }, plot: { id: 'p0', x0: 0, y0: 0, owner: 'player1' } },
     culture: 'default',
     world: genWorld(seed),
-    era, res: { money: 600, wood: 60, clay: 0, stone: 10, copper: 0, tin: 0, brick: 0, bronze: 0, food: 40 },
+    era, res: { money: 300, wood: 50, clay: 6, stone: 12, copper: 0, tin: 0, brick: 0, bronze: 0, food: 60 },
     stats: { bricksMade: 0, bronzeMade: 0, deaths: 0, arrivals: 0, left: 0, collapses: 0 },
     research: { points: 0, done: [], current: null, progress: 0 },
     buildings: {}, nextId: 1, incidents: [], crews: [], surveys: [], earthworks: [], roadRemove: [], saplingTiles: [], felled: [], roadJobs: [], units: [], draft: [],
@@ -117,6 +124,10 @@ export function newGame(opts = {}) {
   for (let y = 20; y < 44; y++) for (let x = 20; x < 44; x++) { const t = tile(state, x, y); if (t.t === T.GRASS && (!best || Math.hypot(x - sx, y - sy) < best.d)) best = { x, y, d: Math.hypot(x - sx, y - sy) }; }
   state.start = best ? { x: best.x, y: best.y } : { x: sx, y: sy };
   reveal(state, state.start.x, state.start.y, 9);
+  // founders: a gathering camp and a few villagers
+  { const cx = state.start.x, cy = state.start.y - 1, t = tile(state, cx, cy);
+    if (t && t.t !== T.WATER && !t.occ) { const camp = createBuilding(state, 'camp', [[cx, cy]]); camp.progress = 1; camp.done = true; camp.cond = 100; camp.age = 0; t.trees = 0; }
+    for (let i = 0; i < VILLAGER.startCount; i++) spawnVillager(state, state.start.x + (i - 1), state.start.y + 1); }
   if (sandbox) {
     Object.assign(state.res, { money: 100000, wood: 800, clay: 400, stone: 400, copper: 300, tin: 150, brick: 400, bronze: 200, food: 500 });
     for (const id in TECHS) if (TECHS[id].era < era || era === 2 && TECHS[id].era === 1) state.research.done.push(id);
@@ -145,7 +156,12 @@ export function reveal(state, cx, cy, r) {
 
 // ---------- Helpers ----------
 export function footprint(kind, x, y, size) { const s = size || BUILDINGS[kind].size, out = []; for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) out.push([x + dx, y + dy]); return out; }
-export function popTotal(state) { let p = 0; for (const b of Object.values(state.buildings)) p += b.residents || 0; return p; }
+export function residentsTotal(state) { let p = 0; for (const b of Object.values(state.buildings)) p += b.residents || 0; return p; }
+export function popTotal(state) { let n = 0; for (const u of state.units || []) if (u.kind === 'villager') n++; return residentsTotal(state) + n; }
+export function housingCap(state) { let c = 0; for (const b of Object.values(state.buildings)) if (b.done && !b.ruin) c += capOf(b); return c; }
+export function condStage(b) { const c = b.cond ?? 100; for (let i = 0; i < CONDITION_STAGES.length; i++) if (c >= CONDITION_STAGES[i][0]) return i; return 4; }
+export function condName(b) { const i = condStage(b); return i < 4 ? CONDITION_STAGES[i][1] : 'Ruined'; }
+function condMult(b) { const c = b.cond ?? 100; return c >= 50 ? 1 : c >= 25 ? 0.75 : 0.5; }
 export function hasBuilt(state, kind) { return Object.values(state.buildings).some(b => b.kind === kind && b.done && !b.ruin); }
 function roadNeighbors(state, tiles) {
   const set = new Set(tiles.map(t => t[0] + ',' + t[1])), out = [];
@@ -184,6 +200,7 @@ export function checkPlacement(state, kind, x, y) {
     if (d.terrain && !d.terrain.includes(t.t)) return 'Needs open grassland';
   }
   if (d.needs && !hasBuilt(state, d.needs)) return `Needs a finished ${BUILDINGS[d.needs].name}`;
+  if (d.nearWater && !tiles.some(([tx, ty]) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, c]) => { const n = tile(state, tx + a, ty + c); return n && n.t === T.WATER; }))) return 'Must be next to the river';
   if (!canAfford(state, d.cost)) return 'Not enough resources';
   return null;
 }
@@ -220,7 +237,7 @@ export function applyCommand(state, cmd) {
 function createBuilding(state, kind, tiles, extra = {}) {
   const id = state.nextId++;
   const [x, y] = tiles[0];
-  const b = { id, kind, x, y, tiles, rot: extra.rot || 0, progress: 0, done: false, ruin: false, workers: 0, residents: 0, acc: 0, info: '', ...extra };
+  const b = { id, kind, x, y, tiles, rot: extra.rot || 0, progress: 0, done: false, ruin: false, workers: 0, residents: 0, acc: 0, info: '', q: 0.78 + rand(state) * 0.17 - (BUILDINGS[kind] && BUILDINGS[kind].ambition || 0) * 0.3 + (state.era - 1) * 0.05, ...extra };
   state.buildings[id] = b;
   for (const [tx, ty] of tiles) tile(state, tx, ty).occ = id;
   let cx = 0, cy = 0; for (const [tx, ty] of tiles) { cx += tx; cy += ty; }
@@ -318,6 +335,7 @@ const COMMANDS = {
     const L = state.saplingTiles || (state.saplingTiles = []); if (!L.some(([a, b]) => a === x && b === y)) L.push([x, y]);
     state.dirty.trees = true; return { ok: true };
   },
+  ...VILLAGER_COMMANDS,
   // ---- units (scouts) ----
   hireUnit(state, { kind = 'scout' }) {
     const ut = UNIT_TYPES[kind]; if (!ut) return { ok: false, err: 'Unknown unit' };
@@ -330,7 +348,7 @@ const COMMANDS = {
     const t = tile(state, x, y); if (!t) return { ok: false, err: 'Out of bounds' };
     return orderMove(state, u, x, y);
   },
-  stopUnit(state, { id }) { const u = (state.units || []).find(u => u.id === id); if (u) { u.path = []; u.state = 'idle'; } return { ok: true }; },
+  stopUnit(state, { id }) { const u = (state.units || []).find(u => u.id === id); if (u) { u.path = []; u.state = 'idle'; if (u.kind === 'villager') { u.job = null; u.vstate = 'idle'; } } return { ok: true }; },
   survey(state, { x, y }) {
     const t = tile(state, x, y);
     if (!t || !t.vis) return { ok: false, err: 'Unexplored' };
@@ -389,7 +407,7 @@ const COMMANDS = {
   },
   // ---- skip (dev/test) ----
   skip(state, { what, id }) {
-    if (what === 'build') { const b = state.buildings[id]; if (b && !b.done) { b.progress = 1; finishBuilding(state, b); } }
+    if (what === 'build') { const b = state.buildings[id]; if (b && !b.done) { b.progress = 1; b.q = (b.q ?? 0.85) - 0.05; finishBuilding(state, b); } } // rushed: slightly worse hidden quality
     else if (what === 'research') { if (state.research.current) completeResearch(state); }
     else if (what === 'roads') { tickRoads(state, 1e9); }
     else if (what === 'dismantle') { tickDismantle(state, true); }
@@ -398,7 +416,7 @@ const COMMANDS = {
     else if (what === 'survey') { for (const s of state.surveys) s.left = 0; tickSurveys(state); }
     else if (what === 'level') { for (const e of state.earthworks || []) if (!id || e.id === id) e.left = 0; tickEarthworks(state, true); }
     else if (what === 'mine') { const b = state.buildings[id]; assignWorkers(state); if (b) for (let i = 0; i < 24; i++) runBuilding(state, b, 1); }
-    else if (what === 'growth') { for (const b of Object.values(state.buildings)) { const c = capOf(b); if (c && b.done && !b.ruin && roadAccess(state, b)) { const add = c - b.residents; b.residents = c; state.stats.arrivals += add; } } }
+    else if (what === 'growth') { for (const b of Object.values(state.buildings)) { const c = capOf(b); if (c && b.done && !b.ruin) { const add = c - b.residents; b.residents = c; state.stats.arrivals += add; } } }
     else if (what === 'incident') { const inc = state.incidents.find(i => i.id === id); if (inc) skipIncident(state, inc); }
     else if (what === 'era') { if (state.era < 2) { state.era = 2; for (const t of ['pottery', 'smelting']) if (!state.research.done.includes(t)) state.research.done.push(t); addLog(state, 'The Bronze era has begun (skipped).'); state.dirty.all = true; } }
     return { ok: true };
@@ -416,13 +434,15 @@ const COMMANDS = {
 };
 
 // ---------- Era ----------
+export function finishedCount(state) { let n = 0; for (const b of Object.values(state.buildings)) if (b.done && !b.ruin && b.kind !== 'custom') n++; return n; }
 export function eraReady(state) {
   const req = ERA_REQ[state.era];
   if (!req) return { ready: false, items: [] };
   const pop = popTotal(state);
   const items = [
-    { label: `Population ${pop} / ${req.pop}`, ok: pop >= req.pop },
-    { label: `Bricks made ${Math.floor(state.stats.bricksMade)} / ${req.bricksMade}`, ok: state.stats.bricksMade >= req.bricksMade },
+    { label: `Population ${pop} / ${req.pop}`, ok: pop >= req.pop, key: 'pop', v: pop, need: req.pop },
+    { label: `Buildings ${finishedCount(state)} / ${req.buildings}`, ok: finishedCount(state) >= req.buildings, key: 'buildings', v: finishedCount(state), need: req.buildings },
+    { label: `Culture ${Math.floor(state.cult || 0)} / ${req.culture}`, ok: (state.cult || 0) >= req.culture, key: 'culture', v: Math.floor(state.cult || 0), need: req.culture },
     ...req.techs.map(t => ({ label: `${TECHS[t].name} researched`, ok: state.research.done.includes(t) })),
   ];
   return { ready: items.every(i => i.ok), items };
@@ -434,14 +454,15 @@ function completeResearch(state) {
 }
 
 // ---------- Simulation tick (1 tick = 1 game hour) ----------
-export function capOf(b) { return b.kind === 'custom' ? b.cap || 0 : BUILDINGS[b.kind].cap || 0; }
+export function capOf(b) { const c = b.kind === 'custom' ? b.cap || 0 : BUILDINGS[b.kind].cap || 0; return (b.cond ?? 100) < 25 ? Math.floor(c / 2) : c; }
 function jobsOf(b) { return b.kind === 'custom' ? b.jobs || 0 : BUILDINGS[b.kind].jobs || 0; }
 function buildTime(b) { return b.kind === 'custom' ? b.time : BUILDINGS[b.kind].time; }
 export function weightOf(b) { return b.kind === 'custom' ? b.weight : BUILDINGS[b.kind].weight; }
 export function stageOf(b) { if (b.done) return 3; return b.progress < 0.25 ? 0 : b.progress < 0.55 ? 1 : 2; }
 
 function finishBuilding(state, b) {
-  b.done = true; b.progress = 1; state.dirty.buildings = true;
+  b.done = true; b.progress = 1; state.dirty.buildings = true; b.cond = 100; b.age = 0;
+  const dd = BUILDINGS[b.kind]; if (dd && dd.enables) { state.flags[dd.enables] = true; if (dd.enables === 'canoe') addLog(state, 'Dugout canoes are ready: people can now cross deep water.'); }
   reveal(state, b.cx ?? b.x, b.cy ?? b.y, 4);
   if (b.kind === 'rescue') addLog(state, 'Rescue & Cleanup Post is ready.');
 }
@@ -453,13 +474,19 @@ export function tick(state) {
   tickDismantle(state);
   tickSaplings(state);
   for (const b of Object.values(state.buildings)) if (!b.done && !b.ruin && !b.dis) {
-    b.progress = Math.min(1, b.progress + 1 / buildTime(b));
+    // townsfolk build slowly on their own; villagers on site speed it up (materials are delivered when placed)
+    const nb = buildersAt(state, b); b.builders = nb; if (nb && b.q !== undefined) b.q = Math.min(0.97, b.q + 0.0006 * Math.min(4, nb)); // careful hands raise hidden build quality
+    b.progress = Math.min(1, b.progress + (0.5 + 0.75 * Math.min(4, nb)) / buildTime(b));
     if (b.progress >= 1) finishBuilding(state, b);
   }
   assignWorkers(state);
   for (const b of Object.values(state.buildings)) if (b.done && !b.ruin) runBuilding(state, b, 1);
   tickRoads(state, ROAD_RATE);
   tickUnits(state);
+  tickVillagers(state);
+  if (hour % 4 === 0) growthTick(state);
+  // free hands forage: unemployed adults gather a little food and firewood (never a soft-lock)
+  const idle = Math.max(0, state.unemployed || 0); state.res.food += idle * 0.5 / 24; state.res.wood += idle * 0.25 / 24;
   tickSurveys(state);
   tickEarthworks(state);
   tickIncidents(state);
@@ -476,31 +503,36 @@ export function tick(state) {
 }
 
 function assignWorkers(state) {
-  let free = popTotal(state);
+  let free = residentsTotal(state);
   const order = ['rescue', 'field', 'granary', 'woodcutter', 'claypit', 'quarry', 'orepit', 'shaft', 'kiln', 'smelter', 'carpentry', 'stall', 'store', 'custom', 'well', 'hut', 'brickhouse'];
   const list = Object.values(state.buildings).filter(b => b.done && !b.ruin).sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind));
   for (const b of list) {
-    const j = roadAccess(state, b) ? jobsOf(b) : 0;
+    const j = jobsOf(b); // Stone Age folk walk: no road needed for homes or jobs (roads add a bonus)
     b.workers = Math.min(j, free); free -= b.workers;
   }
   state.unemployed = free;
 }
 
+function foodBonus(state) { let m = 0; for (const b of Object.values(state.buildings)) { const d = BUILDINGS[b.kind]; if (b.done && !b.ruin && d && d.foodMult) m += d.foodMult * (d.jobs ? b.workers / d.jobs : 1); } return Math.min(0.5, m); }
 function eff(state, b) { const j = jobsOf(b); return j ? b.workers / j : 1; }
 
+// visible production cycle: b.prog fills 0..1, pops (b.pop = tick, b.popRes) when a batch of goods is done
+function prog(state, b, f, res) { b.prog = (b.prog || 0) + f; if (b.prog >= 1) { b.prog -= Math.floor(b.prog); b.pop = state.tick; b.popRes = res; } }
 function runBuilding(state, b, hours) {
-  const d = BUILDINGS[b.kind]; const e = eff(state, b) * (roadAccess(state, b) ? 1 : 0);
+  const d = BUILDINGS[b.kind]; const e = eff(state, b) * condMult(b) * (roadAccess(state, b) ? 1.15 : 1);
   if (d.food) {
-    const mult = hasBuilt(state, 'granary') ? 1.2 : 1;
-    state.res.food += d.food / 24 * e * hours * mult;
+    const add = d.food / 24 * e * hours * (1 + foodBonus(state));
+    state.res.food += add; prog(state, b, add / 4, 'food'); // progress bar pops every 4 food
   }
   if (d.extract) {
-    if (e <= 0) { b.info = roadAccess(state, b) ? 'No workers' : 'No road access'; return; }
+    if (e <= 0) { b.info = 'No workers'; return; }
     if (b.info === 'Depleted') { b.depCheck = (b.depCheck || 0) + 1; if (b.depCheck % 24) return; } // re-check once a day (trees regrow)
     b.acc += d.rate / 24 * e * hours;
     while (b.acc >= 1) {
       b.acc -= 1;
-      if (!extractOne(state, b, d)) { b.acc = 0; if (b.info !== 'Depleted') { b.info = 'Depleted'; b.depCheck = 0; addLog(state, `${d.name} at (${b.x}, ${b.y}) has nothing left to extract.`); for (const c of Object.values(state.world.chunks)) for (const t of c.tiles) if (t.work && t.work.mine === b.id) t.work.abandoned = true; } return; }
+      const before = { ...state.res };
+      if (extractOne(state, b, d)) { const r = Object.keys(state.res).find(k => state.res[k] > before[k]) || d.extract[0]; prog(state, b, 1 / Math.max(2, Math.round(d.rate / 6)), r); }
+      else { b.acc = 0; if (b.info !== 'Depleted') { b.info = 'Depleted'; b.depCheck = 0; addLog(state, `${d.name} at (${b.x}, ${b.y}) has nothing left to extract.`); for (const c of Object.values(state.world.chunks)) for (const t of c.tiles) if (t.work && t.work.mine === b.id) t.work.abandoned = true; } return; }
     }
     if (b.info === 'No workers' || b.info === 'No road access') b.info = '';
   }
@@ -512,7 +544,7 @@ function runBuilding(state, b, hours) {
       if (!Object.keys(inp).every(k => state.res[k] >= inp[k])) { b.acc = Math.min(b.acc, 1); b.info = 'Waiting for inputs'; return; }
       b.acc -= 1; b.info = '';
       for (const k in inp) state.res[k] -= inp[k];
-      for (const k in d.recipe.out) { state.res[k] += d.recipe.out[k]; if (k === 'brick') state.stats.bricksMade += d.recipe.out[k]; if (k === 'bronze') state.stats.bronzeMade += d.recipe.out[k]; }
+      prog(state, b, 1, Object.keys(d.recipe.out)[0]); for (const k in d.recipe.out) { state.res[k] += d.recipe.out[k]; if (k === 'brick') state.stats.bricksMade += d.recipe.out[k]; if (k === 'bronze') state.stats.bronzeMade += d.recipe.out[k]; }
     }
   }
 }
@@ -668,30 +700,66 @@ function dailyTick(state) {
   const homes = Object.values(state.buildings).filter(b => capOf(b) && b.done && !b.ruin);
   const wells = Object.values(state.buildings).filter(b => b.kind === 'well' && b.done);
   let watered = 0, homePop = 0;
-  for (const h of homes) { homePop += h.residents; if (wells.some(w => Math.max(Math.abs(w.x - h.x), Math.abs(w.y - h.y)) <= 5)) watered += h.residents; }
+  const nearRiver = (b) => { for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) { const t = tile(state, b.x + dx, b.y + dy); if (t && t.t === T.WATER) return true; } return false; };
+  for (const h of homes) { homePop += h.residents; if (wells.some(w => Math.max(Math.abs(w.x - h.x), Math.abs(w.y - h.y)) <= 5) || nearRiver(h)) watered += h.residents; }
   const waterFrac = homePop ? watered / homePop : 1;
   const unempFrac = pop ? (state.unemployed || 0) / pop : 0;
+  const F = [];
   let h = 50;
-  h += state.hungry ? -30 : 15;
-  h += waterFrac * 15 - (1 - waterFrac) * 15;
-  h += unempFrac > 0.3 ? -15 : 8;
-  h += pop ? Math.min(1, shopCap / pop) * 10 : 5;
+  h += state.hungry ? -30 : 15; F.push(['Food', state.hungry ? -30 : 15]);
+  const wv = Math.round(waterFrac * 15 - (1 - waterFrac) * 15); h += wv; F.push(['Water', wv]);
+  const jv = unempFrac > 0.5 ? -8 : 6; h += jv; F.push(['Work', jv]);
+  const sv = Math.round(pop ? Math.min(1, shopCap / pop) * 10 : 5); h += sv; F.push(['Barter', sv]);
+  F.push(['Culture & decoration', Math.round(state.decorHappy || 0)]); if (state.grief > 0.5) F.push(['Grief', -Math.round(state.grief)]);
+  state.happyF = F;
+  h += state.decorHappy || 0;
+  // health: fed, watered, a healer nearby
+  const healer = Object.values(state.buildings).some(b => b.kind === 'rescue' && b.done && !b.ruin);
+  state.health = Math.max(0, Math.min(100, Math.round(40 + (state.hungry ? -25 : 30) + waterFrac * 15 + (healer ? 15 : 0) - state.grief)));
   h -= state.grief;
   state.happiness = Math.max(0, Math.min(100, Math.round(h)));
   state.waterFrac = waterFrac; state.shopCap = shopCap;
   state.grief = Math.max(0, state.grief * 0.85 - 0.5);
-  // migration
-  if (state.happiness >= 45) {
-    let arrivals = Math.min(3 + Math.floor(pop * 0.12), 40);
-    for (const hm of homes) {
-      if (arrivals <= 0) break;
-      if (!roadAccess(state, hm)) continue;
-      const add = Math.min(capOf(hm) - hm.residents, arrivals);
-      if (add > 0) { hm.residents += add; arrivals -= add; state.stats.arrivals += add; }
-    }
-  } else if (state.happiness < 30 && pop > 0) {
+  leaveTick(state);
+  // culture: shrines, stones, circles... accumulate culture points toward the next era
+  let cult = 0, decor = 0;
+  for (const b of Object.values(state.buildings)) { if (!b.done || b.ruin) continue; const d = BUILDINGS[b.kind]; if (!d) continue; cult += (d.culture || 0) * condMult(b); decor += (d.happy || 0) * condMult(b); }
+  state.cult = (state.cult || 0) + cult; state.cultRate = cult; state.decorHappy = Math.min(20, decor);
+  // berries regrow
+  for (const c of Object.values(state.world.chunks)) for (const t of c.tiles) if (t.berryMax && t.berry < t.berryMax) { t.berry = Math.min(t.berryMax, t.berry + 3); state.dirty.berries = true; }
+  // aging and maintenance: wood/hide/thatch decay faster; idle hands patch things up with a little wood
+  let hands = Math.max(0, state.unemployed || 0) + villagers(state).filter(u => u.vstate === 'idle').length;
+  const blds = Object.values(state.buildings).filter(b => b.done && !b.ruin && b.kind !== 'custom' && !b.dis).sort((a, b) => (a.cond ?? 100) - (b.cond ?? 100));
+  for (const b of blds) {
+    const d = BUILDINGS[b.kind]; b.age = (b.age || 0) + 1; b.cond = b.cond ?? 100;
+    b.cond = Math.max(0, b.cond - (DECAY[d.mat] ?? 0.4) * (1.6 - (b.q ?? 0.85)) * (1 + rand(state) * 0.4));
+    if (b.cond < 85 && hands > 0 && state.res.wood >= 0.5) { b.cond = Math.min(100, b.cond + 6); state.res.wood -= 0.5; hands -= 0.5; b.maintained = state.tick; }
+    if (b.cond <= 0) { addLog(state, `${d.name} at (${b.x}, ${b.y}) fell apart from age.`); collapse(state, b, false); continue; }
+    // hidden structural failure: poor quality, over-ambitious and worn buildings can fail without warning (kept rare)
+    if (state.flags.collapses) { const risk = (d.ambition || 0) * 0.5 + (1 - (b.q ?? 0.85)) + (1 - b.cond / 100) * 0.4; if (risk > 0.6 && rand(state) < (risk - 0.6) * 0.02) collapse(state, b, false); }
+  }
+  state.condAvg = blds.length ? blds.reduce((a, b) => a + (b.cond ?? 100), 0) / blds.length : 100;
+}
+
+// Population growth, every 4 game hours: free housing + food + happiness bring newcomers / births
+export function growthTick(state) {
+  const pop = popTotal(state), cap = housingCap(state), housed = residentsTotal(state);
+  const foodDays = pop ? state.res.food / pop : 99;
+  let reason = '';
+  if (cap <= housed) reason = 'no free housing';
+  else if (state.res.food <= 0.5 && state.hungry) reason = 'no food';
+  else if (state.happiness < 40) { const worst = (state.happyF || []).slice().sort((a, b) => a[1] - b[1])[0]; reason = 'people are unhappy' + (worst && worst[1] < 0 ? ` (${worst[0].toLowerCase()})` : ''); }
+  state.growth = { ok: !reason, reason, foodDays };
+  if (reason) return;
+  let arrivals = Math.min(1 + Math.floor(pop * 0.04), cap - housed, 12);
+  const homes = Object.values(state.buildings).filter(b => capOf(b) && b.done && !b.ruin && !b.dis).sort((a, b) => (capOf(b) - b.residents) - (capOf(a) - a.residents));
+  for (const hm of homes) { if (arrivals <= 0) break; const add = Math.min(capOf(hm) - hm.residents, arrivals); if (add > 0) { hm.residents += add; arrivals -= add; state.stats.arrivals += add; } }
+}
+function leaveTick(state) {
+  const pop = popTotal(state);
+  if (state.happiness < 30 && pop > 0) {
     let leave = Math.max(1, Math.floor(pop * 0.05));
-    for (const hm of homes) { const l = Math.min(hm.residents, leave); hm.residents -= l; leave -= l; state.stats.left += l; if (leave <= 0) break; }
+    for (const hm of Object.values(state.buildings)) { const l = Math.min(hm.residents || 0, leave); hm.residents -= l; leave -= l; state.stats.left += l; if (leave <= 0) break; }
   }
 }
 
@@ -815,6 +883,6 @@ export function serialize(state) { const { dirty, ...rest } = state; return JSON
 export function deserialize(json) {
   const s = JSON.parse(json);
   if (s.version !== SAVE_VERSION) throw new Error('Save version mismatch');
-  s.dirty = { all: true }; s.draft = []; { let need = false; for (const c of Object.values(s.world.chunks)) for (const t of c.tiles) if (t.t === T.WATER && t.wd === undefined) need = true; if (need) classifyWater(s.world, s.seed | 0); } s.roadRemove = s.roadRemove || []; s.saplingTiles = s.saplingTiles || []; s.earthworks = s.earthworks || []; s.roadJobs = s.roadJobs || []; s.units = s.units || [];
+  s.dirty = { all: true }; s.draft = []; { let nb = true; for (const c of Object.values(s.world.chunks)) for (const t of c.tiles) if (t.berryMax !== undefined) nb = false; if (nb) addBerries(s.world, s.seed | 0); } { let need = false; for (const c of Object.values(s.world.chunks)) for (const t of c.tiles) if (t.t === T.WATER && t.wd === undefined) need = true; if (need) classifyWater(s.world, s.seed | 0); } s.roadRemove = s.roadRemove || []; s.saplingTiles = s.saplingTiles || []; s.earthworks = s.earthworks || []; s.roadJobs = s.roadJobs || []; s.units = s.units || [];
   return s;
 }

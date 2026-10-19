@@ -49,7 +49,7 @@ export class Renderer {
     this.sun.shadow.bias = -0.0004; this.sun.shadow.normalBias = 0.03; this.sun.shadow.radius = 3;
     this.scene.add(this.sun, this.sun.target);
     this.groups = {};
-    for (const k of ['terrain', 'earth', 'water', 'trees', 'grass', 'roads', 'buildings', 'proxies', 'units', 'under', 'overlay', 'vehicles', 'draft', 'ghost', 'fx']) { this.groups[k] = new THREE.Group(); this.scene.add(this.groups[k]); }
+    for (const k of ['terrain', 'earth', 'water', 'trees', 'grass', 'berries', 'roads', 'buildings', 'proxies', 'units', 'under', 'overlay', 'vehicles', 'draft', 'ghost', 'fx']) { this.groups[k] = new THREE.Group(); this.scene.add(this.groups[k]); }
     this.bvis = new Map(); this.vvis = new Map(); this.uvis = new Map(); this.selUnit = null; this.windowMats = new Set();
     this.underground = false; this.clock = 0; this.night = 0;
     this.uTime = { value: 0 }; this.initFog();
@@ -369,8 +369,31 @@ export class Renderer {
     this.lodForce = true;
   }
 
+  // ---------- berry bushes (instanced; berries thin out as they are picked, regrow daily) ----------
+  buildBerries(state) {
+    const g = this.groups.berries;
+    g.children.forEach(m => m.dispose && m.dispose()); g.clear();
+    const bushes = [], dots = [];
+    for (let y = 0; y < SIZE; y++) for (let x = 0; x < SIZE; x++) {
+      const t = tile(state, x, y); if (!t.berryMax || t.occ || t.road) continue;
+      const nb = 2 + (h01(x, y, 300) < 0.5 ? 1 : 0), ripe = (t.berry || 0) / t.berryMax;
+      for (let i = 0; i < nb; i++) {
+        const px = x + 0.2 + h01(x, y, 310 + i) * 0.6, pz = y + 0.2 + h01(x, y, 320 + i) * 0.6, s = 0.8 + h01(x, y, 330 + i) * 0.5, py = this.heightAt(px, pz);
+        bushes.push([px, py, pz, s, h01(x, y, 340 + i)]);
+        const nd = Math.round(ripe * 7); for (let k = 0; k < nd; k++) { const a = k * 2.4 + i, r = 0.07 * s; dots.push([px + Math.cos(a) * r, py + 0.05 * s + (k % 3) * 0.025 * s, pz + Math.sin(a) * r]); }
+      }
+    }
+    if (!this.bushMat) { this.bushMat = this.fogify(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, flatShading: true }), 'object'); this.bushGeo = new THREE.IcosahedronGeometry(0.08, 0); this.bushGeo.translate(0, 0.06, 0); this.dotMat = this.fogify(new THREE.MeshStandardMaterial({ color: 0xb3243b, roughness: 0.5, emissive: 0x3a0610 }), 'object'); this.dotGeo = new THREE.SphereGeometry(0.016, 5, 4); }
+    const mx = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), ps = new THREE.Vector3(), col = new THREE.Color();
+    if (bushes.length) { const m = new THREE.InstancedMesh(this.bushGeo, this.bushMat, bushes.length); bushes.forEach((p, i) => { q.setFromEuler(new THREE.Euler(0, p[4] * 6, 0)); sc.set(p[3], p[3] * 0.8, p[3]); ps.set(p[0], p[1], p[2]); mx.compose(ps, q, sc); m.setMatrixAt(i, mx); col.setHex(0x3f6e34).offsetHSL((p[4] - 0.5) * 0.05, 0, (p[4] - 0.5) * 0.1); m.setColorAt(i, col); }); m.castShadow = m.receiveShadow = true; m.computeBoundingSphere(); g.add(m); }
+    if (dots.length) { const m = new THREE.InstancedMesh(this.dotGeo, this.dotMat, dots.length); q.identity(); sc.setScalar(1); dots.forEach((p, i) => { ps.set(p[0], p[1], p[2]); mx.compose(ps, q, sc); m.setMatrixAt(i, mx); }); m.computeBoundingSphere(); g.add(m); }
+  }
+  // screen position of a world point (for HTML overlays such as progress bars)
+  worldScreen(x, y, z) { const p = new THREE.Vector3(x, y, z).project(this.cam); if (p.z > 1 || p.z < -1) return null; const r = this.canvas.getBoundingClientRect(); return { x: r.left + (p.x + 1) / 2 * r.width, y: r.top + (1 - p.y) / 2 * r.height }; }
+  buildingAnchor(id) { const v = this.bvis.get(id); if (!v || !v.root.visible) return null; const st = v.stages[v.vis]; let h = 0.5; if (st) { if (!st.userData.h) { const bb = new THREE.Box3().setFromObject(st); st.userData.h = Math.max(0.15, bb.max.y - v.root.position.y); } h = st.userData.h; } return this.worldScreen(v.root.position.x, v.root.position.y + h + 0.08, v.root.position.z); }
   // ---------- units (scouts etc.): small animated figures, interpolated between sim ticks ----------
   makeUnitModel(kind) {
+    if (kind === 'villager') return this.makeVillagerModel();
     const g = new THREE.Group(), M = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.8, flatShading: true });
     const body = new THREE.Group(); g.add(body); g.userData.body = body;
     const legs = [-1, 1].map(s => { const l = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.11, 0.04), M(0x5a4632)); l.geometry.translate(0, -0.055, 0); l.position.set(s * 0.028, 0.11, 0); body.add(l); return l; });
@@ -380,6 +403,25 @@ export class Renderer {
     const hat = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.05, 7), M(0x6b4a2a)); hat.position.y = 0.315; body.add(hat);
     const pack = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.08, 0.04), M(0x8a6a3e)); pack.position.set(0, 0.18, -0.055); body.add(pack);
     const staff = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.34, 4), M(0x9c6b3e)); staff.position.set(0.07, 0.17, 0.02); body.add(staff);
+    g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.11, 0.15, 24), new THREE.MeshBasicMaterial({ color: 0xfff1a8, transparent: true, opacity: 0.9, depthWrite: false })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.012; ring.visible = false; g.add(ring); g.userData.ring = ring;
+    g.scale.setScalar(1.6); return g;
+  }
+  // villager: hide tunic, bare head with hair, a hafted stone tool that swings while working, a load bundle on the back
+  makeVillagerModel() {
+    const g = new THREE.Group(), M = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.85, flatShading: true });
+    const body = new THREE.Group(); g.add(body); g.userData.body = body;
+    g.userData.legs = [-1, 1].map(s => { const l = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.11, 0.04), M(0x6b4f35)); l.geometry.translate(0, -0.055, 0); l.position.set(s * 0.028, 0.11, 0); body.add(l); return l; });
+    const tunic = [0xa8804f, 0x8f6a44, 0xb59366, 0x7d6448][Math.floor(Math.random() * 4)];
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.044, 0.066, 0.14, 6), M(tunic)); torso.position.y = 0.175; body.add(torso);
+    const belt = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.06, 0.015, 6), M(0x4a3524)); belt.position.y = 0.14; body.add(belt);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), M(0xc99468)); head.position.y = 0.275; body.add(head);
+    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.043, 8, 5, 0, Math.PI * 2, 0, Math.PI * 0.55), M([0x3b2a1e, 0x5a3e28, 0x2a211b][Math.floor(Math.random() * 3)])); hair.position.y = 0.282; body.add(hair);
+    const arm = new THREE.Group(); arm.position.set(0.06, 0.22, 0); body.add(arm); g.userData.tool = arm;
+    const a = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.09, 0.025), M(0xc99468)); a.position.y = -0.04; arm.add(a);
+    const haft = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.16, 4), M(0x8a6038)); haft.position.set(0, -0.08, 0.06); haft.rotation.x = Math.PI / 2; arm.add(haft);
+    const headT = new THREE.Mesh(new THREE.DodecahedronGeometry(0.02, 0), M(0x5d5d63)); headT.position.set(0, -0.08, 0.14); arm.add(headT);
+    const load = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.07, 0.06), M(0x9c6b3e)); load.position.set(0, 0.22, -0.065); load.visible = false; body.add(load); g.userData.load = load;
     g.traverse(o => { if (o.isMesh) o.castShadow = true; });
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.11, 0.15, 24), new THREE.MeshBasicMaterial({ color: 0xfff1a8, transparent: true, opacity: 0.9, depthWrite: false })); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.012; ring.visible = false; g.add(ring); g.userData.ring = ring;
     g.scale.setScalar(1.6); return g;
@@ -394,6 +436,15 @@ export class Renderer {
       v.root.position.set(x + 0.5, Math.max(hx, WATER_Y), y + 0.5);
       if (moving) { v.root.rotation.y = Math.atan2(u.x - u.px, u.y - u.py); v.phase += dt * 9; } else v.phase *= 0.9;
       const sw = Math.sin(v.phase) * (moving ? 0.6 : 0); v.root.userData.legs[0].rotation.x = sw; v.root.userData.legs[1].rotation.x = -sw; v.root.userData.body.position.y = moving ? Math.abs(Math.sin(v.phase)) * 0.012 : 0;
+      const ud = v.root.userData;
+      if (ud.tool) { // villager work animation + carried load
+        const work = !moving && (u.vstate === 'working' || u.vstate === 'building');
+        if (work) { v.wph = (v.wph || 0) + dt * 7; const j = u.job; if (j) { const tx = j.type === 'build' ? (state.buildings[j.id] || u).x : j.x, ty = j.type === 'build' ? (state.buildings[j.id] || u).y : j.y; if (tx !== u.x || ty !== u.y) v.root.rotation.y = Math.atan2(tx - u.x, ty - u.y); } }
+        ud.tool.rotation.x = work ? -0.6 - Math.max(0, Math.sin(v.wph)) * 1.5 : (moving ? Math.sin(v.phase) * 0.4 : 0);
+        ud.body.rotation.x = work ? Math.max(0, Math.sin(v.wph)) * 0.18 : 0;
+        const c = u.carry && u.carry.n > 0.5 ? u.carry : null; ud.load.visible = !!c;
+        if (c) { ud.load.material.color.setHex({ wood: 0x9c6b3e, stone: 0x9a9a96, clay: 0xc4865a, food: 0xb3243b }[c.res] || 0x9c6b3e); const k = 0.5 + 0.5 * Math.min(1, c.n / 10); ud.load.scale.set(k, k, k); }
+      }
       v.root.userData.ring.visible = this.selUnit === u.id || !!(this.selUnits && this.selUnits.has(u.id));
       v.root.visible = !this.underground;
     }
@@ -574,6 +625,9 @@ export class Renderer {
         this.groups.buildings.add(v.root); this.bvis.set(b.id, v);
         this.ensureStage(v, b, target); this.setOpacity(v.stages[target], 1);
       }
+      // aging: weather the finished model as condition drops (per-building material clones are tinted, worn ones lean)
+      const wear = b.done && !b.ruin && b.cond !== undefined ? (b.cond >= 75 ? 0 : b.cond >= 50 ? 1 : b.cond >= 25 ? 2 : 3) : 0;
+      if (v.stages[3] && v.wear !== wear) { v.wear = wear; const k = [0, 0.3, 0.55, 0.75][wear], grey = new THREE.Color(0x4f4b40); v.stages[3].traverse(o => { if (o.isMesh && o.material.color) { const m = o.material; if (!m.userData.c0) m.userData.c0 = m.color.clone(); m.color.copy(m.userData.c0).lerp(grey, k); } }); v.stages[3].rotation.z = [0, 0.015, 0.07, 0.16][wear]; v.stages[3].rotation.x = [0, 0, -0.03, 0.07][wear]; v.stages[3].scale.y = [1, 1, 0.92, 0.78][wear]; }
       if (!v.fade && v.vis !== target) {
         const next = target === 4 ? 4 : target < v.vis ? v.vis - 1 : Math.min(target, v.vis + 1), gap = target === 4 ? 1 : Math.abs(target - v.vis);
         const base = Math.max(0.35, Math.min(1.6, 1.6 / Math.sqrt(Math.max(1, speed / 2))));
@@ -796,7 +850,7 @@ export class Renderer {
     if (this.terrainMat) { this.terrainMat.transparent = on; this.terrainMat.opacity = on ? 0.09 : 1; this.terrainMat.depthWrite = !on; this.terrainMat.needsUpdate = true; }
     if (this.skirt) this.skirt.visible = !on;
     if (on && this.underStale && this.state) { this.underStale = false; this.buildUnder(this.state); }
-    for (const k of ['trees', 'roads', 'grass', 'water', 'earth']) this.groups[k].visible = !on;
+    for (const k of ['trees', 'roads', 'grass', 'berries', 'water', 'earth']) this.groups[k].visible = !on;
     this.groups.under.visible = on; this.scene.background = on ? this.skyUnder : this.skyTex; this.scene.fog.color.setHex(on ? 0x1a1613 : 0xc6d8e6);
   }
   // screen-space unit picking (units are small; pick within a finger-sized radius) and box selection
@@ -870,6 +924,7 @@ export class Renderer {
       if (d.overlay || (d.buildings && state.flags.riskOverlay)) this.buildOverlay(state);
       if (d.draft) this.buildDraft(state);
     }
+    if (d.all || d.berries || d.terrain || d.buildings || d.roads) this.buildBerries(state);
     if (this.earthKey !== undefined && this.earthKey !== this.earthStageKey(state)) this.buildEarth(state);
     state.dirty = {};
     this.syncFelling(state, dt);
