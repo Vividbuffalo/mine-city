@@ -887,6 +887,47 @@ Object.assign(MODELS, {
     k.box(0.3, 0.9, 0.3, C, 0, 0.04, -0.45); k.cyl(0.13, 0.14, 0.12, 10, LIME, 0, 0.94, -0.45); k.cone(0.14, 0.2, 10, 'bronze', 0, 1.06, -0.45);
     k.box(0.9, 0.012, 0.7, 0x5b8f3a, 0, 0.04, 0.25); k.cyl(0.05, 0.06, 0.18, 8, 'bronze', 0, 0.04, 0.3);
   } },
+  // ---- Industrial ----
+  rowhouse: { dims: { w: 0.9, d: 0.5, h: 0.5, roof: 'gable', wall: 'brick' }, finished(k) {
+    const W = 0.94, D = 0.5; k.box(W, 0.46, D, 'brick', 0, 0, -0.05); k.roof(W, D, 0.18, SLATE, 0.46, 'brick', 0, -0.05);
+    for (let i = 0; i < 4; i++) { const x = -0.35 + i * 0.235; k.box(0.012, 0.47, D + 0.01, 'brickDark', x - 0.117, 0, -0.05); k.door('front', W, D, 0.07, 0.15, x + 0.04, 'woodDark'); k.box(0.06, 0.08, 0.01, WINDOW(), x - 0.05, 0.06, D / 2 - 0.045); k.box(0.07, 0.08, 0.01, WINDOW(), x, 0.28, D / 2 - 0.045); k.box(0.05, 0.12, 0.05, 'brickDark', x, 0.6, -0.05); }
+    k.box(W, 0.02, 0.14, 'stoneDark', 0, 0, 0.27);
+  } },
+  colliery: { dims: { w: 0.8, d: 0.8, h: 0.9, roof: 'none', wall: 'brick' }, finished(k) {
+    k.box(0.86, 0.03, 0.86, 'soilDark'); k.pile(10, 0.07, 0x26262a, 0.26, 0.26); k.pile(6, 0.06, 0x2b2b30, -0.28, 0.3);
+    // headframe over the shaft, winding wheel on top
+    for (const [x, z] of [[-0.14, -0.14], [0.14, -0.14], [-0.14, 0.14], [0.14, 0.14]]) k.box(0.03, 0.8, 0.03, 'iron', x * 0.7, 0.03, z * 0.7 - 0.08, x * 0.3, 0, z * 0.3);
+    k.box(0.24, 0.03, 0.24, 'iron', 0, 0.82, -0.08); k.cyl(0.12, 0.12, 0.025, 14, 'black', 0, 0.86, -0.08, Math.PI / 2); k.box(0.004, 0.8, 0.004, 'black', 0.1, 0.06, -0.08);
+    k.box(0.3, 0.3, 0.26, 'brick', -0.25, 0.03, -0.25); k.roof(0.3, 0.26, 0.1, SLATE, 0.33, 'brick', -0.25, -0.25); k.cyl(0.04, 0.05, 0.5, 8, 'brickDark', -0.34, 0.03, -0.34); k.emitters.push({ x: -0.34, y: 0.56, z: -0.34, type: 'chimney' });
+    k.box(0.4, 0.02, 0.06, 'iron', 0.1, 0.035, 0.32); for (let i = 0; i < 2; i++) k.box(0.1, 0.07, 0.07, 'black', 0.02 + i * 0.13, 0.05, 0.32);
+  } },
+  steelworks: { dims: { w: 1.7, d: 1.7, h: 0.8, roof: 'gable', wall: 'brick' }, finished(k) {
+    k.box(1.8, 0.04, 1.8, 'stoneDark'); k.box(1.2, 0.5, 0.8, 'brickDark', -0.2, 0.04, -0.35); k.roof(1.2, 0.8, 0.26, SLATE, 0.54, 'brickDark', -0.2, -0.35);
+    for (let i = 0; i < 5; i++) k.box(0.1, 0.12, 0.01, GLOW(0xff8a30, 1.8), -0.7 + i * 0.25, 0.2, 0.06);
+    for (const x of [0.25, 0.55]) { k.cyl(0.13, 0.17, 0.7, 12, 'iron', x, 0.04, 0.45); k.cyl(0.05, 0.05, 0.12, 8, 'black', x, 0.74, 0.45); k.emitters.push({ x, y: 0.88, z: 0.45, type: 'smelter' }); }
+    for (const x of [-0.75, -0.45]) { k.cyl(0.05, 0.07, 1.1, 8, 'brick', x, 0.04, 0.5); k.emitters.push({ x, y: 1.18, z: 0.5, type: 'chimney' }); }
+    k.pile(8, 0.07, 0x26262a, 0.6, -0.55); k.pile(6, 0.06, 0xa4512f, 0.3, -0.65); for (let i = 0; i < 4; i++) k.box(0.4, 0.03, 0.06, 0x6d7a86, -0.3, 0.05 + i * 0.03, 0.75);
+  } },
+  textilemill: { dims: { w: 1.7, d: 1.4, h: 0.9, roof: 'gable', wall: 'brick' }, finished(k) {
+    k.box(1.8, 0.04, 1.5, 'stoneDark'); const W = 1.5, D = 0.8; k.box(W, 0.8, D, 'brick', 0, 0.04, -0.2); k.roof(W, D, 0.2, SLATE, 0.84, 'brick', 0, -0.2);
+    for (const y of [0.14, 0.38, 0.62]) k.windows('front', W, 0.4, y, 8, 0.07, 0.12, 0);
+    k.cyl(0.06, 0.09, 1.4, 10, 'brickDark', 0.62, 0.04, 0.4); k.emitters.push({ x: 0.62, y: 1.48, z: 0.4, type: 'chimney' });
+    k.box(0.3, 0.4, 0.3, 'brickDark', -0.5, 0.04, 0.42); k.roof(0.3, 0.3, 0.1, SLATE, 0.44, 'brickDark', -0.5, 0.42); for (let i = 0; i < 3; i++) k.box(0.12, 0.1, 0.1, 'cloth', -0.05 + i * 0.15, 0.04, 0.45);
+  } },
+  rail: { dims: { w: 1, d: 0.5, h: 0.05, roof: 'none', wall: 'stone' }, finished(k) {
+    k.box(1.0, 0.03, 0.42, 0x7d7368); for (let i = 0; i < 6; i++) k.box(0.07, 0.025, 0.36, 'woodDark', -0.42 + i * 0.168, 0.03);
+    for (const z of [-0.1, 0.1]) k.box(1.0, 0.025, 0.025, 0x8a96a2, 0, 0.055, z);
+  } },
+  station: { dims: { w: 1.6, d: 1.4, h: 0.6, roof: 'gable', wall: 'brick' }, finished(k) {
+    k.box(1.8, 0.04, 1.6, 'stone'); k.box(1.2, 0.46, 0.5, 'brick', -0.1, 0.04, -0.4); k.roof(1.2, 0.5, 0.18, SLATE, 0.5, 'brick', -0.1, -0.4);
+    k.windows('front', 1.2, -0.3, 0.22, 5, 0.07, 0.12, -0.1); k.door('front', 1.2, -0.3, 0.1, 0.2, -0.45, 'woodDark');
+    k.box(0.14, 0.14, 0.14, LIME, -0.1, 0.62, -0.4); k.cyl(0.05, 0.05, 0.01, 12, 0xf3efe6, -0.1, 0.69, -0.33, Math.PI / 2);
+    k.box(1.7, 0.08, 0.36, 'stoneDark', 0, 0.04, 0.12); for (const x of [-0.6, -0.2, 0.2, 0.6]) k.box(0.025, 0.36, 0.025, 'iron', x, 0.12, 0.2); k.box(1.6, 0.02, 0.44, SLATE, 0, 0.48, 0.14);
+    k.box(1.8, 0.02, 0.4, 0x7d7368, 0, 0.04, 0.55); for (const z of [0.47, 0.63]) k.box(1.8, 0.025, 0.025, 0x8a96a2, 0, 0.065, z);
+    // a small engine waiting at the platform
+    k.cyl(0.08, 0.08, 0.36, 10, 'black', 0.3, 0.17, 0.55, 0, 0, Math.PI / 2); k.box(0.16, 0.2, 0.18, 'black', 0.05, 0.08, 0.55); k.cyl(0.025, 0.03, 0.1, 6, 'black', 0.42, 0.25, 0.55); k.box(0.36, 0.06, 0.2, 0x8b1e1e, 0.25, 0.07, 0.55);
+    k.emitters.push({ x: 0.42, y: 0.37, z: 0.55, type: 'chimney' });
+  } },
   printing: { dims: { w: 0.6, d: 0.5, h: 0.42, roof: 'gable', wall: 'plaster' }, finished(k) {
     const W = 0.56, D = 0.46; k.box(W, 0.36, D, LIME, 0, 0, -0.04); for (const x of [-0.28, -0.1, 0.1, 0.28]) k.box(0.025, 0.36, D + 0.01, 'woodDark', x, 0, -0.04); k.roof(W, D, 0.22, 'roof2', 0.36, LIME, 0, -0.04);
     k.windows('front', W, D, 0.12, 2, 0.1, 0.12, 0); k.door('front', W, D, 0.08, 0.16, 0.16, 'woodDark');

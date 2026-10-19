@@ -1,6 +1,8 @@
-# EARTH — Game Design Document (draft v1.5)
+# EARTH — Game Design Document (draft v1.6)
 
 > Formerly "Mine City". Title screen line: "Welcome to Earth. Enjoy the journey."
+
+*v1.6 (game v2.8, Industrial skeleton): era 7 Industrial (reached from Renaissance with pop 450, 140 buildings, 25,000 culture, Printing + Banking, 400 cloth made, a Cathedral). Coal seams under flat land; Coal Mine (shaft with headframe), Steelworks (iron + coal → steel), Textile Mill (wool + flax + coal → cloth), Row Houses, Railway Track (must join the line) and Railway Station (next to the track; counts as two trading posts). Techs: Steam Power, Railways, Steelmaking, Machinery (the Bulldozer tool: instant demolition; earthworks 6× faster). Appendix M.*
 
 *v1.5 (game v2.7, bigger world): new games use a 128×128 map (Small 64×64 still offered) with a sea coast on the east edge; terrain, trees, grass and berry bushes stream in per 16×16 chunk as land is explored; 7 neighbouring towns on large maps with five cultures (River folk, Hill clans, Forest people, Horse herders, Sea people), each with house styles and landmarks through all six eras, borders drawn in the culture colour, one harbour town on the coast. Unit pathfinding is a heap-based A* (about 40x faster). Appendix L.*
 
@@ -710,3 +712,11 @@ Recipes can keep a reserve of an input (the Mint leaves 40 bronze for monuments)
 - **Neighbour towns**: 3 on small maps, 3 + (size − 64)/16 on large (7 at 128). The first is a coastal harbour (Sea people); others spread outward. Cultures: River folk, Hill clans, Forest people, Horse herders (sell horses, wool, food), Sea people (sell food, cloth, wine). Met by sight; trade only with met towns via trading posts/harbours; no war.
 - **Borders**: each town's land is outlined in its culture colour where explored; the tile panel shows "Land of …".
 - **Animals** scale with map area.
+
+
+## Appendix M — Industrial skeleton as built (game v2.8)
+- **Era 7 Industrial**, colliery depth limit 300 m. Goal to leave Renaissance: pop 450, 140 buildings, culture 25,000, Printing and Banking, 400 cloth made, Cathedral built.
+- **Coal** (new deposit, dark grey): buried seams under flat land (noise > 0.74), shallow outcrops (2 m) where the seam is richest, otherwise 6–26 m. Added after the rest of the geology so older maps keep their deposits; old saves get coal on load.
+- **Buildings**: Coal Mine (shaft, 6 jobs, rate 12), Steelworks (2×2; 2 iron + 2 coal → 1 steel, 6/day), Textile Mill (2×2; 2 wool + 2 flax + 1 coal → 5 cloth), Row Houses (20 people), Railway Track (auto-turns to follow the line; after the first piece every new piece must touch the line or a station), Railway Station (2×2; once there is track it must sit next to it; trade 2, shop).
+- **Techs**: Steam Power → Railways, Steelmaking, Machinery. Machinery unlocks the **Bulldozer** tool (Tools tab): demolition is instant (same 50% refund); earthworks run 6× faster.
+- Still to come (later eras): trains running on the track, rail freight between stations, factories and pollution, power.

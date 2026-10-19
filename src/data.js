@@ -9,9 +9,10 @@ export const ERAS = {
   4: { name: 'Classical', maxDepth: 80, tier: 'Deep shaft' },
   5: { name: 'Medieval', maxDepth: 120, tier: 'Deep shaft' },
   6: { name: 'Renaissance', maxDepth: 160, tier: 'Deep shaft' },
+  7: { name: 'Industrial', maxDepth: 300, tier: 'Colliery' },
 };
 
-export const RESOURCES = ['wood', 'clay', 'stone', 'copper', 'tin', 'brick', 'bronze', 'food', 'tools', 'pots', 'wool', 'flax', 'cloth', 'ironore', 'charcoal', 'iron', 'blocks', 'horses', 'grapes', 'wine'];
+export const RESOURCES = ['wood', 'clay', 'stone', 'copper', 'tin', 'brick', 'bronze', 'food', 'tools', 'pots', 'wool', 'flax', 'cloth', 'ironore', 'charcoal', 'iron', 'blocks', 'horses', 'grapes', 'wine', 'coal', 'steel'];
 export const ERA3_NOTE = 'Iron (and iron mines) arrive with the Iron era, after Bronze.';
 
 export const DEPOSITS = {
@@ -20,6 +21,7 @@ export const DEPOSITS = {
   copper: { name: 'Copper', color: 0x3fae8c },
   tin:    { name: 'Tin',    color: 0xd7dde6 },
   ironore: { name: 'Iron ore', color: 0xa4512f },
+  coal:   { name: 'Coal',   color: 0x2b2b30 },
 };
 
 // cost: money + materials. time: build hours. jobs: worker slots. weight: subsidence weight factor.
@@ -128,6 +130,13 @@ export const BUILDINGS = {
   markethall: { name: 'Market Hall', cat: 'Services', era: 5, size: 1, cost: { blocks: 20, wood: 16 }, time: 30, jobs: 4, shop: 150, sells: { cloth: 1.6, pots: 0.7, wine: 3, tools: 2.5 }, weight: 1.2, upkeep: 0.5, mat: 'stone' },
   shipyard:   { name: 'Shipyard', cat: 'Industry', era: 5, size: 2, cost: { wood: 60, iron: 6, cloth: 10 }, time: 60, jobs: 4, nearWater: true, weight: 0.8, upkeep: 0.6, mat: 'wood', enables: 'ships', tech: 'navigation' },
   // --- Renaissance era ---
+  // ---- Industrial (era 7): coal, steam, steel, rail ----
+  rowhouse:   { name: 'Row Houses', cat: 'Housing', era: 7, size: 1, cost: { brick: 30, wood: 8, iron: 2 }, time: 24, cap: 20, weight: 1.6, upkeep: 0.3, mat: 'brick' },
+  colliery:   { name: 'Coal Mine', cat: 'Gathering', era: 7, size: 1, cost: { blocks: 20, iron: 10, tools: 4 }, time: 40, jobs: 6, extract: ['coal'], rate: 12, radius: 3, maxDepth: 40, shaft: true, tech: 'steampower', weight: 1.2, upkeep: 1, mat: 'brick' },
+  steelworks: { name: 'Steelworks', cat: 'Industry', era: 7, size: 2, cost: { brick: 60, iron: 20, blocks: 20 }, time: 60, jobs: 8, recipe: { in: { iron: 2, coal: 2 }, out: { steel: 1 }, perDay: 6 }, tech: 'steelmaking', weight: 2.5, upkeep: 1.5, mat: 'brick' },
+  textilemill:{ name: 'Textile Mill', cat: 'Industry', era: 7, size: 2, cost: { brick: 50, iron: 10, wood: 20 }, time: 50, jobs: 8, recipe: { in: { wool: 2, flax: 2, coal: 1 }, out: { cloth: 5 }, perDay: 6 }, tech: 'steampower', weight: 2, upkeep: 1, mat: 'brick' },
+  rail:       { name: 'Railway Track', cat: 'Services', era: 7, size: 1, cost: { money: 5, iron: 2, wood: 2 }, time: 4, weight: 0.2, upkeep: 0.05, mat: 'stone', rail: true, tech: 'railways' },
+  station:    { name: 'Railway Station', cat: 'Services', era: 7, size: 2, cost: { brick: 40, iron: 20, wood: 10 }, time: 50, jobs: 4, needsRail: true, trade: 2, shop: 40, weight: 1.5, upkeep: 0.8, mat: 'brick', tech: 'railways' },
   townhouse:  { name: 'Townhouse', cat: 'Housing', era: 6, size: 1, cost: { brick: 20, blocks: 8, wood: 10 }, time: 30, cap: 16, weight: 1.6, upkeep: 0.3, mat: 'brick' },
   palazzo:    { name: 'Palazzo', cat: 'Housing', era: 6, size: 2, cost: { blocks: 60, brick: 30, wood: 20 }, time: 70, cap: 14, happy: 3, weight: 2.4, upkeep: 0.6, mat: 'stone' },
   university: { name: 'University', cat: 'Culture', era: 6, size: 2, cost: { blocks: 80, brick: 30, wood: 20 }, time: 90, jobs: 6, research: 0.5, culture: 8, weight: 2.4, upkeep: 1.2, mat: 'stone' },
@@ -176,20 +185,24 @@ export const TECHS = {
   navigation: { name: 'Navigation', era: 5, cost: 420, req: [] },
   printing: { name: 'Printing', era: 6, cost: 520, req: [] },
   banking:  { name: 'Banking', era: 6, cost: 520, req: [] },
+  steampower: { name: 'Steam Power', era: 7, cost: 700, req: [] },
+  railways:   { name: 'Railways', era: 7, cost: 800, req: ['steampower'] },
+  steelmaking:{ name: 'Steelmaking', era: 7, cost: 800, req: ['steampower'] },
+  machinery:  { name: 'Machinery', era: 7, cost: 900, req: ['steampower'] },
 };
 
 // Terrain levelling. Bronze: cut a terrace into a steep (mountain) tile so it can be built on. Later eras: full levelling / cutting into mountains (design).
 export const EARTHWORKS = { cost: { money: 40, stone: 6 }, hours: 30, needs: 'carpentry', tech: 'earthworks' };
 
 // Deposits visible on the surface without surveying (clay banks, stone outcrops, copper stains): max depth in m
-export const SURFACE_DEPTH = { clay: 2, stone: 2, copper: 3, tin: 2, ironore: 3 };
+export const SURFACE_DEPTH = { clay: 2, stone: 2, copper: 3, tin: 2, ironore: 3, coal: 2 };
 // Saplings: planting cost and growth (game hours per stage: sapling -> young -> grown tree)
 export const SAPLING = { cost: { money: 3 }, stages: [48, 96], grownAt: 144 };
 // Dismantling (early eras): reverse construction at this fraction of build time, refunds part of the materials
 export const DISMANTLE = { timeMult: 0.6, refund: 0.5, bulldozerEra: 'Industrial' };
 
 // Next-era milestones (shown as a plain status line): population, finished buildings, culture points, techs
-export const ERA_REQ = { 1: { pop: 30, buildings: 15, culture: 100, techs: ['pottery', 'smelting'] }, 2: { pop: 70, buildings: 35, culture: 600, techs: ['writing', 'ironworking'], made: { bronze: 20, tools: 10 } }, 3: { pop: 120, buildings: 55, culture: 2000, techs: ['masonry', 'currency'], made: { iron: 30, blocks: 40 } }, 4: { pop: 200, buildings: 80, culture: 5000, techs: ['engineering', 'philosophy'], made: { wine: 60 }, built: ['monument'] }, 5: { pop: 320, buildings: 110, culture: 12000, techs: ['guilds', 'navigation'], made: { cloth: 200 }, built: ['castle'] } };
+export const ERA_REQ = { 1: { pop: 30, buildings: 15, culture: 100, techs: ['pottery', 'smelting'] }, 2: { pop: 70, buildings: 35, culture: 600, techs: ['writing', 'ironworking'], made: { bronze: 20, tools: 10 } }, 3: { pop: 120, buildings: 55, culture: 2000, techs: ['masonry', 'currency'], made: { iron: 30, blocks: 40 } }, 4: { pop: 200, buildings: 80, culture: 5000, techs: ['engineering', 'philosophy'], made: { wine: 60 }, built: ['monument'] }, 5: { pop: 320, buildings: 110, culture: 12000, techs: ['guilds', 'navigation'], made: { cloth: 200 }, built: ['castle'] }, 6: { pop: 450, buildings: 140, culture: 25000, techs: ['printing', 'banking'], made: { cloth: 400 }, built: ['cathedral'] } };
 // Bronze tools: while the town has tools, gathering, extraction and building go faster; tools wear out with use
 export const TOOLS = { boost: 0.25, ironBoost: 0.4, wearPerWorkerDay: 0.01 };
 // horses: scouts ride (faster); with a cart maker, villagers haul with carts (bigger loads)

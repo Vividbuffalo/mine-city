@@ -90,7 +90,7 @@ const TOOL_ITEMS = {
   plant: { name: 'Plant trees', cost: S.costStr(SAPLING.cost) + ' / sapling', tool: 'plant' },
   level: { name: 'Terrace ground', cost: 'Earthworks', tool: 'level', lock: () => unlocked.level() ? '' : 'Bronze era' },
   survey: { name: 'Survey', cost: '15 money', tool: 'survey', lock: () => unlocked.survey() ? '' : 'Research Prospecting (Bronze)' },
-  bulldozer: { name: 'Bulldozer', cost: 'instant demolition', tool: null, lock: () => `${DISMANTLE.bulldozerEra} era` },
+  bulldozer: { name: 'Bulldozer', cost: 'instant demolition', tool: 'bulldoze', lock: () => state.era < 7 ? `${DISMANTLE.bulldozerEra} era` : state.research.done.includes('machinery') ? '' : 'Research Machinery' },
 };
 const BM_CATS = [...CATEGORIES, 'Tools'];
 function lockReason(k) {
@@ -510,7 +510,7 @@ $('btn-import').onclick = () => { $('menu').classList.add('hidden'); $('file-imp
 $('file-import').onchange = async (e) => { const f = e.target.files[0]; if (!f) return; try { adopt(S.deserialize(await f.text()), 'Imported'); } catch (err) { toast('Import failed: ' + err.message, true); } e.target.value = ''; };
 
 // ---------- HUD ----------
-const RES_ICONS = { wood: '🪵', clay: '🟫', stone: '🪨', copper: '🟢', tin: '⚪', brick: '🧱', bronze: '🥉', food: '🌾', tools: '🔨', pots: '🏺', wool: '🐑', flax: '🌿', cloth: '🧵' };
+const RES_ICONS = { wood: '🪵', clay: '🟫', stone: '🪨', copper: '🟢', tin: '⚪', brick: '🧱', bronze: '🥉', food: '🌾', tools: '🔨', pots: '🏺', wool: '🐑', flax: '🌿', cloth: '🧵', iron: '⚙️', blocks: '🧊', coal: '⚫', steel: '🔩' };
 const resHTML = (ks) => ks.map(k => `<span title="${k}">${RES_ICONS[k]} ${Math.floor(state.res[k])}</span>`).join('');
 let hudT = 0, lastLogLen = state.log.length, lastEra = state.era, lastDone = 0;
 function hud() {
