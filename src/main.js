@@ -4,7 +4,7 @@
 // dismantle / plant tools, era-gated survey + underground view, box unit selection, controls legend.
 import { Renderer, QUALITY } from './render.js';
 import * as S from './sim.js';
-import { BUILDINGS, CATEGORIES, TECHS, ERAS, CUSTOM_FUNCS, DEPOSITS, techCost, SAPLING, DISMANTLE, GATHER, VILLAGER, ERA3_NOTE } from './data.js';
+import { BUILDINGS, CATEGORIES, TECHS, ERAS, CUSTOM_FUNCS, DEPOSITS, techCost, techHours, SAPLING, DISMANTLE, GATHER, VILLAGER, ERA3_NOTE } from './data.js';
 
 const $ = (id) => document.getElementById(id);
 const SPEEDS = [0, 1, 2, 5, 10, 25, 50];
@@ -194,9 +194,9 @@ function endPointer(e, cancel) {
   gesture = null; if (!g || cancel) { renderer.dragEnd(false); return; }
   clearTimeout(g.lp);
   if (g.kind === 'pan') { renderer.dragEnd(true); if (g.right && Math.hypot(p.x - p.x0, p.y - p.y0) <= TAP_PX) { if (ui.units.length && ui.tool === 'select') { const q = renderer.pick(p.x, p.y); if (q) orderSelected(q); } else disarm(); } return; } // right-click: order selected units, else cancel / disarm
-  if (g.kind === 'box') { $('selbox').classList.add('hidden'); const ids = renderer.unitsInRect(p.x0, p.y0, p.x, p.y); if (ids.length) { setUnits(ids); showUnits(); toast(`${ids.length} unit${ids.length > 1 ? 's' : ''} selected`); } return; }
+  if (g.kind === 'box') { $('selbox').classList.add('hidden'); const ids = renderer.unitsInRect(p.x0, p.y0, p.x, p.y); if (ids.length) { setUnits(ids); showUnits(); } return; }
   if (g.kind === 'paint') return;
-  if (g.kind === 'road') { const tiles = ui.roadPath || []; ui.roadPath = null; renderer.setRoadPreview(null); if (tiles.length) { const r = cmd({ type: 'roadLine', tiles }); if (r.ok) toast(`${r.n} road tile${r.n === 1 ? '' : 's'} planned`); } return; }
+  if (g.kind === 'road') { const tiles = ui.roadPath || []; ui.roadPath = null; renderer.setRoadPreview(null); if (tiles.length) { cmd({ type: 'roadLine', tiles }); } return; }
   tapAt(p.x, p.y, e);
 }
 cv.addEventListener('pointerup', e => endPointer(e, false));
@@ -210,7 +210,7 @@ document.addEventListener('touchmove', e => { if (!e.target.closest('.sheet, #me
 function orderSelected(p) {
   const sel = (state.units || []).filter(u => ui.units.includes(u.id)), vil = sel.filter(u => u.kind === 'villager').map(u => u.id), oth = sel.filter(u => u.kind !== 'villager');
   let ok = false;
-  if (vil.length) { const r = cmd({ type: 'villagerTask', ids: vil, x: p.x, y: p.y }); ok = r.ok; if (r.ok && r.task !== 'move') toast(r.task === 'build' ? 'Villagers sent to build' : `Villagers sent: ${GATHER[r.task].name.toLowerCase()}`); }
+  if (vil.length) { const r = cmd({ type: 'villagerTask', ids: vil, x: p.x, y: p.y }); ok = r.ok; }
   for (const u of oth) ok = cmd({ type: 'orderUnit', id: u.id, x: p.x, y: p.y }).ok || ok;
   if (ok && renderer.flashTarget) renderer.flashTarget(p.x, p.y);
   renderInfo(); return ok;
@@ -231,7 +231,7 @@ function tapAt(cx, cy, e) {
   const t = ui.tool;
   if (t === 'road') { roadTap(p); }
   else if (t === 'dismantle' || t === 'plant') paintAt(cx, cy, true);
-  else if (t === 'build' && ui.kind) { const r = cmd({ type: 'place', kind: ui.kind, x: p.x, y: p.y, rot: ui.rot }); if (r.ok) toast(`${BUILDINGS[ui.kind].name} placed`); }
+  else if (t === 'build' && ui.kind) { cmd({ type: 'place', kind: ui.kind, x: p.x, y: p.y, rot: ui.rot }); }
   else if (t === 'survey') cmd({ type: 'survey', x: p.x, y: p.y });
   else if (t === 'level') cmd({ type: 'level', x: p.x, y: p.y });
   else if (t === 'devcollapse') { const tt = S.tile(state, p.x, p.y); if (tt.occ) { cmd({ type: 'dev', action: 'collapse', id: tt.occ }); select(tt.occ); } setTool('select'); }
@@ -254,7 +254,7 @@ function roadTap(p) {
   const a = ui.roadA;
   if (a && Math.abs(a.x - p.x) + Math.abs(a.y - p.y) > 1 && performance.now() - a.t < 8000) {
     ui.roadPath = [[a.x, a.y]]; roadExtend(p.x, p.y); const tiles = ui.roadPath; ui.roadPath = null; renderer.setRoadPreview(null);
-    const r = cmd({ type: 'roadLine', tiles }); if (r.ok) toast(`${r.n} road tile${r.n === 1 ? '' : 's'} planned`); ui.roadA = null; return;
+    cmd({ type: 'roadLine', tiles }); ui.roadA = null; return;
   }
   const t = S.tile(state, p.x, p.y); if (t && !t.road && !t.rp) cmd({ type: 'road', x: p.x, y: p.y });
   ui.roadA = { x: p.x, y: p.y, t: performance.now() };
@@ -342,6 +342,12 @@ function renderInfo() {
     const b = state.buildings[ui.sel]; if (!b) return closeInfo();
     const d = BUILDINGS[b.kind]; const name = b.kind === 'custom' ? `Legacy custom building` : d.name;
     h = head(name);
+    { // capacity strip: residents (homes) and workers employed / max, always at the top of the card
+      const cap = S.capOf(b) || (d && d.cap) || 0, jobs = (b.kind === 'custom' ? b.jobs : d.jobs) || 0, bar = (n, m) => `<div class="bar"><i style="width:${Math.round(Math.min(1, n / Math.max(1, m)) * 100)}%"></i></div>`;
+      if (cap) h += row('🏠 Residents', `${b.residents || 0} / ${cap}`) + bar(b.residents || 0, cap);
+      if (jobs) h += row('👷 Workers employed', b.done && !b.workers ? `<span class="no">0 / ${jobs}</span>` : `${b.workers || 0} / ${jobs}`) + bar(b.workers || 0, jobs);
+      if (!cap && !jobs) h += row('Residents · Workers', '0 · 0');
+    }
     if (b.ruin) {
       const inc = state.incidents.find(i => i.bid === b.id); h += row('Status', 'Collapsed');
       if (inc) { const crew = state.crews.find(c => c.id === inc.crew); const step = inc.stage === 'rescue' ? (crew ? (crew.state === 'out' ? 'Rescue crew on the way' : 'Rescue in progress') : 'Waiting for rescue crew') : (crew ? (crew.state === 'out' ? 'Cleanup crew on the way' : 'Clearing rubble') : 'Waiting for cleanup crew'); h += row('Step', step) + row('Dead / trapped / saved', `${inc.dead} / ${inc.trapped} / ${inc.saved}`); btns.push(`<button data-skip="incident" data-id="${inc.id}">Skip step ⏭</button>`); }
@@ -354,10 +360,9 @@ function renderInfo() {
       if (!b.done) { h += `<div class="bar"><i style="width:${Math.round(b.progress * 100)}%"></i></div>` + row('Builders', `${b.builders || 0}`) + (b.mt ? row('Materials on site', `${Math.floor(b.mg || 0)} / ${b.mt}`) : ''); btns.push(`<button data-act="sendbuild">Send selected villagers</button>`); btns.push(`<button data-skip="build" data-id="${b.id}">Skip ⏭</button>`); }
       if (b.done && b.cond !== undefined) h += row('Condition', `${S.condName(b)} (${Math.round(b.cond)}%)`) + `<div class="bar cond"><i style="width:${Math.round(b.cond)}%;background:${condCol(b.cond)}"></i></div>`;
       if (b.done && d.culture) h += row('Culture', `+${d.culture}/day`);
+      if (b.done && d.study) { const rr = state.research; if (rr.current && rr.place === b.id) h += row('📜 Studying', `${TECHS[rr.current].name} ${Math.floor(rr.progress / techHours(rr.current, state.culture) * 100)}%`) + row('📜 Scholars', `${b.scholars || 0} / ${Math.min(TECHS[rr.current].staff || 1, d.study)}`); else h += row('📜 Scholars', `0 / ${d.study}`); }
       if (b.done && d.trains) { h += row('Villagers', `${S.villagers(state).length} / ${S.maxVillagers(state, S.popTotal(state))}`) + row('Train', `${S.costStr(VILLAGER.trainCost)} + a free adult`); btns.push(`<button data-act="train">Train villager</button>`); }
       if (!S.roadAccess(state, b)) h += row('Road access', '<span class="no">None</span>');
-      const cap = S.capOf(b); if (cap) h += row('Residents', `${b.residents} / ${cap}`);
-      const jobs = b.kind === 'custom' ? b.jobs : d.jobs; if (jobs) h += row('Workers', b.done && !b.workers ? `<span class="no">0 / ${jobs}</span>` : `${b.workers} / ${jobs}`);
       if (d.extract === 'wood') { const tn = treesNear(b, d.radius); h += row('Trees in reach', tn.n + (tn.sp ? ` (+${tn.sp} growing)` : '')); if (b.done) h += row('Status', !b.workers || !tn.n ? '<span class="no">Idle</span>' : 'Felling trees'); }
       else if (b.kind === 'quarry' || b.kind === 'claypit') { const R = S.QUARRY_REACH, res = d.extract[0], maxD = Math.min(d.maxDepth || 99, ERAS[state.era].maxDepth); let left = 0; for (let y = b.y - R; y <= b.y + R; y++) for (let x = b.x - R; x <= b.x + R; x++) { if (Math.hypot(x - b.x, y - b.y) > R) continue; const t = S.tile(state, x, y); if (!t || (t.occ && t.occ !== b.id)) continue; if (t.dep && t.dep.r === res && t.dep.depth <= maxD && (S.knownDeposit(t) || t.vis)) left += t.dep.amt; else if (res === 'stone' && t.t === S.T.HILL && t.vis) left += t.rock ?? 20; }
         h += row(res === 'stone' ? 'Stone in reach' : 'Clay in reach', Math.floor(left)) + (b.src ? row('Walk to source', `${Math.hypot(b.src[0] - b.x, b.src[1] - b.y).toFixed(1)} tiles`) : ''); }
@@ -399,7 +404,7 @@ function renderInfo() {
     if (a === 'hireShip') { const r = cmd({ type: 'hireUnit', kind: 'ship' }); if (r.ok) setUnits([r.id]); else toast(r.err); }
     if (a === 'hire') { const r = cmd({ type: 'hireUnit', kind: 'scout' }); if (r.ok) { setUnits([r.id]); showUnits(); } }
     else if (a === 'stop') for (const id of ui.units) cmd({ type: 'stopUnit', id });
-    else if (a === 'train') { const r = cmd({ type: 'trainVillager' }); if (r.ok) toast('Villager trained'); }
+    else if (a === 'train') { cmd({ type: 'trainVillager' }); }
     else if (a === 'sendbuild') { const bb = state.buildings[ui.sel], vil = (state.units || []).filter(u => u.kind === 'villager' && (ui.lastUnits || []).includes(u.id)).map(u => u.id), ids = vil.length ? vil : S.villagers(state).filter(u => u.vstate === 'idle').map(u => u.id); if (!ids.length) toast('No idle villagers', true); else if (bb) { const r = cmd({ type: 'villagerTask', ids, x: bb.x, y: bb.y }); if (r.ok) toast(`${ids.length} villager${ids.length > 1 ? 's' : ''} sent to build`); } }
     else if (a === 'dismantle') { const bb = state.buildings[ui.sel]; if (bb) cmd({ type: 'dismantle', x: bb.x, y: bb.y }); }
     renderInfo();
@@ -415,8 +420,10 @@ function renderPanel() {
     h += `<div>Eras: ${Object.entries(ERAS).map(([k, e]) => (+k === state.era ? `<b>${e.name}</b>` : e.name)).join(' → ')}</div>`;
     for (const [id, t] of Object.entries(TECHS)) {
       if (t.era > state.era) continue;
-      const done = r.done.includes(id), cur = r.current === id, can = t.req.every(q => r.done.includes(q)), cost = techCost(id, state.culture);
-      h += `<div class="tech"><b>${t.name}</b> <small>(${cost} pts)</small> ${done ? '<span class="ok">✓ done</span>' : cur ? `<div class="bar"><i style="width:${Math.min(100, r.progress / cost * 100)}%"></i></div>${DEV ? '<button data-skipres>Skip ⏭</button>' : ''}` : `<button data-res="${id}" ${can ? '' : 'disabled'}>Research</button>`}</div>`;
+      const done = r.done.includes(id), cur = r.current === id, hrs = techHours(id, state.culture), chk = done ? null : S.researchCheck(state, id);
+      const pl = cur ? state.buildings[r.place] : null, sch = pl ? pl.scholars || 0 : 0;
+      const items = chk ? `<div class="chk">${chk.items.map(i => `<span class="${i.ok ? 'ok' : 'no'}">${i.ok ? '✓' : '☐'} ${i.label}</span>`).join('')}</div>` : '';
+      h += `<div class="tech${!done && !cur && chk && chk.ok ? ' ready' : ''}"><b>${t.name}</b> <small>(${hrs} h · ${t.staff || 1} 👤)</small> ${done ? '<span class="ok">✓ done</span>' : cur ? `<div class="bar"><i style="width:${Math.min(100, r.progress / hrs * 100)}%"></i></div><small>${Math.floor(r.progress)} / ${hrs} h · ${pl ? BUILDINGS[pl.kind].name : '—'} · scholars ${sch} / ${t.staff || 1}</small>${DEV ? '<button data-skipres>Skip ⏭</button>' : ''}` : `<button data-res="${id}" ${chk.ok ? '' : 'disabled'}>Research</button>${items}`}</div>`;
     }
     const er = S.eraReady(state);
     if (er.items.length) {
@@ -435,7 +442,7 @@ function renderPanel() {
     const rows = [['Population', pop], ['Housing capacity', cap], ['Jobs', jobs], ['Workers employed', pop - (state.unemployed || 0)], ['Unemployed', state.unemployed || 0],
       ['Food stock', Math.floor(state.res.food)], ['Food produced / day', Math.round(food)], ['Food eaten / day', pop], ['Homes with water', Math.round((state.waterFrac ?? 1) * 100) + '%'],
       ['Shop capacity (people served)', Math.round(state.shopCap || 0)], ['Income / day', Math.round(state.lastIncome || 0)], ['Upkeep / day', Math.round(state.lastUpkeep || 0)], ['Happiness', state.happiness],
-      ['Research points / hour', ((pop * 0.06 + 0.4) * (state.research.done.includes('writing') ? 1.5 : 1)).toFixed(1)],
+      ['Research rate (×)', (state.research.rate || 0).toFixed(2)],
       ['Arrivals (total)', state.stats.arrivals], ['Left town (total)', state.stats.left], ['Deaths (total)', state.stats.deaths], ['Collapses', state.stats.collapses], ['Bricks made', Math.floor(state.stats.bricksMade)], ['Bronze made', Math.floor(state.stats.bronzeMade)], ...(state.trains && state.trains.length ? [['Trains', state.trains.length], ['Rail freight (arrivals)', state.stats.freight || 0], ['Rail freight income', Math.floor(state.railIncome || 0)]] : []), ...(state.towns || []).filter(t => t.met).map(t => [`${t.name} (${S.TOWN_KINDS[t.kind].name}): trade`, Math.round(t.traded)])];
     const res = Object.entries(RES_ICONS).map(([k, i]) => [`${i} ${k[0].toUpperCase() + k.slice(1)}`, Math.floor(state.res[k])]);
     setHTML(body, `<table>${res.concat(rows).map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</table>`);
@@ -464,10 +471,11 @@ function renderPanel() {
     on('d-sb1', () => startGame({ sandbox: true, era: 1 }));
     on('d-sb2', () => startGame({ sandbox: true, era: 2 }));
   } else if (p === 'newgame') {
-    body.innerHTML = `<div class="devrow">Seed <input id="ng-seed" type="number" value="${Math.floor(Math.random() * 1e6)}" style="width:110px"> Map <select id="ng-size"><option value="128">Large</option><option value="64">Small</option></select></div>
+    body.innerHTML = `<div class="devrow">Seed <input id="ng-seed" type="number" value="${Math.floor(Math.random() * 1e6)}" style="width:110px"> Map <select id="ng-size"><option value="128">Large</option><option value="64">Small</option></select> Start era <select id="ng-era">${eraOpts(startEra())}</select></div>
       <div class="devrow"><button id="ng-n">Normal game</button><button id="ng-s1">Sandbox: Stone & Clay</button><button id="ng-s2">Sandbox: Bronze</button></div>`;
     const seed = () => +$('ng-seed').value || undefined, size = () => +$('ng-size').value;
-    $('ng-n').onclick = () => startGame({ seed: seed(), size: size() });
+    $('ng-era').onchange = () => { setStartEra(+$('ng-era').value); $('t-era').value = $('ng-era').value; };
+    $('ng-n').onclick = () => startGame({ seed: seed(), size: size(), era: +$('ng-era').value });
     $('ng-s1').onclick = () => startGame({ seed: seed(), size: size(), sandbox: true, era: 1 });
     $('ng-s2').onclick = () => startGame({ seed: seed(), size: size(), sandbox: true, era: 2 });
   }
@@ -596,9 +604,9 @@ function statusHud(force) {
   const er = S.eraReady(state), r = state.research;
   let gh = '';
   if (er.items.length) {
-    gh += `<div class="gh">Next era: <b>${ERAS[state.era + 1] ? ERAS[state.era + 1].name : ''}</b></div><div class="chk">` + er.items.map(i => `<span class="${i.ok ? 'ok' : 'no'}${i.key ? '' : ' tech'}">${i.ok ? '✓' : '☐'} ${i.key === 'made' ? i.label : i.key ? `${{ pop: 'Population', buildings: 'Buildings', culture: 'Culture' }[i.key]} ${i.v} / ${i.need}` : i.label.replace(' researched', '') + (r.current && TECHS[r.current] && i.label.startsWith(TECHS[r.current].name) ? ` ${Math.floor(r.progress / techCost(r.current, state.culture) * 100)}%` : '')}</span>`).join('') + '</div>';
+    gh += `<div class="gh">Next era: <b>${ERAS[state.era + 1] ? ERAS[state.era + 1].name : ''}</b></div><div class="chk">` + er.items.map(i => `<span class="${i.ok ? 'ok' : 'no'}${i.key ? '' : ' tech'}">${i.ok ? '✓' : '☐'} ${i.key === 'made' ? i.label : i.key ? `${{ pop: 'Population', buildings: 'Buildings', culture: 'Culture' }[i.key]} ${i.v} / ${i.need}` : i.label.replace(' researched', '') + (r.current && TECHS[r.current] && i.label.startsWith(TECHS[r.current].name) ? ` ${Math.floor(r.progress / techHours(r.current, state.culture) * 100)}%` : '')}</span>`).join('') + '</div>';
   } else gh += '<div class="gh">Last era in this build</div>';
-  gh += `<button id="st-res" class="st-res">🔬 ${r.current ? `${TECHS[r.current].name} <i class="rb"><i style="width:${Math.min(100, Math.floor(r.progress / techCost(r.current, state.culture) * 100))}%"></i></i> ${Math.min(100, Math.floor(r.progress / techCost(r.current, state.culture) * 100))}%` : `Research · ${Math.floor(r.bank || 0)} pts`}</button>`;
+  gh += `<button id="st-res" class="st-res${!r.current && S.researchAvailable(state) ? ' glow' : ''}">🔬 ${r.current ? `${TECHS[r.current].name} <i class="rb"><i style="width:${Math.min(100, Math.floor(r.progress / techHours(r.current, state.culture) * 100))}%"></i></i> ${Math.min(100, Math.floor(r.progress / techHours(r.current, state.culture) * 100))}%` : `Research${S.researchAvailable(state) ? ' <i class="badge">●</i>' : ''}`}</button>`;
   setHTML($('st-goal'), gh);
 }
 function cycleTick() {
@@ -648,7 +656,7 @@ function loop(now) {
   cycleTick(); progressBars();
   requestAnimationFrame(loop);
 }
-function exposeForTests() { window.game = { BUILDINGS, ERAS, get state() { return state; }, cmd, S, renderer, ui, setSpeed, setTool, startGame, hideTitle, setUnits, toggleUnder, setLegend, openPanel }; }
+function exposeForTests() { window.game = { BUILDINGS, ERAS, get state() { return state; }, cmd, S, renderer, ui, setSpeed, setTool, startGame, hideTitle, setUnits, toggleUnder, setLegend, openPanel, select }; }
 
 // ---------- quality ----------
 const qOpts = () => `<option value="auto" ${renderer.autoQ ? 'selected' : ''}>Auto (${QUALITY[renderer.qKey].name})</option>` + Object.entries(QUALITY).filter(([k, q]) => !q.hidden || k === renderer.qKey).map(([k, q]) => `<option value="${k}" ${!renderer.autoQ && k === renderer.qKey ? 'selected' : ''}>${q.name}</option>`).join('');
@@ -662,7 +670,13 @@ function hideTitle() { $('title').classList.add('hidden'); document.body.classLi
 if (params.get('notitle')) hideTitle(); else { document.body.classList.add('intitle'); renderer.autoOrbit = true; }
 if (!(localStorage.getItem(SAVE_KEY) || localStorage.getItem(OLD_SAVE_KEY))) $('t-cont').classList.add('hidden');
 const mapSize = Number(params.get('size')) || 128; // large map by default; ?size=64 for the small one
-$('t-play').onclick = () => startGame({ seed: Number(params.get('seed')) || undefined, size: mapSize });
+// start era for a new game: Bronze by default, the last choice is remembered
+const ERA_KEY = 'earth.startEra';
+function startEra() { const v = +(localStorage.getItem(ERA_KEY) || 2); return ERAS[v] ? v : 2; }
+function setStartEra(v) { try { localStorage.setItem(ERA_KEY, String(v)); } catch (e) { /* private mode */ } }
+const eraOpts = (sel) => Object.entries(ERAS).map(([k, e]) => `<option value="${k}" ${+k === sel ? 'selected' : ''}>${e.name}</option>`).join('');
+$('t-era').innerHTML = eraOpts(startEra()); $('t-era').onchange = () => setStartEra(+$('t-era').value);
+$('t-play').onclick = () => startGame({ seed: Number(params.get('seed')) || undefined, size: mapSize, era: startEra() });
 $('t-sand').onclick = () => startGame({ sandbox: true, era: 1, size: mapSize });
 $('t-cont').onclick = () => { hideTitle(); loadSave(); };
 exposeForTests(); refreshUnlocks();

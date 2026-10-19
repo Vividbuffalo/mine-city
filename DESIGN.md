@@ -1,4 +1,4 @@
-# EARTH — Game Design Document (draft v1.7)
+# EARTH — Game Design Document (draft v1.8)
 
 > Formerly "Mine City". Title screen line: "Welcome to Earth. Enjoy the journey."
 
@@ -737,3 +737,51 @@ Recipes can keep a reserve of an input (the Mint leaves 40 bronze for monuments)
 - **Water**: a shore-distance texture tints shallow water turquoise and deep water blue, with animated foam along banks.
 - **Auto quality** (default; the menu shows "Auto (Medium)"): starts at Low on touch devices and Medium on desktops. After 8 s of warm-up, 5 seconds in a row under 24 fps step it down one tier (as low as Potato). It never steps up by itself. Picking a tier turns Auto off.
 - Not yet: per-house yards and gardens, depth-of-field at far zoom, and a cloud layer (reference 3814a2a1).
+
+## Appendix O — Milestone G as built (game v3.1–v3.4)
+- **Balance (v3.1):** culture counts per era. 25% carries over, and the goals are 4000/6000/10000 for Classical/Medieval/Renaissance. Every map has visible tin and copper within 12 tiles of the start. Towns only buy above a 60 keep stock. The Bronze Smith keeps 30 bronze.
+- **Fixes (v3.1):**
+  - Clicking over a building picks a unit only when it is right under the pointer.
+  - The scout toast is gone.
+  - Sandbox workshops don't pause at 9999.
+  - The coast moves at most 1 tile per row.
+- **Trains (v3.2, `src/rail.js`):** stations joined by finished track form a route with one train (engine and 2 wagons) at `RAIL.speed` tiles/h with `stopHours` stops. Each arrival pays `base + perTile × length`. Mines and workshops within `radius` of a served station get `+boost`.
+- **Horses and ships (v3.3):**
+  - With Horses + Carts, hauling villagers drive a horse cart, and the load sits in the cart bed.
+  - Scouts ride once Horses are known.
+  - Ships have a planked hull, castle, rudder, two masts with curved sails, and a flag.
+- **Graphics (v3.4):**
+  - Medium/High give rural houses a yard (wattle fence or stone wall, vegetable bed, bush, woodpile or bench).
+  - Haze toward the far side of the screen in the grade pass.
+  - Drifting clouds when zoomed out, with world-space cloud shadows in the ground and object shaders (`uCloud`).
+  - Low has no post chain (no bloom), for phones.
+
+## Appendix P — Milestone H as built (game v3.5, from Isaac's playtest)
+- **Hunting (`animals.js` tickHunters, `HUNT`):**
+  - Each staffed Hunting Lodge sends out one hunter per worker (max 2). A hunter picks prey within 10 tiles, stalks it, and throws from 3 tiles (35%/h).
+  - Prey bolts at 2.6 tiles. Boar, wolves and bears fight back: a hunter who is hit goes home, and two hits kill.
+  - Hunters carry meat home (deer 10, boar 14) and never take the last animal of a herd.
+  - Herds regrow (35%/day while any animal is left). Emptied ranges are resettled slowly (5%/day).
+  - The lodge itself only adds a small snare/small-game base.
+- **Building cards:** a capacity strip at the top shows 🏠 residents / capacity and 👷 workers employed / max, with bars. Study places also show 📜 scholars and what is being studied.
+- **Visible workers:** each staffed building shows one representative worker.
+  - Workshops hammer at the front, with sparks.
+  - Herders amble inside pens.
+  - The fisher stands on the bank.
+  - Everything else walks a round.
+  - Fields and building sites keep their own animations.
+  - Hunters are real sim entities and are drawn too. The other staff are abstract. Villagers stay player-directed.
+- **Toasts:** command echoes are gone (placed, sent, road planned, units selected, villager trained, hired, survey or earthworks started, dismantling), as is the per-tree "Villager reached" message. Completions, deaths, era/research and discoveries remain.
+- **Research overhaul (`TECHS.at/staff/mat/used/built`, `RESEARCH`, `researchCheck`):**
+  - A tech is studied at a place:
+    - Stone: Elder's Fire or Shrine
+    - Bronze: Scholar's Hut or Temple
+    - Iron: Scholar's Hut, Temple or Library
+    - Classical/Medieval: Library, Monastery or University
+    - Renaissance: University or Library
+    - Industrial: University
+  - Scholars (`staff`) are taken from the workforce first. Time is `cost × 0.2` hours at full staff, sped up by research buildings and by Writing (+25%).
+  - Materials are paid once at the start. Progress is kept if you switch.
+  - Some techs need a related building to have been worked or built (Pottery needs a worked Clay Pit; Smelting needs a Kiln built; and so on).
+  - The research button pulses and shows a dot while a tech can be started. The panel shows status rows only.
+- **Start era (New game):** Stone through Industrial; the default is Bronze and the last choice is remembered (`localStorage earth.startEra`). `START_ERAS` adds cumulative town lists and era stock; earlier techs are researched. Mines and pits are only placed where there is a deposit, and homes start 80% full.

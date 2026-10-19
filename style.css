@@ -179,3 +179,11 @@ body.intitle #status,body.intitle #btn-idle,body.intitle #pbars{display:none!imp
 #st-goal .rb{display:inline-block;width:50px;height:5px;background:#e3e6e8;border-radius:3px;overflow:hidden}
 #st-goal .rb i{display:block;height:100%;background:#4f8fd6;transition:width .6s}
 .sb .bt i{transition:width .8s ease}
+
+/* research availability: the research button pulses and shows a dot while a tech can be started */
+#st-goal .st-res.glow{box-shadow:0 0 0 2px #f2c14e,0 0 12px 2px rgba(242,193,78,.75);animation:resglow 1.6s ease-in-out infinite}
+#st-goal .st-res .badge{color:#e8a317;font-style:normal;font-size:10px}
+@keyframes resglow{50%{box-shadow:0 0 0 2px #f2c14e,0 0 4px 0 rgba(242,193,78,.3)}}
+.tech.ready{outline:2px solid #f2c14e;border-radius:6px}
+.tech .chk{display:flex;flex-wrap:wrap;gap:2px 8px;font-size:11px;margin-top:2px}
+.tech .chk .no{color:#a0522d}

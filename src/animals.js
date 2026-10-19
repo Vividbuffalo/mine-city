@@ -50,6 +50,9 @@ function stepToward(state, a, tx, ty, sp) {
 function hitUnit(state, a, u) {
   const A = ANIMALS[a.kind];
   u.hp = (u.hp ?? 2) - 1; u.hurtT = state.tick; a.cd = 2; a.calm = 36; // after driving someone off the animal settles down for a while
+  if (u.kind === 'hunter') { // a hunter who is hit drops the hunt and limps home; a second hit kills
+    if (u.hp <= 0) { u.dead = true; u.st = 'home'; u.rest = 72; u.hp = 2; u.x = u.hx; u.y = u.hy; addLog(state, `Hunter killed by a ${A.name.toLowerCase()} at (${Math.round(a.x)}, ${Math.round(a.y)}).`); state.stats.deaths++; state.grief = (state.grief || 0) + 2; return; }
+    u.st = 'back'; u.target = null; u.carry = 0; return; }
   const ut = u.kind === 'villager' ? 'Villager' : 'Scout';
   if (u.hp <= 0) { u.dead = true; state.dirty.units = true; addLog(state, `${ut} killed by a ${A.name.toLowerCase()} at (${Math.round(u.x)}, ${Math.round(u.y)}).`); state.stats.deaths++; state.grief = (state.grief || 0) + 2; return; }
   // wounded: run away from the animal
@@ -59,7 +62,7 @@ function hitUnit(state, a, u) {
 
 export function tickAnimals(state) {
   if (!state.animals) spawnAnimals(state);
-  const units = (state.units || []).filter(u => !u.dead && u.kind !== 'ship');
+  const units = (state.units || []).filter(u => !u.dead && u.kind !== 'ship').concat((state.hunters || []).filter(h => h.st !== 'home'));
   for (const a of state.animals) {
     a.px = a.x; a.py = a.y; const A = ANIMALS[a.kind]; if (a.cd > 0) a.cd--; if (a.calm > 0) a.calm--;
     const homeD = Math.hypot(a.x - a.hx, a.y - a.hy);
@@ -86,13 +89,39 @@ export function tickAnimals(state) {
   // wounded people recover after a day away from danger
   for (const u of units) { if (u.fleeing && !(u.path && u.path.length)) u.fleeing = false; if ((u.hp ?? 2) < 2 && state.tick - (u.hurtT || 0) > 24) { u.hp = 2; } }
   if ((state.units || []).some(u => u.dead)) state.units = state.units.filter(u => !u.dead);
-  // hunting: each working hunter's lodge takes an animal every ~30 h while the herd nearby is above two
-  for (const b of Object.values(state.buildings)) {
-    if (b.kind !== 'hunter' || !b.done || b.ruin || !(b.workers > 0)) continue;
-    b.huntAcc = (b.huntAcc || 0) + b.workers / 2; if (b.huntAcc < 30) continue; b.huntAcc = 0;
-    let best = null, bd = 1e9; for (const a of state.animals) { if (!ANIMALS[a.kind].prey) continue; const d = Math.hypot(a.x - b.x, a.y - b.y); if (d <= 8 && d < bd && near(state, a.hx, a.hy, a.kind, 4) > 2) { bd = d; best = a; } }
-    if (best) { state.animals = state.animals.filter(a => a !== best); state.res.food += 12; b.pop = state.tick; b.popRes = 'food'; }
+  for (const h of state.hunters || []) h.dead = false;
+  tickHunters(state);
+  // herds recover: a herd regrows while at least one animal is left; an emptied range is slowly resettled from outside
+  if (state.tick % 24 === 0) for (const h of state.herds || []) { const n = state.animals.filter(a => a.herd === h.id).length;
+    if (n > 0 && n < h.size && rand(state) < HUNT.regrow) addAnimal(state, h);
+    else if (n === 0 && rand(state) < HUNT.resettle) addAnimal(state, h); }
+}
+
+// ---------- hunting ----------
+// each staffed Hunting Lodge sends out one hunter per worker: they pick a herd nearby, stalk an animal, throw from a few tiles away
+// (prey bolts once someone is close, boar charge back), and carry the meat home. They never take the last animal of a herd.
+export const HUNT = { reach: 10, speed: 1.5, throwR: 3.0, hit: 0.35, giveUp: 30, rest: 8, meat: { deer: 10, boar: 14 }, regrow: 0.35, resettle: 0.05 };
+function hStep(state, h, tx, ty, sp) { const dx = tx - h.x, dy = ty - h.y, d = Math.hypot(dx, dy); if (d < 0.05) return true; const k = Math.min(1, sp / d), nx = h.x + dx * k, ny = h.y + dy * k; const t = tile(state, Math.round(nx), Math.round(ny)); if (t && t.t !== T.WATER) { h.x = nx; h.y = ny; } return k >= 1; }
+export function tickHunters(state) {
+  state.hunters = state.hunters || [];
+  const lodges = Object.values(state.buildings).filter(b => b.kind === 'hunter' && b.done && !b.ruin);
+  // one hunter per worker, kept in step with staffing
+  for (const b of lodges) { const mine = state.hunters.filter(h => h.bid === b.id), want = Math.min(2, b.workers || 0);
+    for (let i = mine.length; i < want; i++) state.hunters.push({ id: state.nextId++, kind: 'hunter', bid: b.id, hx: b.x, hy: b.y, x: b.x, y: b.y, px: b.x, py: b.y, st: 'home', rest: 2 + i * 4, hp: 2, carry: 0, t: 0 });
+    if (mine.length > want) { const drop = mine.slice(want).filter(h => h.st === 'home'); state.hunters = state.hunters.filter(h => !drop.includes(h)); } }
+  state.hunters = state.hunters.filter(h => lodges.some(b => b.id === h.bid));
+  for (const h of state.hunters) {
+    h.px = h.x; h.py = h.y; const b = state.buildings[h.bid];
+    if (h.st === 'home') { h.x = h.hx; h.y = h.hy; h.px = h.x; h.py = h.y; if (h.rest > 0) { h.rest--; continue; }
+      let best = null, bd = 1e9; for (const a of state.animals || []) { if (!ANIMALS[a.kind].prey) continue; const d = Math.hypot(a.x - b.x, a.y - b.y); if (d <= HUNT.reach && d < bd && near(state, a.hx, a.hy, a.kind, 5) > 1) { bd = d; best = a; } }
+      if (best) { h.st = 'track'; h.target = best.id; h.t = 0; } else h.rest = 6; continue; }
+    if (h.st === 'track') {
+      const a = (state.animals || []).find(x => x.id === h.target); h.t++;
+      if (!a || h.t > HUNT.giveUp) { h.st = 'back'; h.target = null; continue; }
+      const d = Math.hypot(a.x - h.x, a.y - h.y);
+      if (d <= HUNT.throwR) { if (rand(state) < HUNT.hit) { state.animals = state.animals.filter(x => x !== a); h.carry = HUNT.meat[a.kind] || 8; h.st = 'back'; h.target = null; state.stats.hunted = (state.stats.hunted || 0) + 1; continue; } }
+      // stalk: close in, slowing to a creep near the animal
+      hStep(state, h, a.x, a.y, d < 4 ? HUNT.speed * 0.7 : HUNT.speed); continue; }
+    if (h.st === 'back') { if (hStep(state, h, h.hx, h.hy, HUNT.speed)) { if (h.carry) { state.res.food += h.carry; if (b) { b.pop = state.tick; b.popRes = 'food'; } state.stats.meat = (state.stats.meat || 0) + h.carry; } h.carry = 0; h.st = 'home'; h.rest = HUNT.rest; } }
   }
-  // herds slowly recover
-  if (state.tick % 24 === 0) for (const h of state.herds || []) { const n = state.animals.filter(a => a.herd === h.id).length; if (n < h.size && rand(state) < 0.2) addAnimal(state, h); }
 }

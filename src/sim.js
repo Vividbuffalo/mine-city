@@ -1,5 +1,5 @@
 // EARTH simulation. Pure data + rules, no rendering. All mutations go through applyCommand().
-import { BUILDINGS, TECHS, ERAS, ERA_REQ, BLOCKS, SAVE_VERSION, HOURS_PER_DAY, techCost, EARTHWORKS, SURFACE_DEPTH, SAPLING, DISMANTLE, VILLAGER, DECAY, CONDITION_STAGES, TOOLS, RESOURCES, TRADE, DEPOSITS } from './data.js';
+import { START_ERAS, RESEARCH, techHours, BUILDINGS, TECHS, ERAS, ERA_REQ, BLOCKS, SAVE_VERSION, HOURS_PER_DAY, techCost, EARTHWORKS, SURFACE_DEPTH, SAPLING, DISMANTLE, VILLAGER, DECAY, CONDITION_STAGES, TOOLS, RESOURCES, TRADE, DEPOSITS } from './data.js';
 import { tickRail, railF } from './rail.js';
 import { makeTowns, tickTowns, TOWN_KINDS } from './towns.js';
 export { TOWN_KINDS };
@@ -120,6 +120,30 @@ export function classifyWater(world, seed) {
   }
 }
 
+// ---------- Start-era town ----------
+// a settled town for a later start era: earlier techs researched, era stock, villagers and finished buildings placed in rings round the camp
+function startTown(state, era) {
+  for (const id in TECHS) if (TECHS[id].era < era) state.research.done.push(id);
+  const res = {}, build = [];
+  for (let e = 2; e <= era; e++) { const p = START_ERAS[e]; if (!p) continue; Object.assign(res, p.res); build.push(...p.build); }
+  Object.assign(state.res, res);
+  const keep = { ...state.res }; for (const k in state.res) state.res[k] = 1e7; // place for free, then restore the era stock
+  const { x, y } = state.start; reveal(state, x, y, 9 + era * 2);
+  for (const k of build) { if (!BUILDINGS[k]) continue; let done = false;
+    for (let r = 2; r < 18 && !done; r++) for (let dy = -r; dy <= r && !done; dy++) for (let dx = -r; dx <= r && !done; dx++) { if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+      const tx = x + dx, ty = y + dy; if (checkPlacement(state, k, tx, ty)) continue; if ((tx + ty) % 2 && BUILDINGS[k].cat === 'Housing') continue; // leave lanes between homes
+      { const d = BUILDINGS[k]; if (d.extract && !d.extract.includes('wood')) { const R = d.radius || 2, md = Math.min(d.maxDepth ?? 99, ERAS[era].maxDepth); let has = false;
+        for (let yy = ty - R; yy <= ty + R && !has; yy++) for (let xx = tx - R; xx <= tx + R; xx++) { const t = tile(state, xx, yy); if (t && t.dep && t.dep.amt > 0 && d.extract.includes(t.dep.r) && t.dep.depth <= md) { has = true; break; } }
+        if (!has) continue; } } // mines and pits only where there is something to dig
+      const q = COMMANDS.place(state, { kind: k, x: tx, y: ty, rot: 0 }); if (!q.ok) continue; const b = state.buildings[q.id]; b.levelLeft = 0; finishBuilding(state, b); b.cond = 100; done = true; } }
+  state.res = keep;
+  for (const b of Object.values(state.buildings)) { const c = capOf(b); if (c) b.residents = Math.ceil(c * 0.8); }
+  const cur = (state.units || []).filter(u => u.kind === 'villager').length, want = (START_ERAS[era] || {}).villagers || 3;
+  for (let i = cur; i < want; i++) spawnVillager(state, x + (i % 3) - 1, y + 2);
+  state.stats.used = state.stats.used || {}; for (const b of Object.values(state.buildings)) if (BUILDINGS[b.kind] && BUILDINGS[b.kind].jobs) state.stats.used[b.kind] = true;
+  state.startEra = era;
+}
+
 // ---------- State ----------
 export function newGame(opts = {}) {
   const seed = opts.seed ?? Math.floor(Math.random() * 1e9);
@@ -171,9 +195,10 @@ export function newGame(opts = {}) {
     for (const k of RESOURCES) if (k !== 'money' && k !== 'horses') state.res[k] = Math.max(state.res[k] || 0, 9999);
     for (const c of Object.values(state.world.chunks)) for (const t of c.tiles) { t.sv = 1; t.vis = 1; }
   }
+  if (!sandbox && era > 1) startTown(state, era);
   spawnAnimals(state);
   makeTowns(state);
-  addLog(state, sandbox ? `Sandbox started in the ${ERAS[era].name} era.` : 'Settlement founded.');
+  addLog(state, sandbox ? `Sandbox started in the ${ERAS[era].name} era.` : era > 1 ? `Settlement founded in the ${ERAS[era].name} era.` : 'Settlement founded.');
   return state;
 }
 
@@ -392,7 +417,7 @@ const COMMANDS = {
     pay(state, EARTHWORKS.cost);
     const id = state.nextId++; (state.earthworks = state.earthworks || []).push({ id, x, y, left: EARTHWORKS.hours, total: EARTHWORKS.hours });
     t.lvJob = id; if (t.trees) { t.trees = 0; state.dirty.trees = true; }
-    state.dirty.terrain = true; addLog(state, `Earthworks started at (${x}, ${y}).`);
+    state.dirty.terrain = true;
     return { ok: true, id };
   },
   // ---- dismantle (early-era replacement for bulldozing) ----
@@ -404,7 +429,7 @@ const COMMANDS = {
       if (b.dis) return { ok: false, err: 'Already being dismantled' };
       b.dis = { from: b.done ? 1 : b.progress, at: state.tick, dozer: state.era >= 7 && state.research.done.includes('machinery') }; if (b.done) { b.done = false; b.progress = 1; }
       b.residents = 0; b.workers = 0;
-      addLog(state, `Dismantling ${b.kind === 'custom' ? 'custom building' : BUILDINGS[b.kind].name} at (${b.x}, ${b.y}).`);
+
       state.dirty.buildings = true; return { ok: true, id: b.id };
     }
     if (t.rp) { t.rp = 0; state.roadJobs = state.roadJobs.filter(([a, c]) => a !== x || c !== y); state.res.money += 2; state.dirty.roads = true; return { ok: true }; }
@@ -434,7 +459,7 @@ const COMMANDS = {
     if (!canAfford(state, ut.cost)) return { ok: false, err: 'Not enough money' };
     let sx = state.start.x, sy = state.start.y;
     if (ut.needs) { if (!state.flags[ut.needs]) return { ok: false, err: 'Not available' }; const yard = Object.values(state.buildings).find(b => b.done && !b.ruin && BUILDINGS[b.kind] && BUILDINGS[b.kind].enables === ut.needs); let spot = null; if (yard) for (const [tx, ty] of yard.tiles) for (const [a, c] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = tile(state, tx + a, ty + c); if (!spot && n && n.t === T.WATER) spot = [tx + a, ty + c]; } if (!spot) return { ok: false, err: 'No water by the shipyard' }; [sx, sy] = spot; }
-    pay(state, ut.cost); const u = spawnUnit(state, kind, sx, sy); addLog(state, `${ut.name} hired.`); return { ok: true, id: u.id };
+    pay(state, ut.cost); const u = spawnUnit(state, kind, sx, sy); return { ok: true, id: u.id };
   },
   orderUnit(state, { id, x, y }) {
     const u = (state.units || []).find(u => u.id === id); if (!u) return { ok: false, err: 'No such unit' };
@@ -450,13 +475,14 @@ const COMMANDS = {
     if (!canAfford(state, cost)) return { ok: false, err: 'Not enough money' };
     pay(state, cost);
     state.surveys.push({ id: state.nextId++, x, y, r: 4, left: 12, total: 12 });
-    addLog(state, `Survey started at (${x}, ${y}).`);
     return { ok: true };
   },
   research(state, { tech }) {
-    const d = TECHS[tech];
-    if (!d || d.era > state.era || state.research.done.includes(tech) || !d.req.every(r => state.research.done.includes(r))) return { ok: false, err: 'Cannot research' };
-    if (state.research.current !== tech) { state.research.current = tech; const take = Math.min(state.research.bank || 0, techCost(tech, state.culture)); state.research.progress = take; state.research.bank = (state.research.bank || 0) - take; }
+    const chk = researchCheck(state, tech); if (!chk.ok) return { ok: false, err: 'Cannot research yet', items: chk.items };
+    const r = state.research; r.prog = r.prog || {}; r.paid = r.paid || {};
+    if (r.current && r.current !== tech) r.prog[r.current] = r.progress; // switching keeps what was done
+    if (!r.paid[tech] && state.mode !== 'sandbox') pay(state, TECHS[tech].mat || {});
+    r.paid[tech] = true; r.current = tech; r.progress = r.prog[tech] || 0; r.place = chk.place; state.dirty.buildings = true;
     return { ok: true };
   },
   advanceEra(state) {
@@ -544,9 +570,29 @@ export function eraReady(state) {
   ];
   return { ready: items.every(i => i.ok), items };
 }
+// can this tech be started now? items are status rows (place, staff, materials, used/built, prior techs)
+export function studyPlace(state, id, prefer) {
+  const at = TECHS[id].at || []; let best = null;
+  for (const b of Object.values(state.buildings)) if (b.done && !b.ruin && at.includes(b.kind)) { if (b.id === prefer) return b; if (!best || (BUILDINGS[b.kind].study || 0) > (BUILDINGS[best.kind].study || 0)) best = b; }
+  return best;
+}
+export function researchCheck(state, id) {
+  const t = TECHS[id], r = state.research, items = []; if (!t) return { ok: false, items };
+  if (t.era > state.era || r.done.includes(id)) return { ok: false, items, done: r.done.includes(id) };
+  for (const q of t.req) items.push({ label: TECHS[q].name, ok: r.done.includes(q) });
+  const place = studyPlace(state, id, r.place);
+  items.push({ label: (t.at || []).map(k => BUILDINGS[k].name).join(' / '), ok: !!place, build: (t.at || [])[0], kind: 'place' });
+  if (t.used) items.push({ label: `${BUILDINGS[t.used].name} worked`, ok: !!(state.stats.used || {})[t.used], build: t.used });
+  if (t.built) items.push({ label: `${BUILDINGS[t.built].name} built`, ok: hasBuilt(state, t.built), build: t.built });
+  const paid = (r.paid || {})[id] || state.mode === 'sandbox';
+  for (const [k, v] of Object.entries(t.mat || {})) items.push({ label: `${k[0].toUpperCase() + k.slice(1)} ${Math.min(v, Math.floor(state.res[k] || 0))} / ${v}`, ok: paid || (state.res[k] || 0) >= v, res: k });
+  return { ok: items.every(i => i.ok), items, place: place ? place.id : null };
+}
+// the research button lights up while something can be started and nothing is being studied
+export function researchAvailable(state) { if (state.research.current) return false; for (const id in TECHS) if (researchCheck(state, id).ok) return true; return false; }
 function completeResearch(state) {
   const id = state.research.current; if (!id) return;
-  state.research.done.push(id); state.research.current = null; state.research.progress = 0;
+  state.research.done.push(id); state.research.current = null; state.research.progress = 0; if (state.research.prog) delete state.research.prog[id];
   addLog(state, `Research complete: ${TECHS[id].name}.`);
 }
 
@@ -607,13 +653,13 @@ export function tick(state) {
   tickCrews(state);
   // research: points per hour
   const pop = popTotal(state);
+  // research: scholars at the study place work through the tech's hours (fewer scholars = slower; libraries etc. speed it up)
   let rb = 0; for (const b of Object.values(state.buildings)) { const d = BUILDINGS[b.kind]; if (b.done && !b.ruin && d && d.research) rb += d.research * eff(state, b); }
-  const rp = (pop * 0.06 + 0.4) * (state.research.done.includes('writing') ? 1.5 : 1) * (1 + Math.min(1.5, rb));
-  state.research.points += rp;
-  if (state.research.current) {
-    state.research.progress += rp;
-    if (state.research.progress >= techCost(state.research.current, state.culture)) completeResearch(state);
-  } else state.research.bank = (state.research.bank || 0) + rp; // unspent points are kept for the next research
+  { const r = state.research; void pop;
+    if (r.current) { const t = TECHS[r.current], pl = state.buildings[r.place]; const sch = pl && pl.done && !pl.ruin ? pl.scholars || 0 : 0;
+      const rate = Math.min(1, sch / (t.staff || 1)) * (1 + Math.min(1.5, rb)) * (r.done.includes('writing') ? 1 + RESEARCH.writingBoost : 1);
+      r.rate = rate; r.progress += rate; r.points = (r.points || 0) + rate;
+      if (r.progress >= techHours(r.current, state.culture)) completeResearch(state); } else r.rate = 0; }
   // the next era begins as soon as every requirement is met
   if (ERA_REQ[state.era] && eraReady(state).ready) COMMANDS.advanceEra(state);
   tickAnimals(state);
@@ -622,11 +668,15 @@ export function tick(state) {
 
 function assignWorkers(state) {
   let free = residentsTotal(state);
+  // scholars first: the place studying the current tech takes its staff from the workforce
+  for (const b of Object.values(state.buildings)) b.scholars = 0;
+  { const r = state.research; if (r.current) { const pl = studyPlace(state, r.current, r.place); if (pl) { r.place = pl.id; pl.scholars = Math.min(TECHS[r.current].staff || 1, BUILDINGS[pl.kind].study || 0, free); free -= pl.scholars; } } }
   const order = ['rescue', 'field', 'granary', 'woodcutter', 'claypit', 'quarry', 'orepit', 'shaft', 'kiln', 'smelter', 'carpentry', 'stall', 'store', 'custom', 'well', 'hut', 'brickhouse'];
   const list = Object.values(state.buildings).filter(b => b.done && !b.ruin).sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind));
   for (const b of list) {
     const j = jobsOf(b); // Stone Age folk walk: no road needed for homes or jobs (roads add a bonus)
     b.workers = Math.min(j, free); free -= b.workers;
+    if (b.workers > 0) { const u = state.stats.used = state.stats.used || {}; if (!u[b.kind]) u[b.kind] = true; }
   }
   state.unemployed = free;
 }
@@ -640,7 +690,7 @@ function runBuilding(state, b, hours) {
   const d = BUILDINGS[b.kind]; let e = eff(state, b) * condMult(b) * (roadAccess(state, b) ? 1.15 : 1) * toolsF(state);
   if (d.water && !waterNear(state, b.tiles, d.water, true)) e *= 0.35; // a dry irrigated field yields little
   if (d.food) {
-    const add = d.food / 24 * e * hours * (1 + foodBonus(state)) * (b.kind === 'hunter' ? 0.4 + 0.6 * Math.min(1, preyNear(state, b.x, b.y) / 4) : 1);
+    const add = d.food / 24 * e * hours * (1 + foodBonus(state)) * (b.kind === 'hunter' ? 0.3 * Math.min(1, 0.25 + preyNear(state, b.x, b.y) / 4) : 1); // lodge base: snares and small game; the big game comes from hunts (animals.js)
     state.res.food += add; prog(state, b, add / 4, 'food'); // progress bar pops every 4 food
   }
   if (d.extract) {

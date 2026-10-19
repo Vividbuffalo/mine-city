@@ -527,6 +527,16 @@ Object.assign(MODELS, {
     k.box(0.07, 0.07, 0.05, 'iron', 0.24, 0.04, 0.08); k.box(0.11, 0.02, 0.05, 'iron', 0.24, 0.11, 0.08);
     for (let i = 0; i < 4; i++) { k.box(0.015, 0.11, 0.015, 'woodDark', 0.04 + i * 0.07, 0.04, 0.25); k.box(0.05, 0.03, 0.02, 'bronze', 0.04 + i * 0.07, 0.15, 0.25); } // tools in a rack
   } },
+  // Scholar's Hut: a whitewashed daub hut with a thatched roof, a covered reading porch, a writing table with clay tablets and a shelf of jars
+  scholar: { dims: { w: 0.56, d: 0.5, h: 0.26, roof: 'gable', wall: 'plaster' }, finished(k) {
+    k.box(0.4, 0.26, 0.34, 'plaster', 0, 0, -0.06); k.roof(0.4, 0.34, 0.15, 'thatch', 0.26, 'plaster', 0, -0.06);
+    k.door('front', 0.4, 0.22, 0.08, 0.14, 0, 'woodDark');
+    for (const x of [-0.18, 0.18]) k.box(0.025, 0.2, 0.025, 'woodDark', x, 0, 0.2); k.box(0.42, 0.02, 0.14, 'thatch2', 0, 0.2, 0.17);
+    k.box(0.16, 0.02, 0.08, 'woodLight', 0.06, 0.08, 0.18); for (const x of [0.0, 0.12]) k.box(0.015, 0.08, 0.015, 'woodDark', x, 0, 0.18);
+    for (let i = 0; i < 3; i++) k.box(0.03, 0.006, 0.04, 'clay', 0.02 + i * 0.04, 0.1, 0.18);
+    k.box(0.07, 0.04, 0.05, 'woodLight', -0.1, 0, 0.18);
+    k.box(0.04, 0.16, 0.12, 'woodDark', 0.24, 0, -0.08); for (let i = 0; i < 3; i++) k.cyl(0.016, 0.02, 0.04, 8, 'clay', 0.25, 0.02 + i * 0.05, -0.08 + (i - 1) * 0.035);
+  } },
   potter: { dims: { w: 0.56, d: 0.5, h: 0.28, roof: 'gable', wall: 'mud' }, finished(k) {
     k.box(0.32, 0.24, 0.3, 'mud', -0.12, 0, -0.08); k.roof(0.32, 0.3, 0.14, 'thatch', 0.24, 'mud', -0.12, -0.08);
     k.cyl(0.07, 0.1, 0.12, 10, 'clay', 0.18, 0, -0.12); k.cone(0.07, 0.06, 10, 'clay', 0.18, 0.12, -0.12); k.box(0.04, 0.05, 0.03, GLOW(0xff8a2a, 1.5), 0.18, 0.02, -0.03); k.emitters.push({ x: 0.18, y: 0.2, z: -0.12, type: 'hut' });

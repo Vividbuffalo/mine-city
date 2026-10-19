@@ -60,6 +60,8 @@ const GradeShader = {
 THREE.ShaderChunk.normal_fragment_begin = THREE.ShaderChunk.normal_fragment_begin.replace('vec3 normal = normalize( cross( fdx, fdy ) );', 'vec3 nC = cross( fdx, fdy ); vec3 normal = dot( nC, nC ) > 1e-24 ? normalize( nC ) : vec3( 0.0, 0.0, 1.0 );');
 
 
+// how the one visible worker at each kind of staffed building works (default: recipe workshops hammer at the front, everything else walks a round)
+const JOB_STYLE = { pen: 'herd', sheep: 'herd', horsefarm: 'herd', weir: 'fish', raftmaker: 'smith', canoe: 'smith', kiln: 'smith', smelter: 'smith', bloomery: 'smith', bronzesmith: 'smith', blacksmith: 'smith', potter: 'smith', mason: 'smith', knapper: 'smith', carpentry: 'smith', cartmaker: 'smith' };
 export class Renderer {
   constructor(canvas, quality = 'medium') {
     this.canvas = canvas;
@@ -937,15 +939,31 @@ float cloudShade(vec2 w) { if (uCloud <= 0.0) return 1.0; vec2 p = w * 0.045 - v
         if (!b.done || !(b.workers > 0)) continue;
         if (b.src && d.extract) { const n = Math.min(b.workers, 2); for (let i = 0; i < n; i++) want.set(b.id + ':h' + i, { mode: 'haul', cx, cy, sx: b.src[0], sy: b.src[1], i, res: b.kind === 'woodcutter' ? 'wood' : b.kind === 'claypit' ? 'clay' : 'stone' }); }
         else if (b.kind === 'field') want.set(b.id + ':f', { mode: 'field', cx, cy, i: 0 });
+        else if (b.kind !== 'hunter' && b.kind !== 'custom') { // one representative worker per staffed building; the rest of the staff are abstract
+          const st = JOB_STYLE[b.kind] || (d.recipe ? 'smith' : 'tend'), sq = Math.sqrt(b.tiles.length), ro = (b.rot || 0) * Math.PI / 2, fx = Math.sin(ro), fz = Math.cos(ro);
+          const j = { mode: 'job', style: st, cx, cy, r: 0.3 + 0.32 * sq, i: 0, wx: cx + fx * (0.3 + 0.3 * sq), wy: cy + fz * (0.3 + 0.3 * sq), fx: cx, fz: cy };
+          if (st === 'fish') { const w = this.waterSpot(state, b); if (w) { j.wx = w[0]; j.wy = w[1]; j.fx = w[2]; j.fz = w[3]; } }
+          if (st === 'smith') { j.fx = cx; j.fz = cy; }
+          want.set(b.id + ':w', j);
+        }
       }
       for (const [x, y, w] of state.roadWork || []) if (ok(x, y)) want.set('r' + x + ',' + y, { mode: 'road', cx: x, cy: y, i: 0, fell: w === 'fell' });
+      for (const h of state.hunters || []) if (h.st !== 'home' && ok(h.x, h.y)) want.set('h' + h.id, { mode: 'hunter', h, i: 0 });
     }
     this.wvis = this.wvis || new Map(); let n = 0;
     for (const [k, j] of want) {
       if (++n > 48) break;
       let v = this.wvis.get(k); if (!v) { const m = this.makeVillagerModel(); m.userData.ring.visible = false; m.scale.setScalar(1.45); this.groups.workers.add(m); v = { root: m, t: Math.random() * 10 }; this.wvis.set(k, v); }
       v.seen = true; v.t += dt; const ud = v.root.userData; let x = j.cx, z = j.cy, walk = false, work = false, face = null, load = null;
-      if (j.mode === 'haul') {
+      if (j.mode === 'hunter') { const h = j.h, fr = this.frac || 0; x = h.px + (h.x - h.px) * fr; z = h.py + (h.y - h.py) * fr; walk = h.x !== h.px || h.y !== h.py; face = walk ? [h.x - h.px, h.y - h.py] : null; load = h.carry ? 'meat' : null; if (!walk && h.st === 'track') work = true; }
+      else if (j.mode === 'job' && (j.style === 'smith' || j.style === 'fish')) { x = j.wx; z = j.wy; work = true; face = [j.fx - x, j.fz - z];
+        v.fx = (v.fx || 0) + dt; if (j.style === 'smith' && v.fx > 0.5) { v.fx = 0; const p = new THREE.Vector3(x + 0.5 - face[0] * 0.15, this.heightAt(x + 0.5, z + 0.5) + 0.1, z + 0.5 - face[1] * 0.15); for (let i = 0; i < 3; i++) { const an = Math.random() * 6.28; this.spawn(p, 0xffa040, 0.02, 1, 0.35, [Math.cos(an) * 0.5, 0.6 + Math.random() * 0.4, Math.sin(an) * 0.5]); } } }
+      else if (j.mode === 'job') { // tend / herd: walk a loop round the building (herders amble among the animals inside the pen) and pause to work at each corner
+        const rr = j.style === 'herd' ? j.r * 0.55 : j.r, pts = j.style === 'herd' ? [[-0.6, -0.3], [0.4, -0.6], [0.6, 0.4], [-0.3, 0.6]].map(([a, c]) => [j.cx + a * rr, j.cy + c * rr]) : [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, c]) => [j.cx + a * rr, j.cy + c * rr]);
+        const seg = j.style === 'herd' ? 4.0 : 3.0, T0 = pts.length * seg, ph = v.t % T0, si = Math.floor(ph / seg), f = ph / seg - si, a = pts[si], b2 = pts[(si + 1) % pts.length];
+        if (f < 0.5) { const g = f / 0.5; x = a[0] + (b2[0] - a[0]) * g; z = a[1] + (b2[1] - a[1]) * g; walk = true; face = [b2[0] - a[0], b2[1] - a[1]]; }
+        else { x = b2[0]; z = b2[1]; work = j.style !== 'herd'; face = [j.cx - x, j.cy - z]; } }
+      else if (j.mode === 'haul') {
         const d = Math.max(0.6, Math.hypot(j.sx - j.cx, j.sy - j.cy)), wt = d / 0.7, T0 = wt * 2 + 2.6, ph = (v.t + j.i * T0 * 0.5) % T0;
         if (ph < wt) { const f = ph / wt; x = j.cx + (j.sx - j.cx) * f; z = j.cy + (j.sy - j.cy) * f; walk = true; face = [j.sx - j.cx, j.sy - j.cy]; }
         else if (ph < wt + 2.6) { x = j.sx + (j.i ? 0.2 : -0.15); z = j.sy + 0.1; work = true; face = [j.sx - x, j.sy - z + 0.2];
@@ -963,10 +981,16 @@ float cloudShade(vec2 w) { if (uCloud <= 0.0) return 1.0; vec2 p = w * 0.045 - v
       if (face && (face[0] || face[1])) v.root.rotation.y = Math.atan2(face[0], face[1]);
       v.ph = (v.ph || 0) + dt * (walk ? 9 : 0); const sw = walk ? Math.sin(v.ph) * 0.6 : 0; ud.legs[0].rotation.x = sw; ud.legs[1].rotation.x = -sw; ud.body.position.y = walk ? Math.abs(Math.sin(v.ph)) * 0.012 : 0;
       if (work) v.wph = (v.wph || 0) + dt * 7; ud.tool.rotation.x = work ? -0.6 - Math.max(0, Math.sin(v.wph)) * 1.5 : walk ? Math.sin(v.ph) * 0.4 : 0; if (j.mode !== 'field' || !work) ud.body.rotation.x = work ? Math.max(0, Math.sin(v.wph)) * 0.18 : 0;
-      ud.load.visible = !!load; if (load) ud.load.material.color.setHex({ wood: 0x9c6b3e, stone: 0x9a9a96, clay: 0xc4865a }[load]);
+      ud.load.visible = !!load; if (load) ud.load.material.color.setHex({ wood: 0x9c6b3e, stone: 0x9a9a96, clay: 0xc4865a, meat: 0x9b3b2e }[load]);
       v.root.visible = true;
     }
     for (const [k, v] of this.wvis) { if (!v.seen) { this.groups.workers.remove(v.root); v.root.traverse(o => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } }); this.wvis.delete(k); } else v.seen = false; }
+  }
+  // a spot on the bank next to the nearest water tile (for the fisher), cached per building
+  waterSpot(state, b) {
+    this.wSpot = this.wSpot || new Map(); if (this.wSpot.has(b.id)) return this.wSpot.get(b.id);
+    let best = null; for (let r = 1; r <= 2 && !best; r++) for (let dy = -r; dy <= r && !best; dy++) for (let dx = -r; dx <= r && !best; dx++) { const t = tile(state, b.x + dx, b.y + dy); if (t && t.t === T.WATER) { const len = Math.hypot(dx, dy); best = [b.x + dx * (1 - 0.55 / len), b.y + dy * (1 - 0.55 / len), b.x + dx, b.y + dy]; } }
+    this.wSpot.set(b.id, best); return best;
   }
   // ---------- wildlife ----------
   makeAnimalModel(kind) {
@@ -1241,6 +1265,7 @@ float cloudShade(vec2 w) { if (uCloud <= 0.0) return 1.0; vec2 p = w * 0.045 - v
   }
   // ---------- per frame ----------
   frame(state, frac, dt, speed) {
+    this.frac = frac;
     this.clock += dt; this.uTime.value = this.clock;
     if (this.grade) this.grade.uniforms.uTilt.value = this.q.tilt * Math.max(0, Math.min(1, (this.zoom - 1.2) / 1.2)); // tilt-shift only when close in
     this.fpsAcc += dt; this.fpsN++; if (this.fpsAcc > 1) { this.fps = this.fpsN / this.fpsAcc; this.fpsAcc = 0; this.fpsN = 0; this.watchdog(); }

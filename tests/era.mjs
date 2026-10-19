@@ -14,7 +14,7 @@ for (let d = 1; d <= 60; d++) {
     S.tick(s);
   }
   if (d % 2 === 0 && s.res.food > 30) c({ type: 'trainVillager' });
-  if (!s.research.current) { for (const t of ['pottery', 'smelting']) if (!s.research.done.includes(t)) { c({ type: 'research', tech: t }); break; } }
+  if (!s.research.current) { for (const t of ['pottery', 'smelting']) if (!s.research.done.includes(t)) { { const rr = c({ type: 'research', tech: t }); if (!rr.ok) { pi = Math.min(pi, plan.length); skips = Math.min(skips, 2000); } if (!rr.ok) for (const it of S.researchCheck(s, t).items) if (!it.ok && it.build && !plan.slice(pi).includes(it.build) && !Object.values(s.buildings).some(b => b.kind === it.build)) plan.splice(pi, 0, it.build); } break; } }
   if (d % 5 === 0) log.push({ d, pop: S.popTotal(s), cap: S.housingCap(s), food: Math.floor(s.res.food), wood: Math.floor(s.res.wood), stone: Math.floor(s.res.stone), clay: Math.floor(s.res.clay), happy: s.happiness, cult: Math.floor(s.cult || 0), built: pi, cond: Math.round(s.condAvg), growth: s.growth.reason || 'ok', era: S.eraReady(s).items.filter(i => !i.ok).map(i => i.label).join('; '), col: s.stats.collapses, deaths: s.stats.deaths });
 }
 console.table(log);
