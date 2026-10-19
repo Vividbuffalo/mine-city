@@ -1,6 +1,8 @@
-# EARTH — Game Design Document (draft v1.6)
+# EARTH — Game Design Document (draft v1.7)
 
 > Formerly "Mine City". Title screen line: "Welcome to Earth. Enjoy the journey."
+
+*v1.7 (game v3.0, graphics tiers): the old High look is the new Low; new Medium and High add a painterly colour grade, broad meadow/gold/olive ground patches, more autumn forest, depth-tinted water with shore foam, and (High) close-up tilt-shift. Hidden Potato tier (?q=potato). Auto quality is the default: Low on phones and Medium on desktops, stepping down one tier after 5 slow seconds. Appendix N.*
 
 *v1.6 (game v2.8, Industrial skeleton): era 7 Industrial (reached from Renaissance with pop 450, 140 buildings, 25,000 culture, Printing + Banking, 400 cloth made, a Cathedral). Coal seams under flat land; Coal Mine (shaft with headframe), Steelworks (iron + coal → steel), Textile Mill (wool + flax + coal → cloth), Row Houses, Railway Track (must join the line) and Railway Station (next to the track; counts as two trading posts). Techs: Steam Power, Railways, Steelmaking, Machinery (the Bulldozer tool: instant demolition; earthworks 6× faster). Appendix M.*
 
@@ -720,3 +722,18 @@ Recipes can keep a reserve of an input (the Mint leaves 40 bronze for monuments)
 - **Buildings**: Coal Mine (shaft, 6 jobs, rate 12), Steelworks (2×2; 2 iron + 2 coal → 1 steel, 6/day), Textile Mill (2×2; 2 wool + 2 flax + 1 coal → 5 cloth), Row Houses (20 people), Railway Track (auto-turns to follow the line; after the first piece every new piece must touch the line or a station), Railway Station (2×2; once there is track it must sit next to it; trade 2, shop).
 - **Techs**: Steam Power → Railways, Steelmaking, Machinery. Machinery unlocks the **Bulldozer** tool (Tools tab): demolition is instant (same 50% refund); earthworks run 6× faster.
 - Still to come (later eras): trains running on the track, rail freight between stations, factories and pollution, power.
+
+
+## Appendix N — v3 graphics tiers as built (game v3.0)
+| Tier | Pixel ratio | Shadows | Post | AO | Grade | Painterly ground | Shore water | Tilt-shift | Far LOD (bPx / treePx) |
+|---|---|---|---|---|---|---|---|---|---|
+| Potato (hidden, `?q=potato`) | 0.75 | off | off | off | – | – | – | – | 48 / 56 |
+| Low (the old High look) | ≤1.5 | 2048 | bloom | off | – | – | – | – | 18 / 22 |
+| Medium | ≤1.75 | 4096 | bloom | GTAO | 1.0 | yes | yes | – | 16 / 18 |
+| High | ≤2 | 4096 | bloom | GTAO | 1.25 | yes | yes | close-up only | 14 / 16 |
+- **Grade pass** (after bloom): slight saturation lift, warm highlights and cool shadows, soft vignette, optional tilt-shift (fades out as you zoom away); it zeroes NaN/Inf pixels.
+- **NaN guard**: flat-shaded normals from screen derivatives fall back to a safe normal on zero-area fragments, so bloom can't spread black squares.
+- **Painterly ground**: large meadow/gold/olive patches, banded rock and greener river banks. Broadleaf forests turn autumn over a wider area. Distant tree impostors are brighter.
+- **Water**: a shore-distance texture tints shallow water turquoise and deep water blue, with animated foam along banks.
+- **Auto quality** (default; the menu shows "Auto (Medium)"): starts at Low on touch devices and Medium on desktops. After 8 s of warm-up, 5 seconds in a row under 24 fps step it down one tier (as low as Potato). It never steps up by itself. Picking a tier turns Auto off.
+- Not yet: per-house yards and gardens, depth-of-field at far zoom, and a cloud layer (reference 3814a2a1).

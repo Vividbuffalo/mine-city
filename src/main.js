@@ -11,12 +11,14 @@ const SPEEDS = [0, 1, 2, 5, 10, 25, 50];
 const SAVE_KEY = 'earth.save.v1', OLD_SAVE_KEY = 'minecity.save.v1';
 const params = new URLSearchParams(location.search);
 let DEV = params.get('dev') === '1' || localStorage.getItem('earth.dev') === '1';
-let quality = params.get('q') || localStorage.getItem('earth.quality') || 'medium';
+let quality = params.get('q') || localStorage.getItem('earth.quality') || 'auto';
+const autoQ = quality === 'auto'; if (autoQ) quality = matchMedia('(pointer: coarse)').matches ? 'low' : 'medium'; // auto: start by device, the renderer's watchdog steps down if it is slow
 const STAGE_NAMES = ['Foundation', 'Frame', 'Half-built', 'Finished'];
 const TERRAIN_NAMES = ['Grassland', 'Forest', 'Hills', 'River'];
 const TOUCH = matchMedia('(pointer: coarse)').matches;
 
 const renderer = new Renderer($('view'), quality);
+renderer.autoQ = autoQ;
 let state = S.newGame({ seed: Number(params.get('seed')) || undefined });
 renderer.setState(state);
 const ui = { tool: 'select', kind: null, cat: 'Housing', rot: 0, sel: null, selTile: null, units: [], unitCard: false, speed: 1, lastSpeed: 1, acc: 0, hover: null, panel: null, under: false, roadA: null };
@@ -647,10 +649,12 @@ function loop(now) {
 function exposeForTests() { window.game = { BUILDINGS, ERAS, get state() { return state; }, cmd, S, renderer, ui, setSpeed, setTool, startGame, hideTitle, setUnits, toggleUnder, setLegend, openPanel }; }
 
 // ---------- quality ----------
-$('q-sel').innerHTML = Object.entries(QUALITY).map(([k, q]) => `<option value="${k}" ${k === renderer.qKey ? 'selected' : ''}>${q.name}</option>`).join('');
-$('q-sel').onchange = (e) => { renderer.setQuality(e.target.value); localStorage.setItem('earth.quality', renderer.qKey); $('t-q').value = renderer.qKey; if (renderer.thumbs) renderer.thumbs.clear(); };
+const qOpts = () => `<option value="auto" ${renderer.autoQ ? 'selected' : ''}>Auto (${QUALITY[renderer.qKey].name})</option>` + Object.entries(QUALITY).filter(([k, q]) => !q.hidden || k === renderer.qKey).map(([k, q]) => `<option value="${k}" ${!renderer.autoQ && k === renderer.qKey ? 'selected' : ''}>${q.name}</option>`).join('');
+$('q-sel').innerHTML = qOpts();
+$('q-sel').onchange = (e) => { const v = e.target.value; renderer.autoQ = v === 'auto'; renderer.wdT = 0; if (v !== 'auto') renderer.setQuality(v); localStorage.setItem('earth.quality', v); $('q-sel').innerHTML = $('t-q').innerHTML = qOpts(); if (renderer.thumbs) renderer.thumbs.clear(); };
+renderer.onAutoQuality = () => { $('q-sel').innerHTML = $('t-q').innerHTML = qOpts(); };
 // ---------- title screen ----------
-$('t-q').innerHTML = $('q-sel').innerHTML; $('t-q').value = renderer.qKey;
+$('t-q').innerHTML = $('q-sel').innerHTML;
 $('t-q').onchange = (e) => { $('q-sel').value = e.target.value; $('q-sel').onchange(e); };
 function hideTitle() { $('title').classList.add('hidden'); document.body.classList.remove('intitle'); renderer.autoOrbit = false; renderer.snapRotation(); if (localStorage.getItem('earth.legend') === '1') setLegend(true, false); }
 if (params.get('notitle')) hideTitle(); else { document.body.classList.add('intitle'); renderer.autoOrbit = true; }
