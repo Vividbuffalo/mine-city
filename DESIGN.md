@@ -1,6 +1,8 @@
-# EARTH — Game Design Document (draft v1.2)
+# EARTH — Game Design Document (draft v1.3)
 
 > Formerly "Mine City". Title screen line: "Welcome to Earth. Enjoy the journey."
+
+*v1.3 (game v2.5, Iron + Classical): iron ore (hill veins and bog iron by rivers), Charcoal Burner → Bloomery → iron, Blacksmith (iron tools: +40% work speed), Stonemason (cut blocks) and stone buildings, Horse Breeder (faster scouts; with a Cart Maker villagers carry double loads), Vineyard + Wine Press, Trading Post; Classical: Aqueduct (from river or hill spring) feeding Public Fountains and Bathhouses, Apartment Block, Villa, Forum, Library (+research), Amphitheatre, Mint, and the first monument (Great Monument, 3×3). Three neighbouring towns (Riverfolk, Hill clans, Forest people) are met through exploration, grow, keep pace with your era in their own building style, and trade with your Trading Posts (no war). Workshops pause when their goods pass 400 in store. Appendix J.*
 
 *v1.2 (game v2.4, Bronze era playable): 24 Bronze buildables (Appendix I): irrigation (ditches dug from the river feed Irrigated Fields), Bronze Smith makes bronze tools that speed up all work while stocked and wear out with use, Potter/Weaver/Sheep/Flax goods sold at the Market for money, Wooden Bridges (placed on river tiles, people walk across), Raft Builder, Cart Maker, Lookout Tower, Temple, Burial Mound, Bronze Statue, Mud-Brick House, Bread Oven. Copper Pits must be placed on a found copper/tin deposit. Era goal to Iron: population 70, 35 buildings, culture 260, Writing + Ironworking, 20 bronze and 10 tools made. Pits widen slowly and nearby ground subsides only rarely.*
 
@@ -658,4 +660,24 @@ All values live in `src/data.js` (data-driven); placement rules in `checkPlaceme
 Era goal (Bronze → Iron): population 70, 35 buildings, culture 260, Writing + Ironworking researched, 20 bronze and 10 tools made. The checklist shows each line. Balance run (`tests/iron.mjs`, scripted player): Bronze around day 18, Iron around day 90.
 
 Subsidence near pits: every load dug widens the pit a little (cap 24); buildings within 2 tiles of large pits carry a small hidden daily risk (max 0.2%/day × building weight).
+
+## Appendix J — Iron and Classical eras as built (game v2.5)
+
+| Era | Chain / feature | Buildings |
+|---|---|---|
+| Iron | Iron: ore pit on a found iron deposit (hill veins, bog iron by rivers; Deep Mines can reach deeper ore) → Bloomery (2 ore + 2 charcoal → 1 iron); Charcoal Burner (3 wood → 2 charcoal) | Iron Ore Pit, Charcoal Burner, Bloomery |
+| Iron | Tools: Blacksmith (iron + charcoal → 3 tools); once built, tools give +40% instead of +25% | Blacksmith |
+| Iron | Stone construction: Stonemason (3 stone → 2 blocks) | Stone House (9), Stone Well (radius 7), Stone Wall, Hill Fort (may sit on slopes, sight 8) |
+| Iron | Horses: Horse Breeder (food → horses). Scouts ride (×1.7 speed); with a Cart Maker, villagers haul double loads | Horse Breeder |
+| Iron | Wine: Vineyard (grass or hills) → Wine Press (grapes + pots → wine), sold at Forum / to towns | Vineyard, Wine Press |
+| Iron | Trade: each Trading Post sends a caravan every 3 days to each met town: sells what they buy, buys what you are short of | Trading Post |
+| Classical | Water: Aqueduct segments must start at the river or a hill spring and join end to end; Fountains (radius 7) and Bathhouses (health +10) need one within 2–3 tiles | Aqueduct, Public Fountain, Bathhouse |
+| Classical | City: Apartment Block (18), Villa (10), Forum (big shop, sells wine/cloth/pots/tools), Library (+30% research), Amphitheatre, Mint (bronze → money) | |
+| Classical | First monument: Great Monument (3×3, 200 blocks + 30 bronze + 10 iron, 240 h), culture 40 | Great Monument |
+
+Era goals: Iron → Classical: population 120, 55 buildings, culture 2000, Masonry + Coinage, 30 iron and 40 blocks made. (Bronze → Iron culture raised to 600 since culture accumulates.) Balance run (`tests/classical_run.mjs`, scripted player): Bronze ≈ day 18, Iron ≈ day 110, Classical ≈ day 245.
+
+Neighbouring towns (`src/towns.js`): three per map, ≥20 tiles from the start, one of each culture (Riverfolk / Hill clans / Forest people), each with its own house styles per era, a landmark and a banner colour. They grow about one house per 12 days (faster with trade), claim land around them (tile info shows "Land of …"), and catch up with the player's era but never pass it. Met when any of their buildings is seen. No war.
+
+Wildlife: after an animal drives someone off it stays calm for 36 h (fewer repeat deaths at the same spot).
 

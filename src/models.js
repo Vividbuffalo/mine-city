@@ -608,6 +608,165 @@ Object.assign(MODELS, {
   } },
 });
 
+// ---------- Iron and Classical eras ----------
+const MARBLE = 0xe9e4d8, MARBLE2 = 0xd6cfbf;
+Object.assign(MODELS, {
+  charcoal: { dims: { w: 0.6, d: 0.6, h: 0.25, roof: 'none', wall: 'soil' }, finished(k) {
+    k.cyl(0.24, 0.3, 0.2, 10, 'soilDark', -0.05, 0, -0.03); k.cone(0.24, 0.12, 10, 'soilDark', -0.05, 0.2, -0.03);
+    for (let i = 0; i < 5; i++) { const a = i * 1.25; k.box(0.05, 0.03, 0.02, 'charcoal', -0.05 + Math.cos(a) * 0.27, 0.06, -0.03 + Math.sin(a) * 0.27, -a); }
+    k.emitters.push({ x: -0.05, y: 0.34, z: -0.03, type: 'chimney' }); k.emitters.push({ x: 0.1, y: 0.22, z: 0.1, type: 'chimney' });
+    k.logPile(0.26, 0.24, 3, 0.26, 0.3); k.pile(6, 0.06, 'charcoal', -0.28, 0.26);
+  } },
+  ironpit: { dims: { w: 0.8, d: 0.8, h: 0.2, roof: 'none', wall: 'soil' }, finished(k) {
+    k.box(0.8, 0.02, 0.8, 'soilDark'); k.cyl(0.2, 0.16, 0.04, 10, 'black', -0.05, 0.005, -0.05);
+    for (const [x, z] of [[-0.2, -0.2], [0.1, -0.2], [-0.2, 0.1], [0.1, 0.1]]) k.box(0.025, 0.24, 0.025, 'woodDark', x, 0, z);
+    k.box(0.36, 0.025, 0.025, 'woodDark', -0.05, 0.24, -0.2); k.box(0.36, 0.025, 0.025, 'woodDark', -0.05, 0.24, 0.1); k.cyl(0.03, 0.03, 0.3, 8, 'wood', -0.05, 0.25, -0.05, 0, Math.PI / 2);
+    k.pile(9, 0.06, 0xa4512f, 0.25, 0.25); k.pile(5, 0.05, 0x7a3a22, 0.28, -0.2);
+    k.box(0.14, 0.06, 0.1, 'wood', -0.28, 0.0, 0.28); k.pile(3, 0.035, 0xa4512f, -0.28, 0.28, 0.06);
+  } },
+  bloomery: { dims: { w: 0.6, d: 0.55, h: 0.36, roof: 'gable', wall: 'stone' }, finished(k) {
+    k.box(0.64, 0.04, 0.58, 'stoneDark');
+    k.cyl(0.11, 0.15, 0.4, 10, 'clay', -0.1, 0.04, -0.06); k.cyl(0.08, 0.1, 0.06, 10, 'brickDark', -0.1, 0.44, -0.06); k.emitters.push({ x: -0.1, y: 0.52, z: -0.06, type: 'smelter' });
+    k.box(0.06, 0.06, 0.03, GLOW(0xff7020, 2.8), -0.1, 0.07, 0.08); k.cyl(0.02, 0.02, 0.18, 6, 'woodDark', 0.04, 0.12, -0.02, 0, Math.PI / 2.4);
+    k.box(0.16, 0.08, 0.1, 0x8a6a48, 0.12, 0.04, -0.02); // bellows
+    k.box(0.24, 0.02, 0.22, 'thatch', 0.18, 0.26, 0.12); for (const [x, z] of [[0.08, 0.03], [0.28, 0.03], [0.08, 0.22], [0.28, 0.22]]) k.box(0.02, 0.22, 0.02, 'woodDark', x, 0.04, z);
+    for (let i = 0; i < 3; i++) k.cyl(0.035, 0.04, 0.03, 7, 'iron', 0.12 + i * 0.08, 0.04, 0.2);
+    k.pile(6, 0.05, 'charcoal', -0.26, 0.2); k.pile(5, 0.05, 0xa4512f, -0.27, -0.24);
+  } },
+  blacksmith: { dims: { w: 0.62, d: 0.52, h: 0.32, roof: 'gable', wall: 'stone' }, finished(k) {
+    const W = 0.4, D = 0.4; k.box(0.66, 0.04, 0.56, 'stoneDark'); k.box(W, 0.3, D, 'stone', -0.1, 0.04, -0.04); k.roof(W, D, 0.16, 'shingle', 0.34, 'stone', -0.1, -0.04);
+    k.chimney(-0.24, -0.14, 0.42, 0.18, 'stoneDark');
+    k.box(0.24, 0.02, 0.32, 'shingle', 0.2, 0.26, 0.06); for (const [x, z] of [[0.09, -0.08], [0.31, -0.08], [0.09, 0.2], [0.31, 0.2]]) k.box(0.025, 0.24, 0.025, 'woodDark', x, 0.04, z);
+    k.box(0.1, 0.08, 0.1, 'stoneDark', 0.14, 0.04, -0.02); k.box(0.07, 0.02, 0.07, GLOW(0xff8a2a, 2.6), 0.14, 0.12, -0.02); k.emitters.push({ x: 0.14, y: 0.16, z: -0.02, type: 'chips' });
+    k.cyl(0.03, 0.04, 0.06, 7, 'woodDark', 0.26, 0.04, 0.1); k.box(0.12, 0.04, 0.05, 'iron', 0.26, 0.1, 0.1); k.box(0.04, 0.02, 0.05, 'iron', 0.33, 0.11, 0.1);
+    k.cyl(0.05, 0.05, 0.08, 8, 'woodDark', 0.04, 0.04, 0.2); k.cyl(0.045, 0.045, 0.005, 8, 'water', 0.04, 0.12, 0.2);
+    for (let i = 0; i < 4; i++) { k.box(0.012, 0.13, 0.012, 'woodDark', -0.26 + i * 0.05, 0.04, 0.25); k.box(0.035, 0.025, 0.015, 'iron', -0.26 + i * 0.05, 0.17, 0.25); }
+  } },
+  mason: { dims: { w: 0.62, d: 0.55, h: 0.2, roof: 'none', wall: 'stone' }, finished(k) {
+    k.box(0.66, 0.02, 0.58, 'stoneDark');
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 2 - (i === 2 ? 1 : 0); j++) k.box(0.12, 0.07, 0.08, 'stone', -0.18 + j * 0.13, i * 0.07, -0.18);
+    k.box(0.12, 0.07, 0.08, 'stone', -0.12, 0.14, -0.18);
+    k.box(0.22, 0.14, 0.18, 'stoneDark', 0.14, 0.02, 0.02, 0.4); k.emitters.push({ x: 0.14, y: 0.2, z: 0.02, type: 'chips' });
+    k.box(0.02, 0.24, 0.02, 'woodDark', 0.24, 0, -0.2); k.box(0.02, 0.24, 0.02, 'woodDark', 0.04, 0, -0.2); k.box(0.24, 0.02, 0.02, 'woodDark', 0.14, 0.24, -0.2); // lifting frame
+    k.pile(10, 0.03, 'stone', -0.2, 0.18); for (let i = 0; i < 4; i++) k.box(0.1, 0.06, 0.06, 'quoin', 0.1 + (i % 2) * 0.11, Math.floor(i / 2) * 0.06, 0.22);
+  } },
+  stonehouse: { dims: { w: 0.6, d: 0.5, h: 0.36, roof: 'gable', wall: 'stone' }, finished(k) {
+    const W = 0.6, D = 0.5, H = 0.36;
+    k.box(W + 0.04, 0.05, D + 0.04, 'stoneDark'); k.box(W, H, D, 'stone');
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) for (let i = 0; i < 4; i++) k.box(0.05, 0.045, 0.05, i % 2 ? 'stoneDark' : 'quoin', sx * (W / 2 - 0.012), 0.05 + i * 0.08, sz * (D / 2 - 0.012));
+    k.windows('front', W, D, 0.15, 2, 0.08, 0.1, 0.08); k.door('front', W, D, 0.1, 0.18, -0.17, 'woodDark'); k.windows('back', W, D, 0.18, 2); k.windows('left', W, D, 0.18, 1);
+    k.roof(W, D, 0.24, 'shingle', H, 'stone'); k.chimney(-0.2, -0.08, H + 0.06, 0.2, 'stoneDark');
+  } },
+  stonewell: { dims: { w: 0.4, d: 0.4, h: 0.3, roof: 'none', wall: 'stone' }, finished(k) {
+    k.box(0.5, 0.03, 0.5, 'stone'); k.cyl(0.16, 0.17, 0.14, 12, 'stone', 0, 0.03); k.cyl(0.12, 0.12, 0.01, 12, 'water', 0, 0.16);
+    for (const s of [-1, 1]) k.box(0.04, 0.3, 0.04, 'stoneDark', s * 0.15, 0.03, 0); k.box(0.38, 0.04, 0.05, 'woodDark', 0, 0.33, 0); k.gable(0.42, 0.24, 0.1, 'roof', 0, 0.37, 0);
+    k.cyl(0.03, 0.03, 0.04, 6, 'wood', 0.04, 0.2, 0);
+  } },
+  horsefarm: { dims: { w: 1.84, d: 1.84, h: 0.2, roof: 'none', wall: 'wood' }, finished(k) {
+    k.fence([[-0.9, -0.9], [0.9, -0.9], [0.9, 0.9], [-0.9, 0.9], [-0.9, -0.9]], 0.12);
+    k.box(0.7, 0.26, 0.34, 'wood', -0.4, 0, -0.6); k.roof(0.7, 0.34, 0.14, 'thatch', 0.26, 'wood', -0.4, -0.6); for (let i = 0; i < 3; i++) k.box(0.12, 0.16, 0.01, 'woodDark', -0.62 + i * 0.22, 0, -0.42);
+    const horse = (x, z, ry, c) => { const cs = Math.cos(ry), sn = Math.sin(ry); const P = (a, y, b) => [x + a * cs + b * sn, y, z - a * sn + b * cs];
+      k.box(0.2, 0.09, 0.08, c, ...P(0, 0.11, 0), ry); for (const [a, b] of [[-0.07, -0.03], [-0.07, 0.03], [0.07, -0.03], [0.07, 0.03]]) k.box(0.02, 0.11, 0.02, c, ...P(a, 0, b), ry);
+      k.box(0.06, 0.1, 0.05, c, ...P(0.11, 0.16, 0), ry, 0, 0); k.box(0.08, 0.04, 0.04, c, ...P(0.16, 0.22, 0), ry); k.box(0.02, 0.08, 0.02, 'black', ...P(-0.11, 0.1, 0), ry); };
+    horse(0.2, 0.1, 0.4, 0x7a4a2a); horse(-0.3, 0.4, 2.2, 0x3a2a20); horse(0.5, 0.55, -0.8, 0xd8c8a8); horse(0.1, -0.3, 3.4, 0x8a5a32);
+    k.cyl(0.08, 0.06, 0.06, 8, 'woodDark', 0.6, 0, -0.6); k.pile(5, 0.06, 'thatch', 0.3, -0.65);
+  } },
+  vineyard: { dims: { w: 1.84, d: 1.84, h: 0.12, roof: 'none', wall: 'soil' }, finished(k) {
+    k.box(1.86, 0.03, 1.86, 'soil');
+    for (let r = 0; r < 6; r++) { const z = -0.75 + r * 0.3; k.box(1.7, 0.008, 0.008, 'woodDark', 0, 0.2, z); for (let i = 0; i < 9; i++) { const x = -0.8 + i * 0.2; k.box(0.015, 0.21, 0.015, 'woodDark', x, 0.03, z); k.box(0.16, 0.1, 0.07, (i + r) % 3 ? 'green' : 'crop2', x + 0.1, 0.12, z); if ((i + r) % 2) k.box(0.03, 0.05, 0.03, 0x5a2a5e, x + 0.08, 0.09, z + 0.04); } }
+    k.cyl(0.06, 0.07, 0.1, 8, 'woodDark', 0.75, 0.03, 0.85); k.cyl(0.05, 0.05, 0.02, 8, 0x5a2a5e, 0.75, 0.12, 0.85);
+  } },
+  winepress: { dims: { w: 0.6, d: 0.52, h: 0.3, roof: 'gable', wall: 'stone' }, finished(k) {
+    k.box(0.36, 0.26, 0.32, 'stone', -0.1, 0, -0.08); k.roof(0.36, 0.32, 0.14, 'roof', 0.26, 'stone', -0.1, -0.08);
+    k.cyl(0.1, 0.11, 0.08, 10, 'woodDark', 0.18, 0, 0.0); k.cyl(0.09, 0.09, 0.01, 10, 0x5a2a5e, 0.18, 0.08, 0.0); k.cyl(0.02, 0.02, 0.26, 6, 'wood', 0.18, 0.08, 0.0); k.box(0.24, 0.025, 0.025, 'wood', 0.18, 0.32, 0.0);
+    for (let i = 0; i < 4; i++) { k.cyl(0.03, 0.04, 0.06, 8, 'clay', -0.25 + i * 0.08, 0, 0.2); k.cyl(0.02, 0.03, 0.05, 8, 'clay', -0.25 + i * 0.08, 0.06, 0.2); }
+    k.cyl(0.06, 0.06, 0.12, 10, 'wood', 0.2, 0.06, 0.2, Math.PI / 2); for (const x of [0.15, 0.25]) k.cyl(0.062, 0.062, 0.01, 10, 'iron', x, 0.06, 0.2, Math.PI / 2);
+  } },
+  tradepost: { dims: { w: 0.62, d: 0.55, h: 0.3, roof: 'gable', wall: 'wood' }, finished(k) {
+    k.box(0.4, 0.26, 0.34, 'wood', -0.08, 0, -0.08); k.roof(0.4, 0.34, 0.16, 'shingle', 0.26, 'wood', -0.08, -0.08); k.door('front', 0.4, 0.34, 0.1, 0.17, -0.08, 'woodDark');
+    k.box(0.02, 0.4, 0.02, 'woodDark', 0.25, 0, 0.22); k.box(0.16, 0.1, 0.01, 'cloth', 0.33, 0.3, 0.22);
+    for (const [x, z, m] of [[0.2, -0.15, 'wood'], [0.25, -0.02, 'woodLight'], [0.22, 0.1, 'wood']]) { k.box(0.1, 0.08, 0.08, m, x, 0, z); }
+    k.cyl(0.04, 0.045, 0.1, 8, 'clay', -0.25, 0, 0.22); k.cyl(0.04, 0.045, 0.1, 8, 'clay', -0.16, 0, 0.24); k.box(0.12, 0.06, 0.08, 'cloth', 0.06, 0, 0.22);
+    // a small cart ready to leave
+    k.box(0.18, 0.025, 0.1, 'woodLight', 0.06, 0.06, 0.34); for (const s of [-1, 1]) k.cyl(0.045, 0.045, 0.015, 10, 'woodDark', 0.06, 0.045, 0.34 + s * 0.06, Math.PI / 2);
+  } },
+  stonewall: { dims: { w: 0.9, d: 0.2, h: 0.2, roof: 'none', wall: 'stone' }, finished(k) {
+    k.box(0.98, 0.16, 0.16, 'stone'); k.box(0.98, 0.04, 0.2, 'stoneDark', 0, 0.16);
+    for (let i = 0; i < 5; i++) k.box(0.12, 0.06, 0.2, 'stone', -0.4 + i * 0.2, 0.2, 0);
+  } },
+  hillfort: { dims: { w: 1.7, d: 1.7, h: 0.4, roof: 'none', wall: 'stone' }, finished(k) {
+    const R = 0.82; for (let i = 0; i < 20; i++) { const a = i / 20 * Math.PI * 2; if (i === 5) continue; k.box(0.28, 0.22, 0.12, i % 2 ? 'stone' : 'stoneDark', Math.cos(a) * R, 0, Math.sin(a) * R, -a + Math.PI / 2); k.box(0.1, 0.06, 0.12, 'stone', Math.cos(a) * R, 0.22, Math.sin(a) * R, -a + Math.PI / 2); }
+    k.box(0.3, 0.6, 0.3, 'stone', -0.25, 0, -0.2); k.box(0.36, 0.04, 0.36, 'stoneDark', -0.25, 0.6, -0.2); for (const [x, z] of [[-0.1, -0.05], [-0.4, -0.05], [-0.1, -0.35], [-0.4, -0.35]]) k.box(0.07, 0.07, 0.07, 'stone', x, 0.64, z);
+    k.box(0.5, 0.24, 0.3, 'wood', 0.25, 0, 0.2); k.roof(0.5, 0.3, 0.14, 'thatch', 0.24, 'wood', 0.25, 0.2);
+    k.box(0.015, 0.3, 0.015, 'woodDark', -0.25, 0.64, -0.2); k.box(0.14, 0.09, 0.01, 'cloth', -0.18, 0.86, -0.2);
+  } },
+  aqueduct: { dims: { w: 0.98, d: 0.3, h: 0.5, roof: 'none', wall: 'stone' }, finished(k) {
+    for (const s of [-1, 1]) k.box(0.12, 0.42, 0.26, MARBLE2, s * 0.43, 0, 0);
+    k.box(0.98, 0.1, 0.26, MARBLE2, 0, 0.42); k.box(0.98, 0.02, 0.14, 'water', 0, 0.52); for (const s of [-1, 1]) k.box(0.98, 0.05, 0.05, MARBLE, 0, 0.52, s * 0.1);
+    // arch: stepped voussoirs
+    for (let i = 0; i < 7; i++) { const a = Math.PI * (i + 0.5) / 7, x = Math.cos(a) * 0.32, y = 0.1 + Math.sin(a) * 0.3; k.box(0.08, 0.06, 0.26, MARBLE, x, y, 0, 0, 0, a - Math.PI / 2); }
+  } },
+  fountain: { dims: { w: 0.6, d: 0.6, h: 0.3, roof: 'none', wall: 'stone' }, finished(k) {
+    k.box(0.7, 0.03, 0.7, MARBLE2); k.cyl(0.3, 0.32, 0.1, 16, MARBLE, 0, 0.03); k.cyl(0.27, 0.27, 0.01, 16, 'water', 0, 0.12);
+    k.cyl(0.05, 0.07, 0.22, 8, MARBLE, 0, 0.1); k.cyl(0.12, 0.08, 0.04, 12, MARBLE, 0, 0.32); k.cyl(0.1, 0.1, 0.01, 12, 'water', 0, 0.355);
+  } },
+  insula: { dims: { w: 0.66, d: 0.6, h: 0.8, roof: 'gable', wall: 'brick' }, finished(k) {
+    const W = 0.66, D = 0.6, H = 0.78;
+    k.box(W, 0.24, D, MARBLE2); k.box(W, H - 0.24, D, 'brick', 0, 0.24);
+    for (let f = 0; f < 3; f++) { k.box(W + 0.02, 0.02, D + 0.02, 'brickDark', 0, 0.24 + f * 0.18); k.windows('front', W, D, 0.3 + f * 0.18, 3, 0.07, 0.08); k.windows('left', W, D, 0.3 + f * 0.18, 2, 0.07, 0.08); k.windows('back', W, D, 0.3 + f * 0.18, 3, 0.07, 0.08); }
+    for (let i = 0; i < 3; i++) k.box(0.16, 0.16, 0.02, i === 1 ? 'black' : 'woodDark', -0.2 + i * 0.2, 0.02, D / 2 + 0.005); // shops at street level
+    k.box(0.5, 0.02, 0.1, 'roof2', 0, 0.22, D / 2 + 0.05); k.roof(W, D, 0.18, 'roof', H, 'brick');
+  } },
+  villa: { dims: { w: 1.6, d: 1.4, h: 0.36, roof: 'gable', wall: 'plaster' }, finished(k) {
+    k.box(1.7, 0.04, 1.5, MARBLE2);
+    const wing = (x, z, w, d) => { k.box(w, 0.3, d, 'plaster', x, 0.04, z); k.roof(w, d, 0.14, 'roof', 0.34, 'plaster', x, z); };
+    wing(0, -0.48, 1.4, 0.34); wing(-0.55, 0.12, 0.3, 0.86); wing(0.55, 0.12, 0.3, 0.86);
+    k.box(0.72, 0.01, 0.6, 0x5b8f3a, 0, 0.04, 0.2); k.box(0.28, 0.02, 0.14, 'water', 0, 0.045, 0.2);
+    for (let i = 0; i < 5; i++) k.cyl(0.025, 0.025, 0.26, 8, MARBLE, -0.32 + i * 0.16, 0.04, -0.27);
+    for (const [x, z] of [[-0.25, 0.4], [0.25, 0.4]]) { k.cyl(0.02, 0.02, 0.08, 6, 'woodDark', x, 0.05, z); k.cone(0.06, 0.16, 7, 'green', x, 0.12, z); }
+    k.windows('front', 1.4, 0.34, 0.16, 4, 0.07, 0.08, 0);
+  } },
+  forum: { dims: { w: 1.7, d: 1.7, h: 0.4, roof: 'none', wall: 'stone' }, finished(k) {
+    k.box(1.8, 0.04, 1.8, MARBLE2); k.box(1.2, 0.012, 1.2, MARBLE, 0, 0.04);
+    for (let i = 0; i < 7; i++) { k.cyl(0.03, 0.035, 0.36, 8, MARBLE, -0.72 + i * 0.24, 0.04, -0.75); k.cyl(0.03, 0.035, 0.36, 8, MARBLE, -0.75, 0.04, -0.72 + i * 0.24); }
+    k.box(1.6, 0.05, 0.14, MARBLE2, 0, 0.4, -0.75); k.box(0.14, 0.05, 1.6, MARBLE2, -0.75, 0.4, 0); k.box(1.62, 0.02, 0.2, 'roof', 0, 0.45, -0.78); k.box(0.2, 0.02, 1.62, 'roof', -0.78, 0.45, 0);
+    k.box(0.5, 0.4, 0.4, MARBLE, 0.5, 0.04, 0.5); k.gable(0.56, 0.46, 0.14, 'roof', 0.5, 0.44, 0.5); for (let i = 0; i < 4; i++) k.cyl(0.022, 0.025, 0.4, 8, MARBLE, 0.32 + i * 0.12, 0.04, 0.27);
+    k.box(0.1, 0.24, 0.1, MARBLE2, 0, 0.04, 0); k.cyl(0.04, 0.04, 0.1, 8, 'bronze', 0, 0.28, 0);
+    for (const [x, z, c] of [[-0.3, 0.45, 'cloth'], [0.0, 0.6, 0x3d6fb2], [-0.5, 0.15, 'thatch']]) { for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) k.box(0.015, 0.18, 0.015, 'woodDark', x + a * 0.1, 0.04, z + b * 0.07); k.box(0.24, 0.015, 0.18, c, x, 0.22, z); }
+  } },
+  library: { dims: { w: 0.7, d: 0.6, h: 0.42, roof: 'gable', wall: 'stone' }, finished(k) {
+    k.box(0.8, 0.06, 0.7, MARBLE2); k.box(0.6, 0.38, 0.44, MARBLE, 0, 0.06, -0.06); k.roof(0.6, 0.44, 0.16, 'roof', 0.44, 'stone', 0, -0.06);
+    for (let i = 0; i < 4; i++) k.cyl(0.025, 0.03, 0.38, 8, MARBLE, -0.22 + i * 0.147, 0.06, 0.2); k.gable(0.62, 0.12, 0.1, MARBLE2, 0, 0.44, 0.2); k.box(0.62, 0.03, 0.12, MARBLE2, 0, 0.42, 0.2);
+    k.box(0.12, 0.2, 0.01, 'woodDark', 0, 0.06, 0.165); for (let i = 0; i < 3; i++) k.box(0.3, 0.02, 0.05, MARBLE2, 0, i * 0.02, 0.32 - i * 0.03);
+    for (let i = 0; i < 4; i++) k.cyl(0.02, 0.02, 0.1, 6, i % 2 ? 'thatch' : 'woodLight', 0.3, 0.06 + i * 0.022, 0.28, Math.PI / 2); // scrolls
+  } },
+  baths: { dims: { w: 1.6, d: 1.4, h: 0.4, roof: 'flat', wall: 'brick' }, finished(k) {
+    k.box(1.7, 0.04, 1.5, MARBLE2);
+    k.box(0.9, 0.36, 0.6, 'brick', -0.3, 0.04, -0.35); k.cyl(0.28, 0.28, 0.06, 16, MARBLE2, -0.3, 0.4, -0.35); k.cyl(0.26, 0.04, 0.16, 16, MARBLE, -0.3, 0.46, -0.35); // dome
+    k.box(0.9, 0.04, 0.6, 'roof', 0.4, 0.3, 0.38); k.box(0.76, 0.012, 0.46, 'water', 0.4, 0.05, 0.38); for (let i = 0; i < 5; i++) k.cyl(0.025, 0.025, 0.26, 8, MARBLE, 0.0 + i * 0.2, 0.04, 0.66);
+    k.box(0.1, 0.36, 0.1, 'brick', 0.6, 0.04, -0.5); k.emitters.push({ x: 0.6, y: 0.44, z: -0.5, type: 'chimney' });
+    k.windows('front', 0.9, 0.6, 0.2, 3, 0.08, 0.12, -0.3);
+  } },
+  theatre: { dims: { w: 1.7, d: 1.7, h: 0.4, roof: 'none', wall: 'stone' }, finished(k) {
+    for (let r = 0; r < 6; r++) { const R = 0.36 + r * 0.1; for (let i = 0; i < 14; i++) { const a = Math.PI * (0.05 + 0.9 * i / 13); k.box(0.12, 0.07, 0.11, r % 2 ? MARBLE : MARBLE2, Math.cos(a) * R, r * 0.065, -Math.sin(a) * R + 0.3, Math.PI / 2 - a); } }
+    k.box(0.8, 0.06, 0.26, MARBLE2, 0, 0, 0.55); k.box(0.86, 0.36, 0.08, MARBLE, 0, 0.06, 0.7); for (let i = 0; i < 5; i++) k.box(0.06, 0.2, 0.012, 'black', -0.3 + i * 0.15, 0.1, 0.656);
+    k.cyl(0.02, 0.02, 0.06, 6, 'cloth', 0.1, 0.06, 0.52); k.cyl(0.02, 0.02, 0.06, 6, 0x3d6fb2, -0.1, 0.06, 0.55);
+  } },
+  mint: { dims: { w: 0.62, d: 0.56, h: 0.36, roof: 'gable', wall: 'stone' }, finished(k) {
+    k.box(0.66, 0.05, 0.6, MARBLE2); k.box(0.52, 0.34, 0.44, 'stone', 0, 0.05, -0.04); k.roof(0.52, 0.44, 0.16, 'roof', 0.39, 'stone', 0, -0.04);
+    for (const s of [-1, 1]) k.cyl(0.03, 0.03, 0.34, 8, MARBLE, s * 0.12, 0.05, 0.22); k.box(0.12, 0.2, 0.01, 'iron', 0, 0.05, 0.181);
+    k.chimney(0.18, -0.12, 0.45, 0.14, 'stoneDark');
+    for (let i = 0; i < 3; i++) k.cyl(0.03, 0.03, 0.012 * (3 - i), 10, 'gold', -0.22 + i * 0.04, 0.05, 0.27);
+  } },
+  monument: { dims: { w: 2.6, d: 2.6, h: 1.2, roof: 'none', wall: 'stone' }, finished(k) {
+    k.box(2.8, 0.06, 2.8, MARBLE2);
+    for (let i = 0; i < 6; i++) { const w = 2.3 - i * 0.36; k.box(w, 0.16, w, i % 2 ? 'stone' : MARBLE2, 0, 0.06 + i * 0.16, 0); }
+    k.box(0.36, 0.3, 0.36, MARBLE, 0, 1.02, 0); k.cone(0.2, 0.2, 4, 'gold', 0, 1.32, 0, Math.PI / 4);
+    for (let i = 0; i < 6; i++) k.box(0.5, 0.04, 0.12, MARBLE2, 0, 0.06 + i * 0.16 + 0.12, 1.15 - i * 0.18); // grand stair
+    for (const s of [-1, 1]) { k.box(0.14, 0.7, 0.14, MARBLE, s * 1.2, 0.06, 1.2); k.cone(0.07, 0.12, 4, 'gold', s * 1.2, 0.76, 1.2, Math.PI / 4); k.cyl(0.05, 0.06, 0.12, 8, 'bronze', s * 0.5, 0.06, 1.3); k.cone(0.04, 0.06, 6, GLOW(0xff8a2a, 1.6), s * 0.5, 0.18, 1.3); k.emitters.push({ x: s * 0.5, y: 0.26, z: 1.3, type: 'fire' }); }
+  } },
+});
+
 // Returns { group, emitters } in building-local coords (origin = footprint center at ground level).
 export function buildModel(b, stage, baseOf) {
   let kit;

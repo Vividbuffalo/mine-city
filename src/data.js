@@ -6,9 +6,10 @@ export const ERAS = {
   1: { name: 'Stone & Clay', maxDepth: 5, tier: 'Surface' },
   2: { name: 'Bronze', maxDepth: 30, tier: 'Shallow shaft' },
   3: { name: 'Iron', maxDepth: 60, tier: 'Deep shaft' },
+  4: { name: 'Classical', maxDepth: 80, tier: 'Deep shaft' },
 };
 
-export const RESOURCES = ['wood', 'clay', 'stone', 'copper', 'tin', 'brick', 'bronze', 'food', 'tools', 'pots', 'wool', 'flax', 'cloth'];
+export const RESOURCES = ['wood', 'clay', 'stone', 'copper', 'tin', 'brick', 'bronze', 'food', 'tools', 'pots', 'wool', 'flax', 'cloth', 'ironore', 'charcoal', 'iron', 'blocks', 'horses', 'grapes', 'wine'];
 export const ERA3_NOTE = 'Iron (and iron mines) arrive with the Iron era, after Bronze.';
 
 export const DEPOSITS = {
@@ -16,6 +17,7 @@ export const DEPOSITS = {
   stone:  { name: 'Stone',  color: 0x9aa0a6 },
   copper: { name: 'Copper', color: 0x3fae8c },
   tin:    { name: 'Tin',    color: 0xd7dde6 },
+  ironore: { name: 'Iron ore', color: 0xa4512f },
 };
 
 // cost: money + materials. time: build hours. jobs: worker slots. weight: subsidence weight factor.
@@ -84,10 +86,35 @@ export const BUILDINGS = {
   temple:     { name: 'Temple', cat: 'Culture', era: 2, size: 2, cost: { brick: 30, stone: 20, wood: 10 }, time: 48, culture: 10, happy: 6, weight: 2.5, upkeep: 1, mat: 'brick', ambition: 0.4 },
   mound:      { name: 'Burial Mound', cat: 'Culture', era: 2, size: 2, cost: { stone: 30 }, time: 30, culture: 5, happy: 2, weight: 1.5, upkeep: 0, mat: 'stone' },
   statue:     { name: 'Bronze Statue', cat: 'Culture', era: 2, size: 1, cost: { bronze: 10, stone: 6 }, time: 16, culture: 3, happy: 3, weight: 0.8, upkeep: 0, mat: 'stone', decor: true },
+  // --- Iron era ---
+  charcoal:   { name: 'Charcoal Burner', cat: 'Industry', era: 3, size: 1, cost: { wood: 12, stone: 4 }, time: 10, jobs: 2, recipe: { in: { wood: 3 }, out: { charcoal: 2 }, perDay: 5 }, weight: 0.3, upkeep: 0, mat: 'soil' },
+  ironpit:    { name: 'Iron Ore Pit', cat: 'Gathering', era: 3, size: 1, cost: { wood: 10, tools: 2 }, time: 12, jobs: 3, extract: ['ironore'], rate: 6, radius: 2, maxDepth: 8, weight: 0.3, upkeep: 0.3, mat: 'wood' },
+  bloomery:   { name: 'Bloomery', cat: 'Industry', era: 3, size: 1, cost: { stone: 24, wood: 6 }, time: 20, jobs: 3, recipe: { in: { ironore: 2, charcoal: 2 }, out: { iron: 1 }, perDay: 5 }, weight: 1, upkeep: 0.3, mat: 'stone' },
+  blacksmith: { name: 'Blacksmith', cat: 'Industry', era: 3, size: 1, cost: { stone: 16, wood: 10, iron: 4 }, time: 18, jobs: 2, recipe: { in: { iron: 1, charcoal: 1 }, out: { tools: 3 }, perDay: 4 }, weight: 1, upkeep: 0.3, mat: 'stone', enables: 'ironTools' },
+  mason:      { name: 'Stonemason', cat: 'Industry', era: 3, size: 1, cost: { wood: 10, tools: 2 }, time: 12, jobs: 3, recipe: { in: { stone: 3 }, out: { blocks: 2 }, perDay: 5 }, weight: 0.5, upkeep: 0.1, mat: 'stone' },
+  stonehouse: { name: 'Stone House', cat: 'Housing', era: 3, size: 1, cost: { blocks: 8, wood: 4 }, time: 20, cap: 9, weight: 1.2, upkeep: 0.1, mat: 'stone' },
+  stonewell:  { name: 'Stone Well', cat: 'Services', era: 3, size: 1, cost: { blocks: 6 }, time: 8, radius: 7, waterSupply: true, weight: 0.5, upkeep: 0, mat: 'stone' },
+  horsefarm:  { name: 'Horse Breeder', cat: 'Food', era: 3, size: 2, cost: { wood: 24, stone: 6 }, time: 20, jobs: 2, terrain: [0], recipe: { in: { food: 4 }, out: { horses: 1 }, perDay: 0.5 }, weight: 0.4, upkeep: 0.3, mat: 'wood', enables: 'horses' },
+  vineyard:   { name: 'Vineyard', cat: 'Food', era: 3, size: 2, cost: { wood: 12, tools: 1 }, time: 14, jobs: 2, terrain: [0, 2], recipe: { in: {}, out: { grapes: 3 }, perDay: 1 }, weight: 0.2, upkeep: 0, mat: 'wood', slopeOk: true },
+  winepress:  { name: 'Wine Press', cat: 'Industry', era: 3, size: 1, cost: { blocks: 6, wood: 8 }, time: 14, jobs: 2, recipe: { in: { grapes: 2, pots: 1 }, out: { wine: 2 }, perDay: 3 }, weight: 0.6, upkeep: 0.1, mat: 'stone' },
+  tradepost:  { name: 'Trading Post', cat: 'Services', era: 3, size: 1, cost: { wood: 20, blocks: 4 }, time: 16, jobs: 2, weight: 0.5, upkeep: 0.4, mat: 'wood', trade: 1 },
+  stonewall:  { name: 'Stone Wall', cat: 'Culture', era: 3, size: 1, cost: { blocks: 2 }, time: 3, weight: 0.4, upkeep: 0, mat: 'stone', decor: true, happy: 0.2 },
+  hillfort:   { name: 'Hill Fort', cat: 'Culture', era: 3, size: 2, cost: { blocks: 30, wood: 20 }, time: 60, culture: 6, happy: 2, weight: 3, upkeep: 0.8, mat: 'stone', sight: 8, slopeOk: true },
+  // --- Classical era ---
+  aqueduct:   { name: 'Aqueduct', cat: 'Services', era: 4, size: 1, cost: { blocks: 6, brick: 4 }, time: 10, weight: 0.8, upkeep: 0.1, mat: 'stone', aqueduct: true, slopeOk: true },
+  fountain:   { name: 'Public Fountain', cat: 'Services', era: 4, size: 1, cost: { blocks: 8, bronze: 2 }, time: 10, radius: 7, waterSupply: true, needsAq: 2, happy: 2, weight: 0.6, upkeep: 0.1, mat: 'stone' },
+  insula:     { name: 'Apartment Block', cat: 'Housing', era: 4, size: 1, cost: { blocks: 12, brick: 12, wood: 8 }, time: 30, cap: 18, weight: 2.2, upkeep: 0.3, mat: 'stone', ambition: 0.2 },
+  villa:      { name: 'Villa', cat: 'Housing', era: 4, size: 2, cost: { blocks: 20, brick: 10, wood: 10 }, time: 36, cap: 10, happy: 2, weight: 1.6, upkeep: 0.4, mat: 'stone' },
+  forum:      { name: 'Forum', cat: 'Services', era: 4, size: 2, cost: { blocks: 30, wood: 10 }, time: 40, jobs: 6, shop: 220, sells: { wine: 3, cloth: 1.5, pots: 0.6, tools: 2.5 }, culture: 3, happy: 3, weight: 1.5, upkeep: 0.8, mat: 'stone' },
+  library:    { name: 'Library', cat: 'Culture', era: 4, size: 1, cost: { blocks: 16, wood: 8 }, time: 30, jobs: 2, culture: 4, research: 0.3, weight: 1.2, upkeep: 0.5, mat: 'stone' },
+  baths:      { name: 'Bathhouse', cat: 'Services', era: 4, size: 2, cost: { blocks: 24, brick: 16, bronze: 4 }, time: 40, jobs: 3, needsAq: 3, health: 10, happy: 4, weight: 1.8, upkeep: 0.8, mat: 'stone' },
+  theatre:    { name: 'Amphitheatre', cat: 'Culture', era: 4, size: 2, cost: { blocks: 40, wood: 10 }, time: 60, culture: 10, happy: 6, weight: 2, upkeep: 0.6, mat: 'stone', slopeOk: true },
+  mint:       { name: 'Mint', cat: 'Industry', era: 4, size: 1, cost: { blocks: 12, iron: 4 }, time: 24, jobs: 2, recipe: { in: { bronze: 1 }, out: { money: 30 }, perDay: 3 }, weight: 1, upkeep: 0.3, mat: 'stone' },
+  monument:   { name: 'Great Monument', cat: 'Culture', era: 4, size: 3, cost: { blocks: 200, bronze: 30, iron: 10 }, time: 240, culture: 40, happy: 8, weight: 4, upkeep: 1, mat: 'stone', ambition: 0.3, monument: true },
   // --- services & trade ---
   stall:      { name: 'Trading Spot', cat: 'Services', era: 1, size: 1, cost: { wood: 6 }, time: 6, jobs: 2, shop: 25, weight: 0.3, upkeep: 0, mat: 'wood' },
   store:      { name: 'General Store', cat: 'Services', era: 2, size: 1, cost: { money: 80, brick: 12, wood: 4 }, time: 24, jobs: 4, shop: 70, weight: 1, upkeep: 1, mat: 'brick' },
-  well:       { name: 'Well', cat: 'Services', era: 1, size: 1, cost: { stone: 6 }, time: 6, radius: 5, weight: 0.5, upkeep: 0, mat: 'stone' },
+  well:       { name: 'Well', cat: 'Services', era: 1, size: 1, cost: { stone: 6 }, time: 6, radius: 5, waterSupply: true, weight: 0.5, upkeep: 0, mat: 'stone' },
   rescue:     { name: 'Healer', cat: 'Services', era: 1, size: 1, cost: { wood: 12, stone: 2 }, time: 12, jobs: 4, crews: 2, weight: 0.6, upkeep: 0.5, mat: 'wood' },
   custom:     { name: 'Custom Build', cat: 'Custom', era: 1, size: 1, cost: {}, time: 4, weight: 1, upkeep: 0.2, hidden: true },
 };
@@ -115,22 +142,30 @@ export const TECHS = {
   ironworking: { name: 'Ironworking', era: 2, cost: 140, req: ['writing'] },
   earthworks: { name: 'Ground Levelling', era: 2, cost: 60, req: [] },
   prospecting: { name: 'Prospecting', era: 2, cost: 50, req: [] },
+  masonry:  { name: 'Masonry', era: 3, cost: 160, req: [] },
+  currency: { name: 'Coinage', era: 3, cost: 180, req: [] },
+  engineering: { name: 'Engineering', era: 4, cost: 260, req: [] },
+  philosophy: { name: 'Philosophy', era: 4, cost: 300, req: [] },
 };
 
 // Terrain levelling. Bronze: cut a terrace into a steep (mountain) tile so it can be built on. Later eras: full levelling / cutting into mountains (design).
 export const EARTHWORKS = { cost: { money: 40, stone: 6 }, hours: 30, needs: 'carpentry', tech: 'earthworks' };
 
 // Deposits visible on the surface without surveying (clay banks, stone outcrops, copper stains): max depth in m
-export const SURFACE_DEPTH = { clay: 2, stone: 2, copper: 3, tin: 2 };
+export const SURFACE_DEPTH = { clay: 2, stone: 2, copper: 3, tin: 2, ironore: 3 };
 // Saplings: planting cost and growth (game hours per stage: sapling -> young -> grown tree)
 export const SAPLING = { cost: { money: 3 }, stages: [48, 96], grownAt: 144 };
 // Dismantling (early eras): reverse construction at this fraction of build time, refunds part of the materials
 export const DISMANTLE = { timeMult: 0.6, refund: 0.5, bulldozerEra: 'Industrial' };
 
 // Next-era milestones (shown as a plain status line): population, finished buildings, culture points, techs
-export const ERA_REQ = { 1: { pop: 30, buildings: 15, culture: 100, techs: ['pottery', 'smelting'] }, 2: { pop: 70, buildings: 35, culture: 260, techs: ['writing', 'ironworking'], made: { bronze: 20, tools: 10 } } };
+export const ERA_REQ = { 1: { pop: 30, buildings: 15, culture: 100, techs: ['pottery', 'smelting'] }, 2: { pop: 70, buildings: 35, culture: 600, techs: ['writing', 'ironworking'], made: { bronze: 20, tools: 10 } }, 3: { pop: 120, buildings: 55, culture: 2000, techs: ['masonry', 'currency'], made: { iron: 30, blocks: 40 } } };
 // Bronze tools: while the town has tools, gathering, extraction and building go faster; tools wear out with use
-export const TOOLS = { boost: 0.25, wearPerWorkerDay: 0.01 };
+export const TOOLS = { boost: 0.25, ironBoost: 0.4, wearPerWorkerDay: 0.01 };
+// horses: scouts ride (faster); with a cart maker, villagers haul with carts (bigger loads)
+export const HORSES = { scoutSpeed: 1.7, cartLoad: 2 };
+// neighbouring towns met through exploration; a trading post sends a caravan to each known town every few days
+export const TRADE = { everyDays: 3, perTrip: 8 };
 
 // Block-build materials (0.5-tile blocks)
 export const BLOCKS = {

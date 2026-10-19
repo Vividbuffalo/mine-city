@@ -369,6 +369,7 @@ function renderInfo() {
   } else if (ui.selTile) {
     const { x, y } = ui.selTile, t = S.tile(state, x, y);
     h = head(t.vis ? (t.t === S.T.WATER ? ['River: shallow ford', 'River: shallow reach', 'River: deep channel'][t.wd ?? 2] : TERRAIN_NAMES[t.t] + (t.t === S.T.HILL ? ` (level ${t.h})` : '')) : 'Unexplored');
+    if (t.vis && t.town && state.towns) { const tw = state.towns.find(w => w.id === t.town); if (tw) h += row('Land of', `${tw.name} (${S.TOWN_KINDS[tw.kind].name})`); }
     if (t.vis && t.t === S.T.WATER) h += row('On foot', t.bridge ? 'Bridge' : t.wd === 2 ? '<span class="no">Impassable</span>' : t.wd === 0 ? 'Wadeable, slow; small risk' : 'Wadeable, very slow; risky');
     if (t.vis) {
       if (t.lv) h += row('Ground', 'Terraced'); else if (S.isSteep(t)) h += row('Ground', 'Steep');
@@ -430,7 +431,7 @@ function renderPanel() {
       ['Food stock', Math.floor(state.res.food)], ['Food produced / day', Math.round(food)], ['Food eaten / day', pop], ['Homes with water', Math.round((state.waterFrac ?? 1) * 100) + '%'],
       ['Shop capacity (people served)', Math.round(state.shopCap || 0)], ['Income / day', Math.round(state.lastIncome || 0)], ['Upkeep / day', Math.round(state.lastUpkeep || 0)], ['Happiness', state.happiness],
       ['Research points / hour', ((pop * 0.06 + 0.4) * (state.research.done.includes('writing') ? 1.5 : 1)).toFixed(1)],
-      ['Arrivals (total)', state.stats.arrivals], ['Left town (total)', state.stats.left], ['Deaths (total)', state.stats.deaths], ['Collapses', state.stats.collapses], ['Bricks made', Math.floor(state.stats.bricksMade)], ['Bronze made', Math.floor(state.stats.bronzeMade)]];
+      ['Arrivals (total)', state.stats.arrivals], ['Left town (total)', state.stats.left], ['Deaths (total)', state.stats.deaths], ['Collapses', state.stats.collapses], ['Bricks made', Math.floor(state.stats.bricksMade)], ['Bronze made', Math.floor(state.stats.bronzeMade)], ...(state.towns || []).filter(t => t.met).map(t => [`${t.name} (${S.TOWN_KINDS[t.kind].name}): trade`, Math.round(t.traded)])];
     const res = Object.entries(RES_ICONS).map(([k, i]) => [`${i} ${k[0].toUpperCase() + k.slice(1)}`, Math.floor(state.res[k])]);
     setHTML(body, `<table>${res.concat(rows).map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</table>`);
   } else if (p === 'log') {

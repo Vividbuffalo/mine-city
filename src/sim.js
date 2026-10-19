@@ -1,5 +1,7 @@
 // EARTH simulation. Pure data + rules, no rendering. All mutations go through applyCommand().
-import { BUILDINGS, TECHS, ERAS, ERA_REQ, BLOCKS, SAVE_VERSION, HOURS_PER_DAY, techCost, EARTHWORKS, SURFACE_DEPTH, SAPLING, DISMANTLE, VILLAGER, DECAY, CONDITION_STAGES, TOOLS, RESOURCES } from './data.js';
+import { BUILDINGS, TECHS, ERAS, ERA_REQ, BLOCKS, SAVE_VERSION, HOURS_PER_DAY, techCost, EARTHWORKS, SURFACE_DEPTH, SAPLING, DISMANTLE, VILLAGER, DECAY, CONDITION_STAGES, TOOLS, RESOURCES, TRADE, DEPOSITS } from './data.js';
+import { makeTowns, tickTowns, TOWN_KINDS } from './towns.js';
+export { TOWN_KINDS };
 // a deposit the player knows about: surveyed, or shallow enough to be seen on the surface once explored
 export const knownDeposit = (t) => !!(t && t.vis && t.dep && t.dep.amt > 0 && (t.sv || t.dep.depth <= (SURFACE_DEPTH[t.dep.r] ?? 0)));
 export const undergroundUnlocked = (state) => state.era >= 2;
@@ -70,10 +72,12 @@ function genWorld(seed) {
     let nearRiver = false;
     for (let dy = -2; dy <= 2 && !nearRiver; dy++) for (let dx = -2; dx <= 2; dx++) if (river.has((x + dx) + ',' + (y + dy))) { nearRiver = true; break; }
     const r = hash2(seed + 21, x, y), g = noise(seed + 31, x, y, 6);
-    if (nearRiver && tl.t !== T.HILL && r < 0.55) tl.dep = { r: 'clay', amt: 60 + Math.floor(r * 120), depth: 1 + Math.floor(r * 4), grade: 1 };
+    if (nearRiver && tl.t !== T.HILL && r > 0.93) tl.dep = { r: 'ironore', amt: 40 + Math.floor(r * 30), depth: 1, grade: 0.5 }; // bog iron
+    else if (nearRiver && tl.t !== T.HILL && r < 0.55) tl.dep = { r: 'clay', amt: 60 + Math.floor(r * 120), depth: 1 + Math.floor(r * 4), grade: 1 };
     else if (tl.t === T.HILL) {
       const cu = noise(seed + 41, x, y, 4), sn = noise(seed + 51, x, y, 3);
       if (cu > 0.72) tl.dep = { r: 'copper', amt: 80 + Math.floor(cu * 200), depth: cu > 0.8 ? 3 + Math.floor(r * 3) : 8 + Math.floor(r * 20), grade: cu };
+      else if (noise(seed + 61, x, y, 4) > 0.7) tl.dep = { r: 'ironore', amt: 120 + Math.floor(r * 160), depth: 2 + Math.floor(r * 6), grade: 0.7 };
       else if (sn > 0.8) tl.dep = { r: 'tin', amt: 40 + Math.floor(sn * 100), depth: sn > 0.85 ? 4 : 10 + Math.floor(r * 18), grade: sn };
       else tl.dep = { r: 'stone', amt: 150 + Math.floor(r * 150), depth: 1 + Math.floor(r * 3), grade: 1 };
     } else if (g > 0.75 && r < 0.4) {
@@ -130,13 +134,15 @@ export function newGame(opts = {}) {
   { const cx = state.start.x, cy = state.start.y - 1, t = tile(state, cx, cy);
     if (t && t.t !== T.WATER && !t.occ) { const camp = createBuilding(state, 'camp', [[cx, cy]]); camp.progress = 1; camp.done = true; camp.cond = 100; camp.age = 0; t.trees = 0; }
     for (let i = 0; i < VILLAGER.startCount; i++) spawnVillager(state, state.start.x + (i - 1), state.start.y + 1); }
+  for (const k of RESOURCES) if (state.res[k] === undefined) state.res[k] = 0;
   if (sandbox) {
-    Object.assign(state.res, { money: 100000, wood: 800, clay: 400, stone: 400, copper: 300, tin: 150, brick: 400, bronze: 200, food: 500, tools: 200, pots: 50, wool: 50, flax: 50, cloth: 50 });
+    Object.assign(state.res, { money: 100000, wood: 800, clay: 400, stone: 400, copper: 300, tin: 150, brick: 600, bronze: 400, food: 500, tools: 200, pots: 50, wool: 50, flax: 50, cloth: 50, ironore: 100, charcoal: 100, iron: 300, blocks: 2000, horses: 5, grapes: 50, wine: 30 });
     for (const id in TECHS) if (TECHS[id].era < era || era === 2 && TECHS[id].era === 1) state.research.done.push(id);
     if (era === 2) state.research.done = ['pottery', 'smelting'];
     for (const c of Object.values(state.world.chunks)) for (const t of c.tiles) { t.sv = 1; t.vis = 1; }
   }
   spawnAnimals(state);
+  makeTowns(state);
   addLog(state, sandbox ? `Sandbox started in the ${ERAS[era].name} era.` : 'Settlement founded.');
   return state;
 }
@@ -198,29 +204,32 @@ export function checkPlacement(state, kind, x, y) {
     if (!t.vis) return 'Unexplored';
     if (d.onWater) { if (t.t !== T.WATER) return 'Must be on water'; if (t.occ) return 'Occupied'; continue; }
     if (t.t === T.WATER) return 'Water';
-    if (t.occ || t.road || t.rp) return 'Occupied';
+    if (t.occ || t.road || t.rp || t.tocc) return 'Occupied';
     if (t.lvJob) return 'Earthworks in progress';
     if (d.terrain && !d.terrain.includes(t.t)) return 'Needs open grassland';
   }
   if (d.tech && !state.research.done.includes(d.tech)) return `Needs ${TECHS[d.tech].name}`;
-  if (!d.onWater && kind !== 'quarry' && needsLevel(state, tiles) && !canAutoLevel(state)) return 'Not flat';
+  if (!d.onWater && !d.slopeOk && kind !== 'quarry' && needsLevel(state, tiles) && !canAutoLevel(state)) return 'Not flat';
+  if (d.aqueduct && !tiles.some(([tx, ty]) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, c]) => { const n = tile(state, tx + a, ty + c); return n && (n.t === T.WATER || n.t === T.HILL || n.aqP); }))) return 'Must connect to water, a hill spring or an aqueduct';
+  if (d.needsAq && !aqNear(state, tiles, d.needsAq)) return 'Needs an aqueduct nearby';
   if (d.water && !waterNear(state, tiles, d.water)) return 'Needs water nearby';
   if (d.ditch && !tiles.some(([tx, ty]) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, c]) => { const n = tile(state, tx + a, ty + c); return n && (n.t === T.WATER || n.ditchP); }))) return 'Must connect to the river or a ditch';
   if (d.needs && !hasBuilt(state, d.needs)) return `Needs a finished ${BUILDINGS[d.needs].name}`;
-  if (d.extract && d.extract[0] === 'copper' && !d.shaft && !oreNear(state, x, y, d.radius)) return 'No copper or tin found here';
+  if (d.extract && (d.extract[0] === 'copper' || d.extract[0] === 'ironore') && !d.shaft && !oreNear(state, x, y, d.radius, d.extract)) return `No ${d.extract.map(r => DEPOSITS[r].name.toLowerCase()).join(' or ')} found here`;
   if (d.nearWater && !tiles.some(([tx, ty]) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([a, c]) => { const n = tile(state, tx + a, ty + c); return n && n.t === T.WATER; }))) return 'Must be next to the river';
   if (!canAfford(state, d.cost)) return 'Not enough resources';
   return null;
 }
 
-export function oreNear(state, x, y, r) { for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) { const t = tile(state, x + dx, y + dy); if (knownDeposit(t) && (t.dep.r === 'copper' || t.dep.r === 'tin')) return true; } return false; }
+export function oreNear(state, x, y, r, kinds = ['copper', 'tin']) { for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) { const t = tile(state, x + dx, y + dy); if (knownDeposit(t) && kinds.includes(t.dep.r)) return true; } return false; }
+export function aqNear(state, tiles, r, built = false) { for (const [tx, ty] of tiles) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) { const n = tile(state, tx + dx, ty + dy); if (n && (built ? n.aq : n.aqP)) return true; } return false; }
 // river or irrigation ditch within r tiles (planned ditches count, so a field can be laid out with its ditch)
 export function waterNear(state, tiles, r, built = false) {
   for (const [tx, ty] of tiles) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) { const n = tile(state, tx + dx, ty + dy); if (n && (n.t === T.WATER || (built ? n.ditch : n.ditchP))) return true; }
   return false;
 }
 // bronze tools speed up work while the town has some
-export const toolsF = (state) => (state.res.tools || 0) >= 1 ? 1 + TOOLS.boost : 1;
+export const toolsF = (state) => (state.res.tools || 0) >= 1 ? 1 + (state.flags.ironTools ? TOOLS.ironBoost : TOOLS.boost) : 1;
 // flat footprint rule: every tile within a small height tolerance and none steep; with earthworks, a levelling job is added first
 export const FLAT_TOL = 0.12;
 export const tileTopH = (t) => t.t === T.WATER ? 0.08 : t.t === T.HILL ? 0.25 + 0.28 * (t.lv ? 1 : t.h) : 0.25;
@@ -288,7 +297,8 @@ const COMMANDS = {
     pay(state, BUILDINGS[kind].cost);
     const tiles = footprint(kind, x, y);
     for (const [tx, ty] of tiles) { const t = tile(state, tx, ty); if (t.trees) { t.trees = 0; state.dirty.trees = true; } }
-    const lvl = kind !== 'quarry' && !BUILDINGS[kind].onWater && needsLevel(state, tiles);
+    const lvl = kind !== 'quarry' && !BUILDINGS[kind].onWater && !BUILDINGS[kind].slopeOk && needsLevel(state, tiles);
+    if (BUILDINGS[kind].aqueduct) for (const [tx, ty] of tiles) tile(state, tx, ty).aqP = 1;
     if (BUILDINGS[kind].ditch) for (const [tx, ty] of tiles) tile(state, tx, ty).ditchP = 1;
     if (kind === 'bridge' && !rot) { const land = (a, c) => { const n = tile(state, x + a, y + c); return n && (n.t !== T.WATER || n.bridge || (n.occ && state.buildings[n.occ] && state.buildings[n.occ].kind === 'bridge')); }; rot = (land(1, 0) || land(-1, 0)) ? 0 : 1; }
     const b = createBuilding(state, kind, tiles, { rot: rot || 0 });
@@ -510,6 +520,8 @@ function finishBuilding(state, b) {
   reveal(state, b.cx ?? b.x, b.cy ?? b.y, dd && dd.sight ? dd.sight : 4);
   if (dd && dd.onWater) { for (const [x, y] of b.tiles) tile(state, x, y).bridge = 1; state.dirty.roads = true; }
   if (dd && dd.ditch) { for (const [x, y] of b.tiles) tile(state, x, y).ditch = 1; state.dirty.grass = true; }
+  if (dd && dd.aqueduct) for (const [x, y] of b.tiles) tile(state, x, y).aq = 1;
+  if (dd && dd.monument) addLog(state, `The ${dd.name} is complete.`);
   if (b.kind === 'rescue') addLog(state, 'Rescue & Cleanup Post is ready.');
 }
 
@@ -517,6 +529,7 @@ function finishBuilding(state, b) {
 export function matAllowed(b) { return b.mt ? Math.min(1, 0.1 + (b.mg || 0) / b.mt) : 1; }
 export function tick(state) {
   state.tick++;
+  if (!state.towns) makeTowns(state);
   for (const k of RESOURCES) if (state.res[k] === undefined) state.res[k] = 0;
   const hour = state.tick % HOURS_PER_DAY;
   // construction
@@ -549,7 +562,8 @@ export function tick(state) {
   tickCrews(state);
   // research: points per hour
   const pop = popTotal(state);
-  const rp = (pop * 0.06 + 0.4) * (state.research.done.includes('writing') ? 1.5 : 1);
+  let rb = 0; for (const b of Object.values(state.buildings)) { const d = BUILDINGS[b.kind]; if (b.done && !b.ruin && d && d.research) rb += d.research * eff(state, b); }
+  const rp = (pop * 0.06 + 0.4) * (state.research.done.includes('writing') ? 1.5 : 1) * (1 + Math.min(1, rb));
   state.research.points += rp;
   if (state.research.current) {
     state.research.progress += rp;
@@ -602,6 +616,7 @@ function runBuilding(state, b, hours) {
     while (b.acc >= 1) {
       const inp = d.recipe.in;
       if (!Object.keys(inp).every(k => state.res[k] >= inp[k])) { b.acc = Math.min(b.acc, 1); b.info = 'Waiting for inputs'; return; }
+      if (Object.keys(d.recipe.out).every(k => k !== 'money' && (state.res[k] || 0) >= STOCK_CAP)) { b.acc = Math.min(b.acc, 1); return; } // store full: work pauses
       b.acc -= 1; b.info = '';
       for (const k in inp) state.res[k] -= inp[k];
       prog(state, b, 1, Object.keys(d.recipe.out)[0]); for (const k in d.recipe.out) { state.res[k] += d.recipe.out[k]; if (k === 'brick') state.stats.bricksMade += d.recipe.out[k]; if (k === 'bronze') state.stats.bronzeMade += d.recipe.out[k]; const m = state.stats.made = state.stats.made || {}; m[k] = (m[k] || 0) + d.recipe.out[k]; }
@@ -651,6 +666,7 @@ function extractOne(state, b, d) {
 // open quarries and clay pits: workers walk to the nearest exposed source (hill rock, outcrop, clay bank), dig, carry back.
 // Sources deplete (hill rock 20 per tile; deposits by amount); the dug ground becomes a pit (hidden subsidence risk nearby).
 export const QUARRY_REACH = 6;
+export const STOCK_CAP = 400; // workshops pause while their goods pile up past this
 function quarrySource(state, b, d) {
   const cx = b.x, cy = b.y, R = QUARRY_REACH, maxD = Math.min(d.maxDepth, ERAS[state.era].maxDepth), res = d.extract[0];
   let best = null;
@@ -798,6 +814,7 @@ function dailyTick(state) {
   let sold = 0;
   for (const b of Object.values(state.buildings)) { const d = BUILDINGS[b.kind]; if (!b.done || b.ruin || !d || !d.sells) continue; let cap = 6 * eff(state, b); for (const [k, price] of Object.entries(d.sells)) { const n = Math.min(cap, Math.floor(state.res[k] || 0) - (k === 'tools' ? 4 : 0)); if (n > 0) { state.res[k] -= n; state.res.money += n * price; cap -= n; sold += n; } } }
   state.goodsSold = sold;
+  tickTowns(state);
   if ((state.res.tools || 0) > 0) state.res.tools = Math.max(0, state.res.tools - employed * TOOLS.wearPerWorkerDay);
   const shopIncome = Math.min(pop, shopCap) * 0.35;
   const income = employed * 0.8 + (pop - employed) * 0.1 + shopIncome;
@@ -805,10 +822,10 @@ function dailyTick(state) {
   state.res.money += income - upkeep;
   // happiness (numbers only)
   const homes = Object.values(state.buildings).filter(b => capOf(b) && b.done && !b.ruin);
-  const wells = Object.values(state.buildings).filter(b => b.kind === 'well' && b.done);
+  const wells = Object.values(state.buildings).filter(b => b.done && !b.ruin && BUILDINGS[b.kind] && BUILDINGS[b.kind].waterSupply && (!BUILDINGS[b.kind].needsAq || aqNear(state, b.tiles, BUILDINGS[b.kind].needsAq, true)));
   let watered = 0, homePop = 0;
   const nearRiver = (b) => { for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) { const t = tile(state, b.x + dx, b.y + dy); if (t && t.t === T.WATER) return true; } return false; };
-  for (const h of homes) { homePop += h.residents; if (wells.some(w => Math.max(Math.abs(w.x - h.x), Math.abs(w.y - h.y)) <= 5) || nearRiver(h)) watered += h.residents; }
+  for (const h of homes) { homePop += h.residents; if (wells.some(w => Math.max(Math.abs(w.x - h.x), Math.abs(w.y - h.y)) <= (BUILDINGS[w.kind].radius || 5)) || nearRiver(h)) watered += h.residents; }
   const waterFrac = homePop ? watered / homePop : 1;
   const unempFrac = pop ? (state.unemployed || 0) / pop : 0;
   const F = [];
@@ -822,7 +839,8 @@ function dailyTick(state) {
   h += state.decorHappy || 0;
   // health: fed, watered, a healer nearby
   const healer = Object.values(state.buildings).some(b => b.kind === 'rescue' && b.done && !b.ruin);
-  state.health = Math.max(0, Math.min(100, Math.round(40 + (state.hungry ? -25 : 30) + waterFrac * 15 + (healer ? 15 : 0) - state.grief)));
+  let hb = 0; for (const b of Object.values(state.buildings)) { const d = BUILDINGS[b.kind]; if (b.done && !b.ruin && d && d.health && (!d.needsAq || aqNear(state, b.tiles, d.needsAq, true))) hb += d.health; }
+  state.health = Math.max(0, Math.min(100, Math.round(40 + (state.hungry ? -25 : 30) + waterFrac * 15 + (healer ? 15 : 0) + Math.min(15, hb) - state.grief)));
   h -= state.grief;
   state.happiness = Math.max(0, Math.min(100, Math.round(h)));
   state.waterFrac = waterFrac; state.shopCap = shopCap;
@@ -995,5 +1013,10 @@ export function deserialize(json) {
   const s = JSON.parse(json);
   if (s.version !== SAVE_VERSION) throw new Error('Save version mismatch');
   s.dirty = { all: true }; s.draft = []; { let nb = true; for (const c of Object.values(s.world.chunks)) for (const t of c.tiles) if (t.berryMax !== undefined) nb = false; if (nb) addBerries(s.world, s.seed | 0); } { let need = false; for (const c of Object.values(s.world.chunks)) for (const t of c.tiles) if (t.t === T.WATER && t.wd === undefined) need = true; if (need) classifyWater(s.world, s.seed | 0); } s.roadRemove = s.roadRemove || []; s.saplingTiles = s.saplingTiles || []; s.earthworks = s.earthworks || []; s.roadJobs = s.roadJobs || []; s.units = s.units || [];
+  { // saves from before the Iron era have no iron ore: add it with the same geology rules
+    let fe = false; for (const c of Object.values(s.world.chunks)) for (const t of c.tiles) if (t.dep && t.dep.r === 'ironore') fe = true;
+    if (!fe) { const seed = s.seed | 0; for (let y = 0; y < SIZE; y++) for (let x = 0; x < SIZE; x++) { const t = tile(s, x, y); if (!t || t.occ) continue; const r = hash2(seed + 21, x, y);
+      if (t.t === T.HILL && (!t.dep || (t.dep.r === 'stone' && !t.pit)) && noise(seed + 61, x, y, 4) > 0.7) t.dep = { r: 'ironore', amt: 120 + Math.floor(r * 160), depth: 2 + Math.floor(r * 6), grade: 0.7 }; } }
+  }
   return s;
 }

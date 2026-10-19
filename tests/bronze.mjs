@@ -23,6 +23,7 @@ const spots = []; for (let r = 3; r < 14 && spots.length < 12; r++) for (let dy 
 for (const kind of ['bronzesmith', 'potter', 'weaver', 'sheep', 'flax', 'market', 'smelter', 'mudhouse', 'longhouse']) {
   const sp = spots.find(([x, y]) => !S.checkPlacement(s, kind, x, y)); ok(sp, `no spot for ${kind}`); if (sp) { ids[kind] = place(kind, sp); spots.splice(spots.indexOf(sp), 1); }
 }
+s.res.cloth = s.res.pots = 0; // outputs start empty (stores pause when full)
 const money0 = s.res.money;
 for (let h = 0; h < 24 * 20; h++) S.tick(s);
 for (const [k, id] of Object.entries(ids)) ok(s.buildings[id] && s.buildings[id].done, `${k} not finished`);

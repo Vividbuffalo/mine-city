@@ -2,7 +2,9 @@
 // Jobs: gather (walk to a tree / stone outcrop / clay bank / berry bush, work it, carry a load to the nearest store, repeat
 // on nearby resources of the same kind) and build (walk to a construction site and speed it up). Ticked once per game hour.
 import { tile, T, addLog, knownDeposit, rand, footprint, matAllowed } from './sim.js';
-import { GATHER, VILLAGER, BUILDINGS } from './data.js';
+import { GATHER, VILLAGER, BUILDINGS, HORSES } from './data.js';
+// with horses and carts villagers carry bigger loads
+const vload = (state) => VILLAGER.load * (state.flags && state.flags.horses && state.flags.carts ? HORSES.cartLoad : 1);
 import { orderMove } from './units.js';
 
 // which resource a tile offers to a villager, if any
@@ -79,7 +81,7 @@ export function tickVillagers(state) {
   const bonus = gatherBonus(state);
   for (const u of state.units || []) {
     if (!isVillager(u)) continue;
-    const j = u.job; if (u.path.length) { u.vstate = u.carry && u.carry.site ? 'hauling' : u.carry && u.carry.n >= VILLAGER.load ? 'returning' : 'walking'; continue; }
+    const j = u.job; if (u.path.length) { u.vstate = u.carry && u.carry.site ? 'hauling' : u.carry && u.carry.n >= vload(state) ? 'returning' : 'walking'; continue; }
     if (!j) { u.vstate = 'idle'; continue; }
     if (j.type === 'build') {
       const b = state.buildings[j.id];
@@ -95,14 +97,14 @@ export function tickVillagers(state) {
         if (st) {
           if (dist(u, st.x, st.y) > 1.6) { go(state, u, st.x, st.y); u.vstate = 'fetching'; continue; }
           if (u.carry && !u.carry.site) { state.res[u.carry.res] += u.carry.n; state.stats.gathered = (state.stats.gathered || 0) + u.carry.n; }
-          u.carry = { res: mainMat(b), n: Math.min(VILLAGER.load, need), site: b.id }; go(state, u, b.x, b.y); u.vstate = 'hauling'; continue;
+          u.carry = { res: mainMat(b), n: Math.min(vload(state), need), site: b.id }; go(state, u, b.x, b.y); u.vstate = 'hauling'; continue;
         }
       }
       if (dist(u, b.x, b.y) > 1.6) { go(state, u, b.x, b.y); continue; }
       u.vstate = 'building'; continue;
     }
     // gather
-    const full = u.carry && u.carry.n >= VILLAGER.load - 1e-6;
+    const full = u.carry && u.carry.n >= vload(state) - 1e-6;
     if (full || (u.carry && u.carry.n > 0 && j.done)) {
       const st = nearestStore(state, u); if (!st) { u.info = 'No camp or storage to bring goods to'; u.vstate = 'idle'; continue; }
       if (dist(u, st.x, st.y) > 1.6) { go(state, u, st.x, st.y); u.vstate = 'returning'; continue; }
@@ -116,7 +118,7 @@ export function tickVillagers(state) {
       j.done = true; if (u.carry && u.carry.n > 0) continue; u.job = null; u.vstate = 'idle'; u.info = 'Nothing left nearby'; continue;
     }
     if (dist(u, j.x, j.y) > 1.6) { go(state, u, j.x, j.y); continue; }
-    const g = GATHER[j.res], amt = Math.min(g.rate * bonus, VILLAGER.load - (u.carry ? u.carry.n : 0));
+    const g = GATHER[j.res], amt = Math.min(g.rate * bonus, vload(state) - (u.carry ? u.carry.n : 0));
     const got = takeFrom(state, j.res, j.x, j.y, amt);
     if (!u.carry) u.carry = { res: j.res, n: 0 }; u.carry.n += got; u.vstate = 'working'; u.info = '';
   }

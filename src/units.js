@@ -59,7 +59,7 @@ export function tickUnits(state, hours = 1) {
   if ((state.units || []).some(u => u.dead)) state.units = state.units.filter(u => !u.dead);
   for (const u of state.units || []) {
     u.px = u.x; u.py = u.y; if (!u.path.length) continue;
-    const ut = UNIT_TYPES[u.kind]; let budget = ut.speed * hours;
+    const ut = UNIT_TYPES[u.kind]; let budget = ut.speed * hours * (u.kind === 'scout' && state.flags && state.flags.horses ? 1.7 : 1);
     while (budget > 1e-6 && u.path.length) {
       const [nx, ny] = u.path[0], c = moveCost(state, ut, nx, ny);
       if (c === Infinity) { const r = orderMove(state, u, u.dest[0], u.dest[1]); if (!r.ok) { u.path = []; u.state = 'blocked'; if (!ut.quiet) addLog(state, `${ut.name} found no way to (${u.dest[0]}, ${u.dest[1]}).`); } break; }

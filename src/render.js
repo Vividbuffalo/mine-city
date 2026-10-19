@@ -11,6 +11,7 @@ import { tile, SIZE, T, stageOf, tileRisk, CREW_SPEED, saplingStage, knownDeposi
 import { DEPOSITS, BLOCKS, HOURS_PER_DAY, SAPLING, BUILDINGS } from './data.js';
 import { buildModel } from './models.js';
 import { ANIMALS } from './animals.js';
+import { TOWN_KINDS } from './towns.js';
 
 const TOP = (t) => t.t === T.WATER ? 0.08 : t.t === T.HILL ? 0.25 + 0.28 * t.h : 0.25;
 export const tileTop = TOP;
@@ -50,7 +51,7 @@ export class Renderer {
     this.sun.shadow.bias = -0.0004; this.sun.shadow.normalBias = 0.03; this.sun.shadow.radius = 3;
     this.scene.add(this.sun, this.sun.target);
     this.groups = {};
-    for (const k of ['terrain', 'earth', 'water', 'trees', 'grass', 'berries', 'roads', 'buildings', 'proxies', 'units', 'under', 'overlay', 'vehicles', 'draft', 'ghost', 'fx', 'workers', 'animals']) { this.groups[k] = new THREE.Group(); this.scene.add(this.groups[k]); }
+    for (const k of ['terrain', 'earth', 'water', 'trees', 'grass', 'berries', 'roads', 'buildings', 'proxies', 'units', 'under', 'overlay', 'vehicles', 'draft', 'ghost', 'fx', 'workers', 'animals', 'towns']) { this.groups[k] = new THREE.Group(); this.scene.add(this.groups[k]); }
     this.bvis = new Map(); this.vvis = new Map(); this.uvis = new Map(); this.selUnit = null; this.windowMats = new Set();
     this.underground = false; this.clock = 0; this.night = 0;
     this.uTime = { value: 0 }; this.initFog();
@@ -630,7 +631,7 @@ export class Renderer {
       const target = b.ruin ? 4 : stageOf(b);
       if (!v) {
         v = { root: new THREE.Group(), stages: {}, emit: {}, vis: target, fade: null, lod: 0, proxyGeo: null, proxyKey: -1 };
-        const t0 = tile(state, b.tiles[0][0], b.tiles[0][1]), s = b.kind === 'custom' ? 1 : (b.tiles.length === 4 ? 2 : 1);
+        const t0 = tile(state, b.tiles[0][0], b.tiles[0][1]), s = b.kind === 'custom' ? 1 : Math.round(Math.sqrt(b.tiles.length));
         v.root.position.set(b.tiles[0][0] + s / 2, this.topXY(b.tiles[0][0], b.tiles[0][1]), b.tiles[0][1] + s / 2);
         v.root.rotation.y = (b.rot || 0) * Math.PI / 2; v.root.userData.bid = b.id;
         this.groups.buildings.add(v.root); this.bvis.set(b.id, v);
@@ -842,6 +843,24 @@ export class Renderer {
     g.userData.legs = []; for (const [sx, sz] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) { const l = new THREE.Mesh(new THREE.BoxGeometry(W * 0.22, LL, W * 0.22), M(C[0])); l.geometry.translate(0, -LL / 2, 0); l.position.set(sx * W * 0.32, LL, sz * L * 0.36); l.castShadow = true; body.add(l); g.userData.legs.push(l); }
     g.userData.body = body; g.userData.head = head; g.scale.setScalar(1.5); return g;
   }
+  // neighbouring towns: their houses in their own style, a banner in the town colour; only where explored
+  syncTowns(state) {
+    if (!state.towns) return;
+    this.townVis = this.townVis || new Map(); const seen = new Set();
+    for (const town of state.towns) {
+      const K = TOWN_KINDS[town.kind];
+      town.houses.forEach((p, i) => {
+        const t = tile(state, p.x, p.y); if (!t || !t.vis) return;
+        const key = town.id + ':' + i + ':' + p.kind; seen.add(key); if (this.townVis.has(key)) return;
+        const { group } = buildModel({ id: 0, kind: p.kind, tiles: [[p.x, p.y]], rot: p.rot }, 3, () => 0);
+        group.position.set(p.x + 0.5, this.topXY(p.x, p.y), p.y + 0.5); group.rotation.y = p.rot * Math.PI / 2;
+        if (i === 0) { const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.7, 5), new THREE.MeshStandardMaterial({ color: 0x5e3d22 })); pole.position.set(0.38, 0.35, 0.38); const flag = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.12, 0.01), new THREE.MeshStandardMaterial({ color: K.color, roughness: 0.9 })); flag.position.set(0.48, 0.62, 0.38); group.add(pole, flag); }
+        group.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+        this.groups.towns.add(group); this.townVis.set(key, group);
+      });
+    }
+    for (const [k, g] of this.townVis) if (!seen.has(k)) { this.groups.towns.remove(g); g.traverse(o => { if (o.isMesh) o.geometry.dispose(); }); this.townVis.delete(k); }
+  }
   syncAnimals(state, frac, dt) {
     this.avis = this.avis || new Map(); const seen = new Set();
     for (const a of state.animals || []) {
@@ -1030,6 +1049,8 @@ export class Renderer {
     }
     if (d.all || d.berries || d.terrain || d.buildings || d.roads) this.buildBerries(state);
     if (this.earthKey !== undefined && this.earthKey !== this.earthStageKey(state)) this.buildEarth(state);
+    if (d.all && this.townVis) { for (const g of this.townVis.values()) this.groups.towns.remove(g); this.townVis.clear(); }
+    if (d.all || d.towns || d.fog) this.syncTowns(state);
     state.dirty = {};
     this.syncFelling(state, dt);
     this.syncBuildings(state, dt, speed); this.syncVehicles(state, frac, dt); this.syncUnits(state, frac, dt); this.syncAnimals(state, frac, dt); this.syncWorkers(state, dt); this.updateParticles(dt);

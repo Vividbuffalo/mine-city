@@ -10,7 +10,7 @@ export const ANIMALS = {
   wolf: { name: 'Wolf', biome: [1], herds: 2, herd: [2, 3], range: 7, speed: 2.0, territory: 2.2, minStart: 15 },
   bear: { name: 'Brown bear', biome: [1, 2], herds: 2, herd: [1, 1], range: 5, speed: 1.1, territory: 1.6, nearHill: true, minStart: 14 },
 };
-const HIT = 0.45; // chance per hour of contact that an attack lands
+const HIT = 0.35; // chance per hour of contact that an attack lands
 
 function passable(state, x, y) { const t = tile(state, Math.round(x), Math.round(y)); return !!t && t.t !== T.WATER && !t.occ && !(t.t === T.HILL && t.h >= 2 && !t.lv); }
 function near(state, x, y, kind, r) { let n = 0; for (const a of state.animals || []) if (a.kind === kind && Math.hypot(a.x - x, a.y - y) <= r) n++; return n; }
@@ -48,7 +48,7 @@ function stepToward(state, a, tx, ty, sp) {
 }
 function hitUnit(state, a, u) {
   const A = ANIMALS[a.kind];
-  u.hp = (u.hp ?? 2) - 1; u.hurtT = state.tick; a.cd = 2;
+  u.hp = (u.hp ?? 2) - 1; u.hurtT = state.tick; a.cd = 2; a.calm = 36; // after driving someone off the animal settles down for a while
   const ut = u.kind === 'villager' ? 'Villager' : 'Scout';
   if (u.hp <= 0) { u.dead = true; state.dirty.units = true; addLog(state, `${ut} killed by a ${A.name.toLowerCase()} at (${Math.round(u.x)}, ${Math.round(u.y)}).`); state.stats.deaths++; state.grief = (state.grief || 0) + 2; return; }
   // wounded: run away from the animal
@@ -60,7 +60,7 @@ export function tickAnimals(state) {
   if (!state.animals) spawnAnimals(state);
   const units = (state.units || []).filter(u => !u.dead);
   for (const a of state.animals) {
-    a.px = a.x; a.py = a.y; const A = ANIMALS[a.kind]; if (a.cd > 0) a.cd--;
+    a.px = a.x; a.py = a.y; const A = ANIMALS[a.kind]; if (a.cd > 0) a.cd--; if (a.calm > 0) a.calm--;
     const homeD = Math.hypot(a.x - a.hx, a.y - a.hy);
     let nearest = null, nd = 1e9; for (const u of units) { const d = Math.hypot(u.x - a.x, u.y - a.y); if (d < nd) { nd = d; nearest = u; } }
     if (A.flee && nearest && nd < A.flee) { // prey bolts away (but stays near home)
@@ -69,7 +69,7 @@ export function tickAnimals(state) {
       a.st = 'run'; stepToward(state, a, tx, ty, A.speed * 1.8); continue;
     }
     const reach = A.territory || A.provoke || 0;
-    if (reach && nearest && nd < reach && homeD < A.range + 1 && !(nearest.fleeing && nearest.path && nearest.path.length)) {
+    if (reach && !(a.calm > 0) && nearest && nd < reach && homeD < A.range + 1 && !(nearest.fleeing && nearest.path && nearest.path.length)) {
       a.st = 'attack'; stepToward(state, a, nearest.x, nearest.y, A.speed * 1.4);
       if (Math.hypot(nearest.x - a.x, nearest.y - a.y) <= 1.05 && a.cd <= 0) { if (rand(state) < HIT) hitUnit(state, a, nearest); else a.cd = 1; }
       continue;
