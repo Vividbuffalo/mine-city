@@ -732,6 +732,7 @@ float cloudShade(vec2 w) { if (uCloud <= 0.0) return 1.0; vec2 p = w * 0.045 - v
     if (!edge.length) return;
     // roads drape over the ground (graded tracks follow the slope instead of floating as flat slabs)
     for (const [list, color, off] of [[edge, 0x9c8a6c, 0.012], [surf, 0xcdb994, 0.018], [rut, 0xa8936f, 0.021]]) {
+      if (!list.length) continue; // e.g. a lone road tile has no ruts; mergeGeometries([]) throws and froze the frame loop (v3.6.1)
       const parts = [];
       for (const p of list) { const sx = Math.max(1, Math.ceil(p[3] * 4)), sz = Math.max(1, Math.ceil(p[4] * 4)), pg = new THREE.PlaneGeometry(p[3], p[4], sx, sz); pg.rotateX(-Math.PI / 2); pg.translate(p[0], 0, p[2]); const pa = pg.attributes.position; for (let i = 0; i < pa.count; i++) pa.setY(i, this.heightAt(pa.getX(i), pa.getZ(i)) + off); pg.deleteAttribute('uv'); pg.computeVertexNormals(); parts.push(pg); }
       const m = new THREE.Mesh(mergeGeometries(parts), new THREE.MeshStandardMaterial({ color, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 })); m.receiveShadow = true; g.add(m);
@@ -1331,20 +1332,21 @@ float cloudShade(vec2 w) { if (uCloud <= 0.0) return 1.0; vec2 p = w * 0.045 - v
     if (d.fog && !d.all && this.seen) { const k = this.computeSeen(state).join(''); if (k !== this.seenKey) d.terrain = true; }
     this.stepFog(dt);
     if (d.under && !d.all && !this.underground) { this.underStale = true; d.under = false; }
+    if (!d.all && (d.roads || d.buildings) && !d.terrain) d.grass = true; // road/building changes re-lay grass, but through the limiter below
     if (!d.all && (d.terrain || d.trees || d.grass || d.under)) { const now = performance.now(); if (now - (this.lastHeavy || 0) < 330) { this.pend = Object.assign(this.pend || {}, { terrain: d.terrain, trees: d.trees, grass: d.grass, under: d.under }); d.terrain = d.trees = d.grass = d.under = false; } else this.lastHeavy = now; }
     if (this.pend && performance.now() - (this.lastHeavy || 0) >= 330) { for (const k in this.pend) if (this.pend[k]) d[k] = true; this.pend = null; this.lastHeavy = performance.now(); }
     if (d.all) { this.buildTerrain(state); this.buildTrees(state); this.buildGrass(state); this.buildRoads(state); this.buildEarth(state); this.buildUnder(state); this.buildOverlay(state); this.buildDraft(state); for (const v of this.bvis.values()) { this.groups.buildings.remove(v.root); this.disposeVis(v); } this.bvis.clear(); this.clearProxies(); }
     else {
       if (d.terrain) this.buildTerrain(state);
       if (d.trees || d.terrain) this.buildTrees(state);
-      if (d.grass || d.terrain || d.roads || d.buildings) this.buildGrass(state);
+      if (d.grass || d.terrain) this.buildGrass(state);
       if (d.roads) this.buildRoads(state);
       if (d.earth || d.terrain) this.buildEarth(state);
       if (d.under || d.buildings) this.buildUnder(state);
       if (d.overlay || (d.buildings && state.flags.riskOverlay)) this.buildOverlay(state);
       if (d.draft) this.buildDraft(state);
     }
-    if (d.all || d.berries || d.terrain || d.buildings || d.roads) this.buildBerries(state);
+    if (d.all || d.berries || d.terrain || d.grass) this.buildBerries(state);
     if (this.earthKey !== undefined && this.earthKey !== this.earthStageKey(state)) this.buildEarth(state);
     if (d.all && this.townVis) { for (const g of this.townVis.values()) this.groups.towns.remove(g); this.townVis.clear(); }
     if (d.all || d.towns || d.fog) this.syncTowns(state);

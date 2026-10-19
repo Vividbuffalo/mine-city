@@ -286,13 +286,15 @@ function roadTap(p) {
 function roadExtend(x, y) {
   const P = ui.roadPath; let [cx, cy] = P[P.length - 1]; if (cx === x && cy === y) return;
   const ax = Math.abs(x - cx), ay = Math.abs(y - cy), sx = Math.sign(x - cx), sy = Math.sign(y - cy);
-  for (let g = 0; (cx !== x || cy !== y) && g < 400; g++) {
+  for (let g = 0; (cx !== x || cy !== y) && g < 400 && P.length < 400; g++) {
     const rx = Math.abs(x - cx), ry = Math.abs(y - cy);
     if (rx > 0 && rx * ay >= ry * ax) cx += sx; else cy += sy;
     const k = P.length; if (k >= 2 && P[k - 2][0] === cx && P[k - 2][1] === cy) P.pop(); else if (!P.some(q => q[0] === cx && q[1] === cy)) P.push([cx, cy]);
   }
 }
-function roadPreview() {
+let roadPrevQ = false;
+function roadPreview() { if (roadPrevQ) return; roadPrevQ = true; requestAnimationFrame(() => { roadPrevQ = false; if (ui.roadPath) roadPreviewNow(); }); }
+function roadPreviewNow() {
   const P = ui.roadPath || []; let prev = null;
   renderer.setRoadPreview(P.map(([x, y]) => { const t = S.tile(state, x, y); let ok = !!t && t.vis && t.t !== S.T.WATER && !t.occ && !S.isSteep(t); if (ok && prev && Math.abs(S.tileTopH(t) - S.tileTopH(prev)) > 0.3) ok = false; if (t) prev = t; return [x, y, ok ? (t.trees ? 2 : 1) : 0]; }));
 }
@@ -686,7 +688,7 @@ function loop(now) {
   const ix = (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0);
   const iz = (keys.has('w') || keys.has('arrowup') ? 1 : 0) - (keys.has('s') || keys.has('arrowdown') ? 1 : 0);
   renderer.panInput(ix, iz, dt);
-  renderer.frame(state, ui.speed > 0 ? ui.acc : 0, dt, ui.speed || 1);
+  try { renderer.frame(state, ui.speed > 0 ? ui.acc : 0, dt, ui.speed || 1); } catch (err) { console.warn('frame', err); state.dirty = {}; } // one bad rebuild must never stop the game loop
   hudT += dt; if (hudT > 0.25) { hudT = 0; hud(); }
   cycleTick(); progressBars();
   requestAnimationFrame(loop);
